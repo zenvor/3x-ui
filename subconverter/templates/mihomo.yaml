@@ -1,0 +1,133 @@
+# subconverter Mihomo subscription template
+# Adapted from sublinker. Targets Mihomo (https://github.com/MetaCubeX/mihomo).
+# Render-time placeholders are documented in subconverter/service/yaml.go.
+
+mixed-port: 7890
+allow-lan: false
+mode: rule
+log-level: info
+external-controller: 127.0.0.1:9090
+
+tcp-concurrent: true
+unified-delay: true
+
+ipv6: true
+
+sniffer:
+  enable: true
+  sniff:
+    TLS:
+      ports: [443, 8443]
+    HTTP:
+      ports: [80, 8080-8880]
+      override-destination: true
+  skip-domain:
+    - "Mijia Cloud"
+    - "+.push.apple.com"
+
+geodata-mode: true
+geo-auto-update: true
+geo-update-interval: 24
+
+geox-url:
+  geoip: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat'
+  geosite: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat'
+
+dns:
+  enable: true
+  listen: 127.0.0.1:1053
+  ipv6: false
+  enhanced-mode: fake-ip
+  cache-algorithm: arc
+  prefer-h3: false
+  use-hosts: true
+  use-system-hosts: true
+  respect-rules: false
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter-mode: blacklist
+  fake-ip-filter:
+    - '+.lan'
+    - '+.local'
+    - '+.ptlogin2.qq.com'
+    - 'geosite:category-ntp'
+    - 'geosite:category-ntp-cn'
+    - 'geosite:category-ntp-jp'
+    - '+.l.google.com'
+    - '+.miwifi.com'
+    - '+.voip.qq.com'
+    - 'stun.qq.com'
+
+  default-nameserver:
+    - 119.29.29.29
+    - 223.5.5.5
+
+  nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+
+  fallback:
+    - https://8.8.8.8/dns-query#PROXY
+    - https://1.1.1.1/dns-query#PROXY
+
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+    ipcidr:
+      - 240.0.0.0/4
+    geosite:
+      - gfw
+
+  proxy-server-nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+
+  direct-nameserver:
+    - system
+
+  nameserver-policy:
+    'geosite:cn,private':
+      - https://doh.pub/dns-query
+      - https://dns.alidns.com/dns-query
+    'geosite:gfw,geolocation-!cn':
+      - https://8.8.8.8/dns-query#PROXY
+      - https://1.1.1.1/dns-query#PROXY
+
+profile:
+  store-selected: true
+  store-fake-ip: true
+
+proxy-providers:
+  main:
+    type: http
+    url: '__API_DOMAIN__/feed/__TOKEN__/nodes'
+    path: ./providers/main.yaml
+    interval: 86400
+    override:
+      ip-version: ipv6-prefer
+    health-check:
+      enable: true
+      url: https://cp.cloudflare.com/generate_204
+      interval: 300
+      timeout: 5000
+      lazy: true
+
+proxy-groups:
+  - name: PROXY
+    type: select
+    use:
+      - main
+
+rules:
+  - GEOSITE,category-ads-all,REJECT
+  - DOMAIN,www.icloud.com,PROXY
+  - DOMAIN-SUFFIX,icloud-content.com,PROXY
+  - GEOSITE,private,DIRECT
+  - GEOSITE,icloud,DIRECT
+  - GEOSITE,apple-cn,DIRECT
+  - GEOSITE,category-games@cn,DIRECT
+  - GEOSITE,tld-cn,DIRECT
+  - GEOSITE,geolocation-!cn,PROXY
+  - GEOSITE,cn,DIRECT
+  - GEOIP,lan,DIRECT,no-resolve
+  - GEOIP,CN,DIRECT,no-resolve
+  - MATCH,PROXY

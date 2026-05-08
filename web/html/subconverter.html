@@ -1,0 +1,596 @@
+{{ template "page/head_start" .}}
+{{ template "page/head_end" .}}
+
+{{ template "page/body_start" .}}
+<style>
+  /*
+   * 3X-UI scopes its content-area margin to per-page classes
+   * (.index-page, .inbounds-page, etc. — see custom.min.css). Add the same
+   * scoped rule for our page so the layout matches the rest of the panel
+   * without touching the upstream CSS file.
+   */
+  .subconverter-page .ant-layout-content { margin: 24px 16px; }
+</style>
+<a-layout id="app" v-cloak :class="themeSwitcher.currentTheme + ' subconverter-page'">
+  <a-sidebar></a-sidebar>
+  <a-layout id="content-layout">
+    <a-layout-content>
+      <a-spin :spinning="loadingStates.spinning" :delay="500" tip='{{ i18n "loading" }}'>
+        <transition name="list" appear>
+          <a-alert type="error" v-if="showAlert && loadingStates.fetched" :style="{ marginBottom: '10px' }"
+            message='{{ i18n "secAlertTitle" }}' color="red" description='{{ i18n "secAlertSsl" }}' show-icon closable>
+          </a-alert>
+        </transition>
+        <transition name="list" appear>
+          <a-row v-if="!loadingStates.fetched">
+            <a-card
+              :style="{ textAlign: 'center', padding: '30px 0', marginTop: '10px', background: 'transparent', border: 'none' }">
+              <a-spin tip='{{ i18n "loading" }}'></a-spin>
+            </a-card>
+          </a-row>
+          <a-row :gutter="[isMobile ? 8 : 16, isMobile ? 0 : 12]" v-else>
+          <a-col>
+            <a-card size="small" :style="{ padding: '16px' }" hoverable>
+              <a-row>
+                <a-col :sm="12" :md="8">
+                  <a-custom-statistic title='{{ i18n "pages.subconverter.totalCount" }}' :value="String(stats.total)">
+                    <template #prefix>
+                      <a-icon type="container"></a-icon>
+                    </template>
+                  </a-custom-statistic>
+                </a-col>
+                <a-col :sm="12" :md="8">
+                  <a-custom-statistic
+                    title='{{ i18n "pages.subconverter.enabledCount" }}'
+                    :value="String(stats.enabled)"
+                    :style="{ marginTop: isMobile ? '10px' : 0 }">
+                    <template #prefix>
+                      <a-icon type="check-circle"></a-icon>
+                    </template>
+                  </a-custom-statistic>
+                </a-col>
+                <a-col :sm="12" :md="8">
+                  <a-custom-statistic
+                    title='{{ i18n "pages.subconverter.inboundRefs" }}'
+                    :value="String(stats.inboundRefs)"
+                    :style="{ marginTop: isMobile ? '10px' : 0 }">
+                    <template #prefix>
+                      <a-icon type="api"></a-icon>
+                    </template>
+                  </a-custom-statistic>
+                </a-col>
+              </a-row>
+            </a-card>
+          </a-col>
+
+          <a-col>
+            <a-card hoverable>
+              <template #title>
+                <a-space direction="horizontal">
+                  <a-button type="primary" icon="plus" @click="openCreate">
+                    <template v-if="!isMobile">{{ i18n "pages.subconverter.create" }}</template>
+                  </a-button>
+                </a-space>
+              </template>
+              <template #extra>
+                <a-button-group>
+                  <a-button icon="sync" @click="manualRefresh" :loading="refreshing"></a-button>
+                  <a-popover placement="bottomRight" trigger="click" :overlay-class-name="themeSwitcher.currentTheme">
+                    <template #title>
+                      <div class="ant-custom-popover-title">
+                        <a-switch v-model="isRefreshEnabled" @change="toggleRefresh" size="small"></a-switch>
+                        <span>{{ i18n "pages.inbounds.autoRefresh" }}</span>
+                      </div>
+                    </template>
+                    <template #content>
+                      <a-space direction="vertical">
+                        <span>{{ i18n "pages.inbounds.autoRefreshInterval" }}</span>
+                        <a-select v-model="refreshInterval" :disabled="!isRefreshEnabled" :style="{ width: '100%' }"
+                          @change="changeRefreshInterval" :dropdown-class-name="themeSwitcher.currentTheme">
+                          <a-select-option v-for="key in [5, 10, 30, 60]" :value="key * 1000">[[ key ]]s</a-select-option>
+                        </a-select>
+                      </a-space>
+                    </template>
+                    <a-button icon="down"></a-button>
+                  </a-popover>
+                </a-button-group>
+              </template>
+
+              <a-space direction="vertical" :style="{ width: '100%' }">
+                <div :style="isMobile ? {} : { display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }">
+                  <a-switch
+                    v-model="enableFilter"
+                    :style="isMobile ? { marginBottom: '.5rem', display: 'flex' } : { marginRight: '.5rem' }"
+                    @change="toggleFilter">
+                    <a-icon slot="checkedChildren" type="search"></a-icon>
+                    <a-icon slot="unCheckedChildren" type="filter"></a-icon>
+                  </a-switch>
+                  <a-input
+                    v-if="!enableFilter"
+                    v-model.lazy="searchKey"
+                    :placeholder="`{{ i18n "pages.subconverter.searchPlaceholder" }}`"
+                    autofocus
+                    :style="{ maxWidth: '300px' }"
+                    :size="isMobile ? 'small' : ''"></a-input>
+                  <a-radio-group
+                    v-if="enableFilter"
+                    v-model="filterBy"
+                    @change="filterSubscriptions"
+                    button-style="solid"
+                    :size="isMobile ? 'small' : ''">
+                    <a-radio-button value="">{{ i18n "none" }}</a-radio-button>
+                    <a-radio-button value="enabled">{{ i18n "enabled" }}</a-radio-button>
+                    <a-radio-button value="disabled">{{ i18n "disabled" }}</a-radio-button>
+                  </a-radio-group>
+                </div>
+
+                <a-table
+                  :columns="columns"
+                  :data-source="searchedSubscriptions"
+                  row-key="id"
+                  size="small"
+                  :pagination="pagination(searchedSubscriptions)"
+                  :scroll="isMobile ? {} : { x: 900 }"
+                  :style="{ marginTop: '10px' }"
+                  :locale="{ emptyText: '{{ i18n "noData" }}' }">
+
+                  <template slot="menu" slot-scope="text, record">
+                    <a-dropdown :trigger="['click']">
+                      <a-icon
+                        @click="e => e.preventDefault()"
+                        type="more"
+                        :style="{ fontSize: '20px' }"></a-icon>
+                      <a-menu slot="overlay" @click="a => clickMenu(a, record)" :theme="themeSwitcher.currentTheme">
+                        <a-menu-item key="edit">
+                          <a-icon type="edit"></a-icon>
+                          {{ i18n "edit" }}
+                        </a-menu-item>
+                        <a-menu-item key="copyUrl">
+                          <a-icon type="copy"></a-icon>
+                          {{ i18n "pages.subconverter.copyFeedUrl" }}
+                        </a-menu-item>
+                        <a-menu-item key="copyProvider">
+                          <a-icon type="api"></a-icon>
+                          {{ i18n "pages.subconverter.copyProviderUrl" }}
+                        </a-menu-item>
+                        <a-menu-item key="delete" :style="{ color: '#FF4D4F' }">
+                          <a-icon type="delete"></a-icon>
+                          {{ i18n "delete" }}
+                        </a-menu-item>
+                      </a-menu>
+                    </a-dropdown>
+                  </template>
+
+                  <template slot="enable" slot-scope="text, record">
+                    <a-switch
+                      :checked="record.enable"
+                      :loading="record._toggling"
+                      @change="checked => toggleEnabled(record, checked)"></a-switch>
+                  </template>
+
+                  <template slot="limitIp" slot-scope="text, record">
+                    <span v-if="record.limitIp === 0">{{ i18n "unlimited" }}</span>
+                    <span v-else>[[ record.limitIp ]]</span>
+                  </template>
+
+                  <template slot="inbounds" slot-scope="text, record">
+                    <a-tag v-for="ib in (record.inbounds || [])" :key="ib.id">
+                      [[ inboundLabel(ib.inboundId) ]]
+                    </a-tag>
+                  </template>
+                </a-table>
+              </a-space>
+            </a-card>
+          </a-col>
+        </a-row>
+      </transition>
+      </a-spin>
+
+      <a-modal
+        v-model="modal.visible"
+        :title="modal.title"
+        :ok-text="`{{ i18n "confirm" }}`"
+        :cancel-text="`{{ i18n "cancel" }}`"
+        :confirm-loading="modal.saving"
+        :wrap-class-name="themeSwitcher.currentTheme"
+        @ok="save">
+        <a-form
+          :colon="false"
+          :label-col="{ md: { span: 8 } }"
+          :wrapper-col="{ md: { span: 14 } }">
+          <a-form-item label='{{ i18n "enable" }}'>
+            <a-switch v-model="form.enabled"></a-switch>
+          </a-form-item>
+
+          <a-form-item label='{{ i18n "remark" }}'>
+            <a-input v-model="form.remark" :placeholder="`{{ i18n "pages.subconverter.remarkPlaceholder" }}`"></a-input>
+          </a-form-item>
+
+          <a-form-item>
+            <template slot="label">
+              <a-tooltip>
+                <template slot="title">
+                  <span>{{ i18n "pages.subconverter.maxIpsHint" }}</span>
+                </template>
+                <span>{{ i18n "pages.subconverter.maxIps" }} </span>
+                <a-icon type="question-circle"></a-icon>
+              </a-tooltip>
+            </template>
+            <a-input-number v-model="form.maxIps" :min="0" :style="{ width: '160px' }"></a-input-number>
+          </a-form-item>
+
+          <a-form-item label='{{ i18n "pages.subconverter.inbounds" }}'>
+            <a-select
+              mode="multiple"
+              v-model="form.inboundIds"
+              :placeholder="`{{ i18n "pages.subconverter.inboundsPlaceholder" }}`"
+              option-filter-prop="label">
+              <a-select-option
+                v-for="ib in vlessInbounds"
+                :key="ib.id"
+                :value="ib.id"
+                :label="inboundLabel(ib.id)">
+                [[ inboundLabel(ib.id) ]]
+              </a-select-option>
+            </a-select>
+            <a-alert
+              v-if="loadingStates.fetched && vlessInbounds.length === 0"
+              :style="{ marginTop: '8px' }"
+              type="warning"
+              :message="`{{ i18n "pages.subconverter.noVlessInbounds" }}`"
+              show-icon
+              banner></a-alert>
+          </a-form-item>
+        </a-form>
+      </a-modal>
+    </a-layout-content>
+  </a-layout>
+</a-layout>
+
+{{ template "page/body_scripts" .}}
+{{ template "component/aSidebar" .}}
+{{ template "component/aThemeSwitch" .}}
+{{ template "component/aCustomStatistic" .}}
+
+<script>
+  const subconverterApi = '/panel/api/subconverter';
+  const inboundsListApi = '/panel/api/inbounds/list';
+
+  new Vue({
+    delimiters: ['[[', ']]'],
+    el: '#app',
+    // MediaQueryMixin provides isMobile + resize listener (web/assets/js/util/index.js:848).
+    // Use the same mixin 3X-UI's pages use rather than rolling our own, so
+    // breakpoint behaviour stays in lockstep.
+    mixins: [MediaQueryMixin],
+    data: {
+      themeSwitcher,
+      // loadingStates mirrors inbounds: `fetched` controls first-render
+      // skeleton, `spinning` controls the in-place spin overlay on refresh.
+      loadingStates: {
+        fetched: false,
+        spinning: false,
+      },
+      // showAlert mirrors inbounds: shows the non-HTTPS security banner when
+      // the panel is loaded over a plaintext connection.
+      showAlert: false,
+      refreshing: false,
+      // Persist auto-refresh preference using the same localStorage keys as
+      // 3X-UI's inbounds page so the toggle stays in sync across pages.
+      isRefreshEnabled: localStorage.getItem("isRefreshEnabled") === "true",
+      refreshInterval: Number(localStorage.getItem("refreshInterval")) || 5000,
+      subscriptions: [],
+      searchedSubscriptions: [],
+      inboundCache: {},
+      searchKey: '',
+      enableFilter: false,
+      filterBy: '',
+      pageSize: 0,
+      modal: {
+        visible: false,
+        title: '',
+        editingId: null,
+        saving: false,
+      },
+      form: {
+        remark: '',
+        maxIps: 1,
+        enabled: true,
+        inboundIds: [],
+      },
+      columns: [
+        { title: 'ID', dataIndex: 'id', width: 60, align: 'right' },
+        { title: '{{ i18n "pages.inbounds.operate" }}', scopedSlots: { customRender: 'menu' }, width: 60, align: 'center' },
+        { title: '{{ i18n "enable" }}', scopedSlots: { customRender: 'enable' }, width: 80, align: 'center' },
+        { title: '{{ i18n "remark" }}', dataIndex: 'remark', width: 160 },
+        { title: '{{ i18n "pages.subconverter.inbounds" }}', scopedSlots: { customRender: 'inbounds' } },
+        { title: '{{ i18n "pages.subconverter.maxIps" }}', scopedSlots: { customRender: 'limitIp' }, width: 100, align: 'center' },
+      ],
+    },
+    computed: {
+      vlessInbounds() {
+        return Object.values(this.inboundCache).filter(
+          (ib) => ib && ib.enable && ib.protocol === 'vless'
+        );
+      },
+      stats() {
+        let enabled = 0;
+        let inboundRefs = 0;
+        for (const sub of this.subscriptions) {
+          if (sub.enable) enabled++;
+          inboundRefs += (sub.inbounds || []).length;
+        }
+        return {
+          total: this.subscriptions.length,
+          enabled,
+          inboundRefs,
+        };
+      },
+    },
+    methods: {
+      loading(spinning = true) {
+        this.loadingStates.spinning = spinning;
+      },
+      // Inbound list rarely changes during a subconverter session, so it's
+      // fetched once on mount and cached. Only fetchSubscriptions() is called
+      // after CRUD operations or auto-refresh ticks.
+      async fetchInbounds() {
+        const msg = await HttpUtil.get(inboundsListApi);
+        if (!msg.success) return;
+
+        const inbounds = msg.obj || [];
+        const cache = {};
+        for (const ib of inbounds) cache[ib.id] = ib;
+        this.inboundCache = cache;
+      },
+      async fetchSubscriptions() {
+        this.refreshing = true;
+        const msg = await HttpUtil.get(`${subconverterApi}/list`);
+        if (!msg.success) {
+          this.refreshing = false;
+          return;
+        }
+
+        this.setSubscriptions(msg.obj || []);
+        setTimeout(() => {
+          this.refreshing = false;
+        }, 500);
+      },
+      async getDefaultSettings() {
+        const msg = await HttpUtil.post('/panel/setting/defaultSettings');
+        if (!msg.success) {
+          return;
+        }
+        this.pageSize = msg.obj.pageSize;
+      },
+      setSubscriptions(subscriptions) {
+        this.subscriptions.splice(0);
+        this.searchedSubscriptions.splice(0);
+        this.subscriptions.push(...subscriptions);
+        if (!this.loadingStates.fetched) {
+          this.loadingStates.fetched = true;
+        }
+        if (this.enableFilter) {
+          this.filterSubscriptions();
+        } else {
+          this.searchSubscriptions(this.searchKey);
+        }
+      },
+      searchSubscriptions(key) {
+        if (ObjectUtil.isEmpty(key)) {
+          this.searchedSubscriptions = this.subscriptions.slice();
+        } else {
+          this.searchedSubscriptions.splice(0, this.searchedSubscriptions.length);
+          const q = key.trim().toLowerCase();
+          this.subscriptions.forEach(sub => {
+            if (
+              (sub.remark || '').toLowerCase().includes(q) ||
+              (sub.token || '').toLowerCase().includes(q)
+            ) {
+              this.searchedSubscriptions.push(sub);
+            }
+          });
+        }
+      },
+      filterSubscriptions() {
+        if (ObjectUtil.isEmpty(this.filterBy)) {
+          this.searchedSubscriptions = this.subscriptions.slice();
+        } else {
+          this.searchedSubscriptions.splice(0, this.searchedSubscriptions.length);
+          this.subscriptions.forEach(sub => {
+            if (this.filterBy === 'enabled' && sub.enable) {
+              this.searchedSubscriptions.push(sub);
+            }
+            if (this.filterBy === 'disabled' && !sub.enable) {
+              this.searchedSubscriptions.push(sub);
+            }
+          });
+        }
+      },
+      toggleFilter() {
+        if (this.enableFilter) {
+          this.searchKey = '';
+        } else {
+          this.filterBy = '';
+          this.searchedSubscriptions = this.subscriptions.slice();
+        }
+      },
+      async manualRefresh() {
+        if (!this.refreshing) {
+          this.loadingStates.spinning = true;
+          await this.fetchSubscriptions();
+          this.loadingStates.spinning = false;
+        }
+      },
+      async startDataRefreshLoop() {
+        while (this.isRefreshEnabled) {
+          try {
+            await this.fetchSubscriptions();
+          } catch (e) {
+            console.error(e);
+          }
+          await PromiseUtil.sleep(this.refreshInterval);
+        }
+      },
+      toggleRefresh() {
+        localStorage.setItem("isRefreshEnabled", this.isRefreshEnabled);
+        if (this.isRefreshEnabled) {
+          this.startDataRefreshLoop();
+        }
+      },
+      changeRefreshInterval() {
+        localStorage.setItem("refreshInterval", this.refreshInterval);
+      },
+      pagination(obj) {
+        if (this.pageSize > 0 && obj.length > this.pageSize) {
+          sizeOptions = [];
+          for (i = this.pageSize; i <= obj.length; i = i + this.pageSize) {
+            sizeOptions.push(i.toString());
+          }
+          sizeOptions.push(i.toString());
+
+          p = {
+            showSizeChanger: true,
+            size: 'small',
+            position: 'bottom',
+            pageSize: this.pageSize,
+            pageSizeOptions: sizeOptions
+          };
+          return p;
+        }
+        return false
+      },
+      buildFeedUrl(token) {
+        return `${window.location.origin}/feed/${token}`;
+      },
+      inboundLabel(id) {
+        const ib = this.inboundCache[id];
+        if (!ib) return `inbound-${id}`;
+        const remark = ib.remark || `inbound-${id}`;
+        return `${remark} :${ib.port}`;
+      },
+      copy(text) {
+        const fallback = () => {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text).then(
+            () => this.$message.success('{{ i18n "copied" }}'),
+            () => { fallback(); this.$message.success('{{ i18n "copied" }}'); }
+          );
+        } else {
+          fallback();
+          this.$message.success('{{ i18n "copied" }}');
+        }
+      },
+      clickMenu({ key }, record) {
+        if (key === 'edit') return this.openEdit(record);
+        if (key === 'copyUrl') return this.copy(this.buildFeedUrl(record.token));
+        if (key === 'copyProvider') return this.copy(this.buildFeedUrl(record.token) + '/nodes');
+        if (key === 'delete') {
+          this.$confirm({
+            title: '{{ i18n "pages.subconverter.confirmDelete" }}',
+            okText: '{{ i18n "confirm" }}',
+            cancelText: '{{ i18n "cancel" }}',
+            okType: 'danger',
+            onOk: () => this.del(record.id),
+          });
+        }
+      },
+      async toggleEnabled(record, checked) {
+        // The Vue switch fires @change with the new value; we send a full
+        // update payload (no dedicated toggle endpoint to keep the API surface
+        // small). _toggling is a transient client-side flag for the spinner.
+        this.$set(record, '_toggling', true);
+        const payload = {
+          remark: record.remark,
+          limitIp: record.limitIp,
+          enable: checked,
+          // Flat int array, matches SubscriptionFormInput.InboundIds; the
+          // backend re-widens it into the service layer's []InboundInput.
+          inboundIds: (record.inbounds || []).map((x) => x.inboundId),
+        };
+        try {
+          const msg = await HttpUtil.post(`${subconverterApi}/update/${record.id}`, payload);
+          if (!msg.success) return;
+          record.enable = checked;
+        } finally {
+          this.$set(record, '_toggling', false);
+        }
+      },
+      openCreate() {
+        this.modal.editingId = null;
+        this.modal.title = '{{ i18n "pages.subconverter.create" }}';
+        this.form = { remark: '', maxIps: 1, enabled: true, inboundIds: [] };
+        this.modal.visible = true;
+      },
+      openEdit(record) {
+        this.modal.editingId = record.id;
+        this.modal.title = '{{ i18n "pages.subconverter.edit" }}';
+        this.form = {
+          remark: record.remark,
+          maxIps: record.limitIp,
+          enabled: record.enable,
+          inboundIds: (record.inbounds || []).map((x) => x.inboundId),
+        };
+        this.modal.visible = true;
+      },
+      async save() {
+        this.modal.saving = true;
+        const payload = {
+          remark: this.form.remark,
+          limitIp: this.form.maxIps,
+          enable: this.form.enabled,
+          inboundIds: this.form.inboundIds,
+        };
+        try {
+          const url = this.modal.editingId
+            ? `${subconverterApi}/update/${this.modal.editingId}`
+            : `${subconverterApi}/add`;
+          const msg = await HttpUtil.post(url, payload);
+          if (!msg.success) return;
+          this.$message.success('{{ i18n "pages.subconverter.saved" }}');
+          this.modal.visible = false;
+          this.fetchSubscriptions();
+        } finally {
+          this.modal.saving = false;
+        }
+      },
+      async del(id) {
+        // del() reuses fetchSubscriptions; no need to refresh inbounds.
+        const msg = await HttpUtil.post(`${subconverterApi}/del/${id}`);
+        if (!msg.success) return;
+        this.fetchSubscriptions();
+      },
+    },
+    watch: {
+      searchKey: Utils.debounce(function (newVal) {
+        this.searchSubscriptions(newVal);
+      }, 500),
+    },
+    mounted() {
+      if (window.location.protocol !== "https:") {
+        this.showAlert = true;
+      }
+      this.loading();
+      this.getDefaultSettings();
+      // Inbounds list cached once; subscription list is the live one.
+      this.fetchInbounds();
+      this.fetchSubscriptions().then(() => {
+        this.loading(false);
+      });
+      // If the user had auto-refresh on last time they were here, restart the
+      // refresh loop immediately on mount. The resize listener is registered by
+      // MediaQueryMixin, so we don't need our own here.
+      if (this.isRefreshEnabled) {
+        this.startDataRefreshLoop();
+      }
+    },
+  });
+</script>
+{{ template "page/body_end" .}}
