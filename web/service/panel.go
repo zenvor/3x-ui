@@ -31,7 +31,9 @@ type PanelUpdateInfo struct {
 }
 
 const (
-	panelUpdaterURL      = "https://raw.githubusercontent.com/MHSanaei/3x-ui/main/update.sh"
+	panelGitHubRepo      = "zenvor/3x-ui"
+	panelReleaseAPIURL   = "https://api.github.com/repos/" + panelGitHubRepo + "/releases/latest"
+	panelUpdaterURL      = "https://raw.githubusercontent.com/" + panelGitHubRepo + "/main/update.sh"
 	maxPanelUpdaterBytes = 2 << 20
 )
 
@@ -170,7 +172,7 @@ func downloadPanelUpdater() (string, error) {
 
 func fetchLatestPanelVersion() (string, error) {
 	client := (&SettingService{}).NewProxiedHTTPClient(10 * time.Second)
-	resp, err := client.Get("https://api.github.com/repos/MHSanaei/3x-ui/releases/latest")
+	resp, err := client.Get(panelReleaseAPIURL)
 	if err != nil {
 		return "", err
 	}
