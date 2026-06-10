@@ -111,7 +111,8 @@
     "apiDocs": "API 文档",
     "logout": "退出登录",
     "link": "管理",
-    "donate": "捐赠"
+    "donate": "捐赠",
+    "subconverter": "订阅转换"
   },
   "pages": {
     "login": {
@@ -1537,6 +1538,61 @@
         "edit": "编辑假 DNS",
         "ipPool": "IP 池子网",
         "poolSize": "池大小"
+      }
+    },
+    "subconverter": {
+      "create": "添加订阅转换",
+      "edit": "编辑订阅转换",
+      "enabledCount": "启用中",
+      "linkedInbounds": "关联入站数",
+      "copyFeedUrl": "复制",
+      "feedUrl": "订阅链接",
+      "searchPlaceholder": "搜索",
+      "inbounds": "关联入站",
+      "completedSubscriptions": "订阅次数",
+      "totalCompletedSubscriptions": "总订阅次数",
+      "inboundsPlaceholder": "选择一个或多个入站",
+      "inboundsRequired": "请至少选择一个入站",
+      "maxIps": "IP 限制",
+      "maxIpsHint": "超过设置值的 IP 数量将被拒绝访问订阅转换链接。（0 = 不限制）",
+      "confirmDelete": "删除该订阅转换？已绑定的 IP 与节点关联也会一并清除。",
+      "saved": "保存成功",
+      "updated": "订阅转换已更新",
+      "deleted": "删除成功",
+      "loadFailed": "加载失败",
+      "saveFailed": "保存失败",
+      "deleteFailed": "删除失败",
+      "settings": "订阅转换设置",
+      "uaFilter": "UA 校验",
+      "uaKeywords": "UA 关键词",
+      "uaKeywordsRequired": "请至少输入一个 UA 关键词",
+      "uaRejectStatus": "拒绝状态码",
+      "overview": "概览",
+      "accessLogs": "访问日志",
+      "boundIps": "已绑定 IP",
+      "resetToken": "重置 Token",
+      "confirmResetToken": "重置 Token 并清空所有已绑定 IP？旧订阅链接将立即失效。",
+      "clearIps": "清空 IP",
+      "confirmClearIps": "清空该订阅转换的所有已绑定 IP？",
+      "confirmDeleteIp": "删除这个已绑定 IP？",
+      "boundAt": "绑定时间",
+      "lastSeenAt": "最后访问时间",
+      "subscription": "订阅转换",
+      "accessedAt": "访问时间",
+      "endpoint": "端点",
+      "statusCode": "状态码",
+      "result": "结果",
+      "endpointValues": {
+        "full": "主链接",
+        "nodes": "节点列表"
+      },
+      "accessResult": {
+        "success": "成功",
+        "ua_rejected": "UA 拒绝",
+        "ip_limit_exceeded": "IP 超限",
+        "subscription_disabled": "订阅已禁用",
+        "ip_missing": "IP 缺失",
+        "internal_error": "内部错误"
       }
     }
   },

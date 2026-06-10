@@ -230,6 +230,114 @@ export const sections: readonly Section[] = [
   },
 
   {
+    id: 'subconverter',
+    title: 'Subconverter',
+    description:
+      'Manage Mihomo subscription-conversion entries. Admin endpoints live under /panel/api/subconverter and require a logged-in panel session or Bearer API token. Public feed URLs are served separately at /feed/:token and /feed/:token/nodes.',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/panel/api/subconverter/list',
+        summary: 'List every subscription-conversion entry with linked inbounds, usage stats, and bound IP count.',
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/subconverter/get/:id',
+        summary: 'Fetch one subscription-conversion detail by ID, including top-level entry fields, bound IP records, and the most recent access logs.',
+        params: [
+          { name: 'id', in: 'path', type: 'number', desc: 'Subscription-conversion ID.' },
+        ],
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/subconverter/add',
+        summary: 'Create a subscription-conversion entry. The token is generated server-side.',
+        body:
+          '{\n  "remark": "Mihomo users",\n  "limitIp": 1,\n  "enable": true,\n  "inboundIds": [1, 2]\n}',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/subconverter/update/:id',
+        summary: 'Update remark, enabled state, IP limit, and linked inbound IDs for one entry.',
+        params: [
+          { name: 'id', in: 'path', type: 'number', desc: 'Subscription-conversion ID.' },
+        ],
+        body:
+          '{\n  "remark": "Mihomo users",\n  "limitIp": 2,\n  "enable": true,\n  "inboundIds": [1]\n}',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/subconverter/del/:id',
+        summary: 'Delete one subscription-conversion entry and its related bindings, logs, stats, and inbound links.',
+        params: [
+          { name: 'id', in: 'path', type: 'number', desc: 'Subscription-conversion ID.' },
+        ],
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/subconverter/settings',
+        summary: 'Read global subconverter settings, including User-Agent filtering keywords and reject status.',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/subconverter/settings',
+        summary: 'Update global subconverter settings.',
+        body:
+          '{\n  "uaFilterEnabled": true,\n  "uaKeywords": ["clash", "mihomo"],\n  "uaRejectStatus": 403\n}',
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/subconverter/logs',
+        summary: 'Return recent known-token public feed access logs across subscription-conversion entries.',
+        params: [
+          { name: 'limit', in: 'query', type: 'number', desc: 'Maximum number of logs to return. Defaults to 100 and is capped at 500.' },
+        ],
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/subconverter/logs/:id',
+        summary: 'Return the most recent 100 known-token public feed access logs for one entry.',
+        params: [
+          { name: 'id', in: 'path', type: 'number', desc: 'Subscription-conversion ID.' },
+        ],
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/subconverter/ips/:id',
+        summary: 'List bound IP records for one entry.',
+        params: [
+          { name: 'id', in: 'path', type: 'number', desc: 'Subscription-conversion ID.' },
+        ],
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/subconverter/ips/:subscriptionId/del/:bindingId',
+        summary: 'Delete one bound IP record, scoped to its parent subscription-conversion entry.',
+        params: [
+          { name: 'subscriptionId', in: 'path', type: 'number', desc: 'Subscription-conversion ID.' },
+          { name: 'bindingId', in: 'path', type: 'number', desc: 'Bound IP row ID.' },
+        ],
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/subconverter/ips/clear/:id',
+        summary: 'Clear all bound IP records for one entry.',
+        params: [
+          { name: 'id', in: 'path', type: 'number', desc: 'Subscription-conversion ID.' },
+        ],
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/subconverter/reset-token/:id',
+        summary: 'Generate a new token for one entry and clear its bound IP records, completed subscription stats, and access logs.',
+        params: [
+          { name: 'id', in: 'path', type: 'number', desc: 'Subscription-conversion ID.' },
+        ],
+      },
+    ],
+  },
+
+  {
     id: 'server',
     title: 'Server',
     description:

@@ -1,0 +1,105 @@
+import { z } from 'zod';
+
+export const SubscriptionInboundSchema = z.object({
+  id: z.number(),
+  subscriptionId: z.number(),
+  inboundId: z.number(),
+  clientEmail: z.string().optional(),
+  sortOrder: z.number().optional(),
+}).loose();
+
+export const SubscriptionStatsSchema = z.object({
+  subscriptionId: z.number().optional(),
+  completedCount: z.number().optional(),
+  lastCompletedAt: z.string().optional(),
+  lastCompletedIp: z.string().optional(),
+  lastCompletedUserAgent: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+}).loose();
+
+export const IpBindingRecordSchema = z.object({
+  id: z.number(),
+  subscriptionId: z.number(),
+  ip: z.string(),
+  boundAt: z.string(),
+  lastSeenAt: z.string(),
+}).loose();
+
+export const AccessLogRecordSchema = z.object({
+  id: z.number(),
+  subscriptionId: z.number(),
+  subscriptionRemark: z.string().optional(),
+  endpoint: z.string(),
+  ip: z.string().optional(),
+  userAgent: z.string().optional(),
+  statusCode: z.number(),
+  result: z.string(),
+  accessedAt: z.string(),
+}).loose();
+
+export const SubscriptionRecordSchema = z.object({
+  id: z.number(),
+  token: z.string(),
+  remark: z.string(),
+  limitIp: z.number(),
+  enable: z.boolean(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+  inbounds: z.array(SubscriptionInboundSchema).optional(),
+  stats: SubscriptionStatsSchema.optional(),
+  boundIpCount: z.number().optional(),
+}).loose();
+
+export const SubscriptionDetailRecordSchema = SubscriptionRecordSchema.extend({
+  boundIps: z.array(IpBindingRecordSchema).optional(),
+  accessLogs: z.array(AccessLogRecordSchema).optional(),
+}).loose();
+
+export const InboundOptionSchema = z.object({
+  id: z.number(),
+  remark: z.string().optional(),
+  tag: z.string().optional(),
+  protocol: z.string().optional(),
+  port: z.number().optional(),
+  tlsFlowCapable: z.boolean().optional(),
+}).loose();
+
+export const DefaultsPayloadSchema = z.object({
+  pageSize: z.number().optional(),
+}).loose();
+
+export const SubconverterSettingsSchema = z.object({
+  uaFilterEnabled: z.boolean(),
+  uaKeywords: z.array(z.string()).default([]),
+  uaRejectStatus: z.number().default(403),
+}).loose();
+
+export const FormValuesSchema = z.object({
+  remark: z.string(),
+  limitIp: z.number(),
+  enable: z.boolean(),
+  inboundIds: z.array(z.number()),
+});
+
+export const SettingsValuesSchema = z.object({
+  uaFilterEnabled: z.boolean(),
+  uaKeywords: z.array(z.string()),
+  uaRejectStatus: z.number(),
+});
+
+export const SubscriptionRecordListSchema = z.array(SubscriptionRecordSchema).nullable().transform((v) => v ?? []);
+export const InboundOptionListSchema = z.array(InboundOptionSchema).nullable().transform((v) => v ?? []);
+export const AccessLogRecordListSchema = z.array(AccessLogRecordSchema).nullable().transform((v) => v ?? []);
+
+export type SubscriptionInbound = z.infer<typeof SubscriptionInboundSchema>;
+export type SubscriptionStats = z.infer<typeof SubscriptionStatsSchema>;
+export type IpBindingRecord = z.infer<typeof IpBindingRecordSchema>;
+export type AccessLogRecord = z.infer<typeof AccessLogRecordSchema>;
+export type SubscriptionRecord = z.infer<typeof SubscriptionRecordSchema>;
+export type SubscriptionDetailRecord = z.infer<typeof SubscriptionDetailRecordSchema>;
+export type InboundOption = z.infer<typeof InboundOptionSchema>;
+export type DefaultsPayload = z.infer<typeof DefaultsPayloadSchema>;
+export type SubconverterSettings = z.infer<typeof SubconverterSettingsSchema>;
+export type FormValues = z.infer<typeof FormValuesSchema>;
+export type SettingsValues = z.infer<typeof SettingsValuesSchema>;

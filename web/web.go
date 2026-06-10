@@ -18,6 +18,7 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/config"
 	"github.com/mhsanaei/3x-ui/v3/logger"
 	"github.com/mhsanaei/3x-ui/v3/mtproto"
+	"github.com/mhsanaei/3x-ui/v3/subconverter"
 	"github.com/mhsanaei/3x-ui/v3/util/common"
 	"github.com/mhsanaei/3x-ui/v3/web/controller"
 	"github.com/mhsanaei/3x-ui/v3/web/job"
@@ -230,6 +231,10 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	s.panel = controller.NewXUIController(g)
 	g.GET("/panel/api/openapi.json", controller.ServeOpenAPISpec)
 	s.api = controller.NewAPIController(g, s.customGeoService)
+
+	if err := subconverter.RegisterRoutes(engine, g); err != nil {
+		return nil, err
+	}
 
 	// Initialize WebSocket hub
 	s.wsHub = websocket.NewHub()
