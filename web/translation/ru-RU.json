@@ -111,7 +111,8 @@
     "apiDocs": "Документация API",
     "logout": "Выход",
     "link": "Управление",
-    "donate": "Поддержать"
+    "donate": "Поддержать",
+    "subconverter": "Subconverter"
   },
   "pages": {
     "login": {
@@ -1537,6 +1538,61 @@
         "edit": "Редактировать Fake DNS",
         "ipPool": "Подсеть пула IP",
         "poolSize": "Размер пула"
+      }
+    },
+    "subconverter": {
+      "create": "Add Subconverter",
+      "edit": "Edit Subconverter",
+      "enabledCount": "Enabled",
+      "linkedInbounds": "Linked Inbounds",
+      "copyFeedUrl": "Copy",
+      "feedUrl": "Subscription URL",
+      "searchPlaceholder": "Search",
+      "inbounds": "Associated Inbounds",
+      "completedSubscriptions": "Subscriptions",
+      "totalCompletedSubscriptions": "Total Subscriptions",
+      "inboundsPlaceholder": "Select one or more inbounds",
+      "inboundsRequired": "Select at least one inbound",
+      "maxIps": "IP Limit",
+      "maxIpsHint": "Requests from new IPs are rejected once the count exceeds this value. (0 = unlimited)",
+      "confirmDelete": "Delete this subconverter? Bound IPs and inbound links will also be removed.",
+      "saved": "Saved",
+      "updated": "Subconverter updated",
+      "deleted": "Deleted",
+      "loadFailed": "Load failed",
+      "saveFailed": "Save failed",
+      "deleteFailed": "Delete failed",
+      "settings": "Settings",
+      "uaFilter": "UA Filter",
+      "uaKeywords": "UA Keywords",
+      "uaKeywordsRequired": "Enter at least one UA keyword",
+      "uaRejectStatus": "Reject Status",
+      "overview": "Overview",
+      "accessLogs": "Access Logs",
+      "boundIps": "Bound IPs",
+      "resetToken": "Reset Token",
+      "confirmResetToken": "Reset token and clear all bound IPs? The old subscription URL will stop working.",
+      "clearIps": "Clear IPs",
+      "confirmClearIps": "Clear all bound IPs for this subconverter?",
+      "confirmDeleteIp": "Delete this bound IP?",
+      "boundAt": "Bound At",
+      "lastSeenAt": "Last Seen At",
+      "subscription": "Subscription",
+      "accessedAt": "Accessed At",
+      "endpoint": "Endpoint",
+      "statusCode": "Status Code",
+      "result": "Result",
+      "endpointValues": {
+        "full": "Full",
+        "nodes": "Nodes"
+      },
+      "accessResult": {
+        "success": "Success",
+        "ua_rejected": "UA Rejected",
+        "ip_limit_exceeded": "IP Limit Exceeded",
+        "subscription_disabled": "Subscription Disabled",
+        "ip_missing": "IP Missing",
+        "internal_error": "Internal Error"
       }
     }
   },

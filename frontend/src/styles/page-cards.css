@@ -4,6 +4,7 @@
 .xray-page .ant-card,
 .settings-page .ant-card,
 .nodes-page .ant-card,
+.subconverter-page .ant-card,
 .groups-page .ant-card,
 .api-docs-page .ant-card {
   border-radius: 12px;
@@ -17,6 +18,7 @@
 .xray-page.is-dark .ant-card,
 .settings-page.is-dark .ant-card,
 .nodes-page.is-dark .ant-card,
+.subconverter-page.is-dark .ant-card,
 .groups-page.is-dark .ant-card,
 .api-docs-page.is-dark .ant-card {
   box-shadow:
@@ -30,6 +32,7 @@
 .xray-page.is-dark.is-ultra .ant-card,
 .settings-page.is-dark.is-ultra .ant-card,
 .nodes-page.is-dark.is-ultra .ant-card,
+.subconverter-page.is-dark.is-ultra .ant-card,
 .groups-page.is-dark.is-ultra .ant-card,
 .api-docs-page.is-dark.is-ultra .ant-card {
   box-shadow:
@@ -43,6 +46,7 @@
 .xray-page .ant-card.ant-card-hoverable:hover,
 .settings-page .ant-card.ant-card-hoverable:hover,
 .nodes-page .ant-card.ant-card-hoverable:hover,
+.subconverter-page .ant-card.ant-card-hoverable:hover,
 .groups-page .ant-card.ant-card-hoverable:hover,
 .api-docs-page .ant-card.ant-card-hoverable:hover {
   cursor: default;
@@ -55,6 +59,7 @@
 .xray-page.is-dark .ant-card.ant-card-hoverable:hover,
 .settings-page.is-dark .ant-card.ant-card-hoverable:hover,
 .nodes-page.is-dark .ant-card.ant-card-hoverable:hover,
+.subconverter-page.is-dark .ant-card.ant-card-hoverable:hover,
 .groups-page.is-dark .ant-card.ant-card-hoverable:hover,
 .api-docs-page.is-dark .ant-card.ant-card-hoverable:hover {
   box-shadow:
@@ -68,6 +73,7 @@
 .xray-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover,
 .settings-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover,
 .nodes-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover,
+.subconverter-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover,
 .groups-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover,
 .api-docs-page.is-dark.is-ultra .ant-card.ant-card-hoverable:hover {
   box-shadow:
@@ -81,6 +87,7 @@
 .xray-page .ant-card .ant-card-actions,
 .settings-page .ant-card .ant-card-actions,
 .nodes-page .ant-card .ant-card-actions,
+.subconverter-page .ant-card .ant-card-actions,
 .groups-page .ant-card .ant-card-actions,
 .api-docs-page .ant-card .ant-card-actions {
   background: transparent;

@@ -1,0 +1,264 @@
+.subconverter-access-log-toolbar {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr) 36px;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 10px;
+}
+
+.subconverter-access-log-toolbar .ant-form-item {
+  margin-inline-end: 0;
+  margin-bottom: 0;
+}
+
+.subconverter-access-log-toolbar .filter-item {
+  min-width: 0;
+}
+
+.subconverter-access-log-toolbar .download-item {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  margin-left: 0;
+}
+
+.subconverter-access-log-toolbar .result-filter-item {
+  grid-column: 1 / -1;
+}
+
+.subconverter-access-log-filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.subconverter-access-log-toolbar .result-filter-item .ant-checkbox-wrapper {
+  margin-inline-start: 0;
+}
+
+.subconverter-access-log-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1;
+}
+
+.subconverter-access-log-reload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.subconverter-access-log-container {
+  --subconverter-log-divider: rgba(128, 128, 128, 0.18);
+  --subconverter-log-success: #389e0d;
+  --subconverter-log-warning: #d48806;
+  --subconverter-log-error: #e04141;
+
+  margin-top: 12px;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid var(--ant-color-border);
+  border-radius: 6px;
+  background: var(--ant-color-fill-tertiary);
+  color: var(--ant-color-text);
+}
+
+.subconverter-access-log-container.is-mobile {
+  padding: 8px;
+  font-size: 12px;
+  max-height: 70vh;
+}
+
+.subconverter-access-log-empty {
+  text-align: center;
+  opacity: 0.5;
+  padding: 20px 0;
+}
+
+.subconverter-access-log-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.subconverter-access-log-table td,
+.subconverter-access-log-table th {
+  padding: 2px 15px;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.subconverter-access-log-table .log-row-success {
+  color: var(--subconverter-log-success);
+}
+
+.subconverter-access-log-table .log-row-warning {
+  color: var(--subconverter-log-warning);
+}
+
+.subconverter-access-log-table .log-row-error {
+  color: var(--subconverter-log-error);
+}
+
+.subconverter-access-log-table .log-row-muted {
+  color: var(--ant-color-text-secondary);
+}
+
+.subconverter-access-log-ua-cell {
+  min-width: 260px;
+  max-width: 520px;
+  white-space: normal !important;
+  word-break: break-all;
+}
+
+.subconverter-access-log-card {
+  border-bottom: 1px solid var(--subconverter-log-divider);
+  padding: 8px 0;
+}
+
+.subconverter-access-log-card:last-child {
+  border-bottom: 0;
+}
+
+.subconverter-access-log-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.subconverter-access-log-time {
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.subconverter-access-log-subscription {
+  font-weight: 600;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+
+.subconverter-access-log-route {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.subconverter-access-log-separator {
+  opacity: 0.5;
+}
+
+.subconverter-access-log-ua {
+  font-size: 11px;
+  opacity: 0.75;
+  word-break: break-all;
+}
+
+body.dark .subconverter-access-log-container {
+  --subconverter-log-divider: rgba(255, 255, 255, 0.1);
+  --subconverter-log-success: #73d13d;
+  --subconverter-log-warning: #ffc53d;
+  --subconverter-log-error: #ff7575;
+}
+
+html[data-theme="ultra-dark"] .subconverter-access-log-container {
+  --subconverter-log-divider: rgba(255, 255, 255, 0.12);
+  --subconverter-log-success: #95de64;
+  --subconverter-log-warning: #ffd666;
+  --subconverter-log-error: #ff8a8a;
+}
+
+.subconverter-access-log-modal-mobile .ant-modal-content {
+  border-radius: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.subconverter-access-log-modal-mobile .ant-modal-body {
+  padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar {
+  grid-template-columns: 76px minmax(0, 1fr) 36px;
+  column-gap: 10px;
+  padding: 12px 12px 0;
+  flex: 0 0 auto;
+}
+
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item {
+  min-width: 0;
+}
+
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .rows-item,
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item {
+  min-height: 32px;
+  align-self: center;
+}
+
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .rows-item .ant-form-item-row,
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item .ant-form-item-row {
+  width: 100%;
+  flex-wrap: nowrap;
+  align-items: center;
+  min-height: 32px;
+}
+
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .rows-item .ant-form-item-control-input,
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item .ant-form-item-control-input {
+  min-height: 32px;
+}
+
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .rows-item .ant-form-item-control-input-content,
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item .ant-form-item-control-input-content {
+  display: flex;
+  align-items: center;
+}
+
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item .ant-form-item-label {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding-bottom: 0;
+}
+
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item .ant-form-item-label > label {
+  height: 32px;
+}
+
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item .ant-form-item-control {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .result-filter-item {
+  grid-column: 1 / -1;
+}
+
+.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .download-item {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.subconverter-access-log-modal-mobile .subconverter-access-log-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  margin: 12px;
+}
