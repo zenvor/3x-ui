@@ -176,7 +176,7 @@ legacy_version() {
         exit 1
     fi
     # Use the entered panel version in the download link
-    install_command="bash <(curl -Ls "https://raw.githubusercontent.com/zenvor/3x-ui/v$tag_version/install.sh") v$tag_version"
+    install_command="bash <(curl -Ls 'https://raw.githubusercontent.com/zenvor/3x-ui/v$tag_version/install.sh') v$tag_version"
 
     echo "Downloading and installing panel version $tag_version..."
     eval $install_command

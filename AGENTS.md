@@ -11,7 +11,7 @@ bot, and an external Xray child process. Persistence is handled with GORM over
 SQLite or PostgreSQL, depending on runtime configuration.
 
 - Module path: `github.com/mhsanaei/3x-ui/v3`
-- Go version: `1.26.3`
+- Go version: `1.26.4`
 - Frontend: React 19, TypeScript, Ant Design 6, Vite 8
 - Frontend output: `web/dist/`, embedded into the Go binary
 - i18n files: `web/translation/*.json`
