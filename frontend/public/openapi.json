@@ -2916,8 +2916,38 @@
               }
             }
           },
+          "400": {
+            "description": "Client IP could not be determined.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request blocked by user-agent policy or IP limit.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Subscription not found, disabled, or hidden by user-agent policy.",
+            "description": "Subscription token is invalid, missing, disabled, or hidden by user-agent policy.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Subscription lookup, IP enforcement, or user-agent policy check failed.",
             "content": {
               "text/plain": {
                 "schema": {
@@ -2961,8 +2991,38 @@
               }
             }
           },
+          "400": {
+            "description": "Client IP could not be determined.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request blocked by user-agent policy or IP limit.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Subscription not found, disabled, or hidden by user-agent policy.",
+            "description": "Subscription token is invalid, missing, disabled, or hidden by user-agent policy.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Subscription lookup, IP check, rendering, or user-agent policy check failed.",
             "content": {
               "text/plain": {
                 "schema": {

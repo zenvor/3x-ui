@@ -71,6 +71,28 @@ function paramToOpenApi(p) {
   return out;
 }
 
+function buildErrorResponse(error) {
+  const errExample = tryParseJson(error.response);
+  const contentType = error.contentType || 'application/json';
+  return {
+    description: error.description || 'Error response',
+    content: {
+      [contentType]: {
+        schema: contentType === 'text/plain'
+          ? { type: 'string' }
+          : {
+              type: 'object',
+              properties: {
+                success: { type: 'boolean' },
+                msg: { type: 'string' },
+              },
+            },
+        ...(errExample !== undefined && contentType !== 'text/plain' ? { example: errExample } : {}),
+      },
+    },
+  };
+}
+
 function buildOperation(ep, tag) {
   const op = {
     tags: [tag],
@@ -177,26 +199,21 @@ function buildOperation(ep, tag) {
     };
   }
 
-  const errExample = tryParseJson(ep.errorResponse);
-  if (errExample !== undefined || ep.errorStatus) {
-    const code = String(ep.errorStatus || 400);
-    responses[code] = {
-      description: ep.errorDescription || 'Error response',
-      content: {
-        [ep.errorContentType || 'application/json']: {
-          schema: ep.errorContentType === 'text/plain'
-            ? { type: 'string' }
-            : {
-                type: 'object',
-                properties: {
-                  success: { type: 'boolean' },
-                  msg: { type: 'string' },
-                },
-              },
-          ...(errExample !== undefined && ep.errorContentType !== 'text/plain' ? { example: errExample } : {}),
-        },
-      },
-    };
+  if (Array.isArray(ep.errorResponses) && ep.errorResponses.length > 0) {
+    for (const error of ep.errorResponses) {
+      responses[String(error.status)] = buildErrorResponse(error);
+    }
+  } else {
+    const errExample = tryParseJson(ep.errorResponse);
+    if (errExample !== undefined || ep.errorStatus) {
+      const code = String(ep.errorStatus || 400);
+      responses[code] = buildErrorResponse({
+        status: ep.errorStatus || 400,
+        contentType: ep.errorContentType,
+        description: ep.errorDescription,
+        response: ep.errorResponse,
+      });
+    }
   }
 
   op.responses = responses;

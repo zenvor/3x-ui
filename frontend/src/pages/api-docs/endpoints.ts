@@ -29,6 +29,13 @@ export interface EndpointParam {
   pattern?: string;
 }
 
+export interface EndpointErrorResponse {
+  status: number;
+  contentType?: string;
+  description?: string;
+  response?: string;
+}
+
 export interface Endpoint {
   method: HttpMethod;
   path: string;
@@ -46,6 +53,7 @@ export interface Endpoint {
   errorStatus?: number;
   errorContentType?: string;
   errorDescription?: string;
+  errorResponses?: EndpointErrorResponse[];
   responseSchema?: string;
   responseSchemaArray?: boolean;
 }
@@ -255,9 +263,12 @@ export const sections: readonly Section[] = [
         responseContentType: 'application/x-yaml',
         responseType: 'string',
         responseDescription: 'Mihomo YAML subscription.',
-        errorStatus: 404,
-        errorContentType: 'text/plain',
-        errorDescription: 'Subscription not found, disabled, or hidden by user-agent policy.',
+        errorResponses: [
+          { status: 400, contentType: 'text/plain', description: 'Client IP could not be determined.' },
+          { status: 403, contentType: 'text/plain', description: 'Request blocked by user-agent policy or IP limit.' },
+          { status: 404, contentType: 'text/plain', description: 'Subscription token is invalid, missing, disabled, or hidden by user-agent policy.' },
+          { status: 500, contentType: 'text/plain', description: 'Subscription lookup, IP enforcement, or user-agent policy check failed.' },
+        ],
       },
       {
         method: 'GET',
@@ -271,9 +282,12 @@ export const sections: readonly Section[] = [
         responseContentType: 'application/x-yaml',
         responseType: 'string',
         responseDescription: 'Mihomo proxy-provider YAML.',
-        errorStatus: 404,
-        errorContentType: 'text/plain',
-        errorDescription: 'Subscription not found, disabled, or hidden by user-agent policy.',
+        errorResponses: [
+          { status: 400, contentType: 'text/plain', description: 'Client IP could not be determined.' },
+          { status: 403, contentType: 'text/plain', description: 'Request blocked by user-agent policy or IP limit.' },
+          { status: 404, contentType: 'text/plain', description: 'Subscription token is invalid, missing, disabled, or hidden by user-agent policy.' },
+          { status: 500, contentType: 'text/plain', description: 'Subscription lookup, IP check, rendering, or user-agent policy check failed.' },
+        ],
       },
       {
         method: 'GET',
