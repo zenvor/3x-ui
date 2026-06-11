@@ -111,7 +111,8 @@
     "apiDocs": "Documentação da API",
     "logout": "Sair",
     "link": "Gerenciar",
-    "donate": "Doar"
+    "donate": "Doar",
+    "subconverter": "Conversor de assinaturas"
   },
   "pages": {
     "login": {
@@ -1537,6 +1538,61 @@
         "edit": "Editar Fake DNS",
         "ipPool": "Sub-rede do Pool de IP",
         "poolSize": "Tamanho do Pool"
+      }
+    },
+    "subconverter": {
+      "create": "Adicionar conversor de assinatura",
+      "edit": "Editar conversor de assinatura",
+      "enabledCount": "Ativado",
+      "linkedInbounds": "Inbounds vinculados",
+      "copyFeedUrl": "Copiar",
+      "feedUrl": "URL de assinatura",
+      "searchPlaceholder": "Pesquisar",
+      "inbounds": "Inbounds associados",
+      "completedSubscriptions": "Assinaturas",
+      "totalCompletedSubscriptions": "Total de assinaturas",
+      "inboundsPlaceholder": "Selecione um ou mais inbounds",
+      "inboundsRequired": "Selecione pelo menos um inbound",
+      "maxIps": "Limite de IP",
+      "maxIpsHint": "Requisições de novos IPs serão rejeitadas quando a contagem exceder este valor. (0 = ilimitado)",
+      "confirmDelete": "Excluir este conversor de assinatura? IPs vinculados e links de inbound também serão removidos.",
+      "saved": "Salvo",
+      "updated": "Conversor de assinatura atualizado",
+      "deleted": "Excluído",
+      "loadFailed": "Falha ao carregar",
+      "saveFailed": "Falha ao salvar",
+      "deleteFailed": "Falha ao excluir",
+      "settings": "Configurações",
+      "uaFilter": "Filtro UA",
+      "uaKeywords": "Palavras-chave UA",
+      "uaKeywordsRequired": "Informe pelo menos uma palavra-chave UA",
+      "uaRejectStatus": "Status de rejeição",
+      "overview": "Visão geral",
+      "accessLogs": "Logs de acesso",
+      "boundIps": "IPs vinculados",
+      "resetToken": "Redefinir token",
+      "confirmResetToken": "Redefinir o token e limpar todos os IPs vinculados? A URL de assinatura antiga deixará de funcionar.",
+      "clearIps": "Limpar IPs",
+      "confirmClearIps": "Limpar todos os IPs vinculados deste conversor de assinatura?",
+      "confirmDeleteIp": "Excluir este IP vinculado?",
+      "boundAt": "Vinculado em",
+      "lastSeenAt": "Visto pela última vez",
+      "subscription": "Assinatura",
+      "accessedAt": "Acessado em",
+      "endpoint": "Ponto de extremidade",
+      "statusCode": "Código de status",
+      "result": "Resultado",
+      "endpointValues": {
+        "full": "Completo",
+        "nodes": "Nós"
+      },
+      "accessResult": {
+        "success": "Sucesso",
+        "ua_rejected": "UA rejeitado",
+        "ip_limit_exceeded": "Limite de IP excedido",
+        "subscription_disabled": "Assinatura desativada",
+        "ip_missing": "IP ausente",
+        "internal_error": "Erro interno"
       }
     }
   },

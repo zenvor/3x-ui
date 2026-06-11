@@ -111,7 +111,8 @@
     "apiDocs": "API Belgeleri",
     "logout": "Çıkış Yap",
     "link": "Yönet",
-    "donate": "Bağış Yap"
+    "donate": "Bağış Yap",
+    "subconverter": "Abonelik dönüştürücü"
   },
   "pages": {
     "login": {
@@ -1537,6 +1538,61 @@
         "ipPool": "IP Havuzu Alt Ağı",
         "poolSize": "Havuz Boyutu"
       }
+    },
+    "subconverter": {
+      "create": "Abonelik dönüştürücü ekle",
+      "edit": "Abonelik dönüştürücüyü düzenle",
+      "enabledCount": "Etkin",
+      "linkedInbounds": "Bağlı gelenler",
+      "copyFeedUrl": "Kopyala",
+      "feedUrl": "Abonelik URL’si",
+      "searchPlaceholder": "Ara",
+      "inbounds": "İlişkili gelenler",
+      "completedSubscriptions": "Abonelikler",
+      "totalCompletedSubscriptions": "Toplam abonelik",
+      "inboundsPlaceholder": "Bir veya daha fazla gelen seçin",
+      "inboundsRequired": "En az bir gelen seçin",
+      "maxIps": "IP sınırı",
+      "maxIpsHint": "Yeni IP’lerden gelen istekler sayı bu değeri aştığında reddedilir. (0 = sınırsız)",
+      "confirmDelete": "Bu abonelik dönüştürücü silinsin mi? Bağlı IP’ler ve gelen bağlantıları da kaldırılır.",
+      "saved": "Kaydedildi",
+      "updated": "Abonelik dönüştürücü güncellendi",
+      "deleted": "Silindi",
+      "loadFailed": "Yükleme başarısız",
+      "saveFailed": "Kaydetme başarısız",
+      "deleteFailed": "Silme başarısız",
+      "settings": "Ayarlar",
+      "uaFilter": "UA filtresi",
+      "uaKeywords": "UA anahtar kelimeleri",
+      "uaKeywordsRequired": "En az bir UA anahtar kelimesi girin",
+      "uaRejectStatus": "Reddetme durumu",
+      "overview": "Genel bakış",
+      "accessLogs": "Erişim günlükleri",
+      "boundIps": "Bağlı IP’ler",
+      "resetToken": "Tokenı sıfırla",
+      "confirmResetToken": "Token sıfırlansın ve tüm bağlı IP’ler temizlensin mi? Eski abonelik URL’si çalışmayı durdurur.",
+      "clearIps": "IP’leri temizle",
+      "confirmClearIps": "Bu abonelik dönüştürücü için tüm bağlı IP’ler temizlensin mi?",
+      "confirmDeleteIp": "Bu bağlı IP silinsin mi?",
+      "boundAt": "Bağlanma zamanı",
+      "lastSeenAt": "Son görülme",
+      "subscription": "Abonelik",
+      "accessedAt": "Erişim zamanı",
+      "endpoint": "Uç nokta",
+      "statusCode": "Durum kodu",
+      "result": "Sonuç",
+      "endpointValues": {
+        "full": "Tam",
+        "nodes": "Düğümler"
+      },
+      "accessResult": {
+        "success": "Başarılı",
+        "ua_rejected": "UA reddedildi",
+        "ip_limit_exceeded": "IP sınırı aşıldı",
+        "subscription_disabled": "Abonelik devre dışı",
+        "ip_missing": "IP eksik",
+        "internal_error": "İç hata"
+      }
     }
   },
   "tgbot": {
@@ -1716,4 +1772,3 @@
     }
   }
 }
-

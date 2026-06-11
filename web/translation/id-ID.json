@@ -111,7 +111,8 @@
     "apiDocs": "Dokumentasi API",
     "logout": "Keluar",
     "link": "Kelola",
-    "donate": "Donasi"
+    "donate": "Donasi",
+    "subconverter": "Konverter langganan"
   },
   "pages": {
     "login": {
@@ -1537,6 +1538,61 @@
         "edit": "Edit DNS Palsu",
         "ipPool": "Subnet Kumpulan IP",
         "poolSize": "Ukuran Kolam"
+      }
+    },
+    "subconverter": {
+      "create": "Tambah konverter langganan",
+      "edit": "Edit konverter langganan",
+      "enabledCount": "Aktif",
+      "linkedInbounds": "Inbound tertaut",
+      "copyFeedUrl": "Salin",
+      "feedUrl": "URL langganan",
+      "searchPlaceholder": "Cari",
+      "inbounds": "Inbound terkait",
+      "completedSubscriptions": "Langganan",
+      "totalCompletedSubscriptions": "Total langganan",
+      "inboundsPlaceholder": "Pilih satu atau beberapa inbound",
+      "inboundsRequired": "Pilih setidaknya satu inbound",
+      "maxIps": "Batas IP",
+      "maxIpsHint": "Permintaan dari IP baru akan ditolak setelah jumlahnya melebihi nilai ini. (0 = tanpa batas)",
+      "confirmDelete": "Hapus konverter langganan ini? IP terikat dan tautan inbound juga akan dihapus.",
+      "saved": "Tersimpan",
+      "updated": "Konverter langganan diperbarui",
+      "deleted": "Dihapus",
+      "loadFailed": "Gagal memuat",
+      "saveFailed": "Gagal menyimpan",
+      "deleteFailed": "Gagal menghapus",
+      "settings": "Pengaturan",
+      "uaFilter": "Filter UA",
+      "uaKeywords": "Kata kunci UA",
+      "uaKeywordsRequired": "Masukkan setidaknya satu kata kunci UA",
+      "uaRejectStatus": "Status penolakan",
+      "overview": "Ringkasan",
+      "accessLogs": "Log akses",
+      "boundIps": "IP terikat",
+      "resetToken": "Reset token",
+      "confirmResetToken": "Reset token dan hapus semua IP terikat? URL langganan lama tidak akan berfungsi.",
+      "clearIps": "Hapus IP",
+      "confirmClearIps": "Hapus semua IP terikat untuk konverter langganan ini?",
+      "confirmDeleteIp": "Hapus IP terikat ini?",
+      "boundAt": "Terikat pada",
+      "lastSeenAt": "Terakhir terlihat",
+      "subscription": "Langganan",
+      "accessedAt": "Diakses pada",
+      "endpoint": "Titik akhir",
+      "statusCode": "Kode status",
+      "result": "Hasil",
+      "endpointValues": {
+        "full": "Penuh",
+        "nodes": "Node"
+      },
+      "accessResult": {
+        "success": "Berhasil",
+        "ua_rejected": "UA ditolak",
+        "ip_limit_exceeded": "Batas IP terlampaui",
+        "subscription_disabled": "Langganan dinonaktifkan",
+        "ip_missing": "IP tidak ada",
+        "internal_error": "Kesalahan internal"
       }
     }
   },

@@ -111,7 +111,8 @@
     "apiDocs": "Tài liệu API",
     "logout": "Đăng xuất",
     "link": "Quản lý",
-    "donate": "Quyên góp"
+    "donate": "Quyên góp",
+    "subconverter": "Bộ chuyển đổi đăng ký"
   },
   "pages": {
     "login": {
@@ -1537,6 +1538,61 @@
         "edit": "Chỉnh sửa DNS giả",
         "ipPool": "Mạng con nhóm IP",
         "poolSize": "Kích thước bể bơi"
+      }
+    },
+    "subconverter": {
+      "create": "Thêm bộ chuyển đổi đăng ký",
+      "edit": "Sửa bộ chuyển đổi đăng ký",
+      "enabledCount": "Đã bật",
+      "linkedInbounds": "Inbound đã liên kết",
+      "copyFeedUrl": "Sao chép",
+      "feedUrl": "URL đăng ký",
+      "searchPlaceholder": "Tìm kiếm",
+      "inbounds": "Inbound liên quan",
+      "completedSubscriptions": "Đăng ký",
+      "totalCompletedSubscriptions": "Tổng đăng ký",
+      "inboundsPlaceholder": "Chọn một hoặc nhiều inbound",
+      "inboundsRequired": "Chọn ít nhất một inbound",
+      "maxIps": "Giới hạn IP",
+      "maxIpsHint": "Yêu cầu từ IP mới sẽ bị từ chối khi số lượng vượt quá giá trị này. (0 = không giới hạn)",
+      "confirmDelete": "Xóa bộ chuyển đổi đăng ký này? IP đã liên kết và liên kết inbound cũng sẽ bị xóa.",
+      "saved": "Đã lưu",
+      "updated": "Đã cập nhật bộ chuyển đổi đăng ký",
+      "deleted": "Đã xóa",
+      "loadFailed": "Tải thất bại",
+      "saveFailed": "Lưu thất bại",
+      "deleteFailed": "Xóa thất bại",
+      "settings": "Cài đặt",
+      "uaFilter": "Bộ lọc UA",
+      "uaKeywords": "Từ khóa UA",
+      "uaKeywordsRequired": "Nhập ít nhất một từ khóa UA",
+      "uaRejectStatus": "Trạng thái từ chối",
+      "overview": "Tổng quan",
+      "accessLogs": "Nhật ký truy cập",
+      "boundIps": "IP đã liên kết",
+      "resetToken": "Đặt lại token",
+      "confirmResetToken": "Đặt lại token và xóa tất cả IP đã liên kết? URL đăng ký cũ sẽ ngừng hoạt động.",
+      "clearIps": "Xóa IP",
+      "confirmClearIps": "Xóa tất cả IP đã liên kết cho bộ chuyển đổi đăng ký này?",
+      "confirmDeleteIp": "Xóa IP đã liên kết này?",
+      "boundAt": "Liên kết lúc",
+      "lastSeenAt": "Thấy lần cuối",
+      "subscription": "Đăng ký",
+      "accessedAt": "Truy cập lúc",
+      "endpoint": "Điểm cuối",
+      "statusCode": "Mã trạng thái",
+      "result": "Kết quả",
+      "endpointValues": {
+        "full": "Đầy đủ",
+        "nodes": "Nút"
+      },
+      "accessResult": {
+        "success": "Thành công",
+        "ua_rejected": "UA bị từ chối",
+        "ip_limit_exceeded": "Vượt giới hạn IP",
+        "subscription_disabled": "Đăng ký đã tắt",
+        "ip_missing": "Thiếu IP",
+        "internal_error": "Lỗi nội bộ"
       }
     }
   },

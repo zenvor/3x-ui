@@ -111,7 +111,8 @@
     "apiDocs": "توثيق API",
     "logout": "تسجيل خروج",
     "link": "إدارة",
-    "donate": "تبرع"
+    "donate": "تبرع",
+    "subconverter": "محول الاشتراكات"
   },
   "pages": {
     "login": {
@@ -1537,6 +1538,61 @@
         "edit": "عدل Fake DNS",
         "ipPool": "نطاق IP Pool",
         "poolSize": "حجم المجموعة"
+      }
+    },
+    "subconverter": {
+      "create": "إضافة محول اشتراك",
+      "edit": "تعديل محول الاشتراك",
+      "enabledCount": "مفعّل",
+      "linkedInbounds": "المداخل المرتبطة",
+      "copyFeedUrl": "نسخ",
+      "feedUrl": "رابط الاشتراك",
+      "searchPlaceholder": "بحث",
+      "inbounds": "المداخل المرتبطة",
+      "completedSubscriptions": "الاشتراكات",
+      "totalCompletedSubscriptions": "إجمالي الاشتراكات",
+      "inboundsPlaceholder": "اختر مدخلاً واحداً أو أكثر",
+      "inboundsRequired": "اختر مدخلاً واحداً على الأقل",
+      "maxIps": "حد عناوين IP",
+      "maxIpsHint": "سيتم رفض الطلبات من عناوين IP الجديدة عندما يتجاوز العدد هذه القيمة. (0 = غير محدود)",
+      "confirmDelete": "هل تريد حذف محول الاشتراك هذا؟ ستتم إزالة عناوين IP المرتبطة وروابط المداخل أيضاً.",
+      "saved": "تم الحفظ",
+      "updated": "تم تحديث محول الاشتراك",
+      "deleted": "تم الحذف",
+      "loadFailed": "فشل التحميل",
+      "saveFailed": "فشل الحفظ",
+      "deleteFailed": "فشل الحذف",
+      "settings": "الإعدادات",
+      "uaFilter": "مرشح UA",
+      "uaKeywords": "كلمات UA المفتاحية",
+      "uaKeywordsRequired": "أدخل كلمة UA مفتاحية واحدة على الأقل",
+      "uaRejectStatus": "حالة الرفض",
+      "overview": "نظرة عامة",
+      "accessLogs": "سجلات الوصول",
+      "boundIps": "عناوين IP المرتبطة",
+      "resetToken": "إعادة تعيين الرمز",
+      "confirmResetToken": "هل تريد إعادة تعيين الرمز ومسح كل عناوين IP المرتبطة؟ سيتوقف رابط الاشتراك القديم عن العمل.",
+      "clearIps": "مسح عناوين IP",
+      "confirmClearIps": "هل تريد مسح كل عناوين IP المرتبطة بمحول الاشتراك هذا؟",
+      "confirmDeleteIp": "هل تريد حذف عنوان IP المرتبط هذا؟",
+      "boundAt": "وقت الربط",
+      "lastSeenAt": "آخر ظهور",
+      "subscription": "الاشتراك",
+      "accessedAt": "وقت الوصول",
+      "endpoint": "نقطة النهاية",
+      "statusCode": "رمز الحالة",
+      "result": "النتيجة",
+      "endpointValues": {
+        "full": "كامل",
+        "nodes": "العقد"
+      },
+      "accessResult": {
+        "success": "نجاح",
+        "ua_rejected": "تم رفض UA",
+        "ip_limit_exceeded": "تم تجاوز حد IP",
+        "subscription_disabled": "الاشتراك معطل",
+        "ip_missing": "عنوان IP مفقود",
+        "internal_error": "خطأ داخلي"
       }
     }
   },

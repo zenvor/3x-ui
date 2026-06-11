@@ -40,7 +40,7 @@ const DONATE_URL = 'https://donate.sanaei.dev/';
 const REPO_URL = 'https://github.com/zenvor/3x-ui';
 const LOGOUT_KEY = '__logout__';
 
-type IconName = 'dashboard' | 'inbound' | 'team' | 'groups' | 'setting' | 'tool' | 'cluster' | 'logout' | 'apidocs' | 'outbound';
+type IconName = 'dashboard' | 'inbound' | 'team' | 'groups' | 'setting' | 'tool' | 'cluster' | 'swap' | 'logout' | 'apidocs' | 'outbound';
 
 const iconByName: Record<IconName, ComponentType> = {
   dashboard: DashboardOutlined,
@@ -50,6 +50,7 @@ const iconByName: Record<IconName, ComponentType> = {
   setting: SettingOutlined,
   tool: ToolOutlined,
   cluster: ClusterOutlined,
+  swap: SwapOutlined,
   logout: LogoutOutlined,
   apidocs: ApiOutlined,
   outbound: UploadOutlined,
@@ -141,6 +142,7 @@ export default function AppSidebar() {
     { key: '/xray#outbound', icon: 'outbound', title: t('pages.xray.Outbounds') },
     { key: '/settings', icon: 'setting', title: t('menu.settings') },
     { key: '/xray', icon: 'tool', title: t('menu.xray') },
+    { key: '/subconverter', icon: 'swap', title: t('menu.subconverter') },
     { key: '/api-docs', icon: 'apidocs', title: t('menu.apiDocs') },
     { key: LOGOUT_KEY, icon: 'logout', title: t('logout') },
   ], [t]);

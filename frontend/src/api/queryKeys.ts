@@ -31,4 +31,16 @@ export const keys = {
     config: () => ['xray', 'config'] as const,
     outboundsTraffic: () => ['xray', 'outboundsTraffic'] as const,
   },
+  subconverter: {
+    root: () => ['subconverter'] as const,
+    list: () => ['subconverter', 'list'] as const,
+    detail: (id: number) => ['subconverter', 'detail', id] as const,
+    settings: () => ['subconverter', 'settings'] as const,
+    logs: (limit?: string | number) => {
+      if (limit === undefined) return ['subconverter', 'logs'] as const;
+      return ['subconverter', 'logs', String(limit)] as const;
+    },
+    inbounds: () => ['subconverter', 'inbounds'] as const,
+    defaults: () => ['subconverter', 'defaults'] as const,
+  },
 } as const;

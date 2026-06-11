@@ -1869,6 +1869,10 @@
       "description": "Manage inbound configurations and their clients. All endpoints live under /panel/api/inbounds and require a logged-in session or Bearer token. Link-generating endpoints honour forwarded headers only when the request comes from a configured trusted proxy."
     },
     {
+      "name": "Subconverter",
+      "description": "Manage Mihomo subscription-conversion entries. Admin endpoints live under /panel/api/subconverter and require a logged-in panel session or Bearer API token. Public feed URLs are served separately at /feed/:token and /feed/:token/nodes."
+    },
+    {
       "name": "Server",
       "description": "System status, log retrieval, certificate generators, Xray binary management, and backup/restore. All under /panel/api/server."
     },
@@ -2873,6 +2877,709 @@
                 "example": {
                   "success": true,
                   "msg": "Inbound updated"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/feed/{token}": {
+      "get": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Return the managed Mihomo YAML for a public token.",
+        "operationId": "get_feed_token",
+        "description": "Unauthenticated public feed endpoint. When the immediate client IP is a configured trusted proxy, X-Real-IP, X-Forwarded-For, X-Forwarded-Proto, and X-Forwarded-Host are honoured for client IP and feed URL generation; otherwise forwarded headers are ignored.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "description": "32-character hexadecimal subscription token.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mihomo YAML subscription.",
+            "content": {
+              "application/x-yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Client IP could not be determined.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request blocked by user-agent policy or IP limit.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Subscription token is invalid, missing, disabled, or hidden by user-agent policy.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Subscription lookup, IP enforcement, or user-agent policy check failed.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/feed/{token}/nodes": {
+      "get": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Return the proxy-provider node list for a public token.",
+        "operationId": "get_feed_token_nodes",
+        "description": "Unauthenticated public provider endpoint. It checks the same token, user-agent, and trusted-proxy header rules as /feed/:token, but does not bind a new IP slot.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "description": "32-character hexadecimal subscription token.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mihomo proxy-provider YAML.",
+            "content": {
+              "application/x-yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Client IP could not be determined.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request blocked by user-agent policy or IP limit.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Subscription token is invalid, missing, disabled, or hidden by user-agent policy.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Subscription lookup, IP check, rendering, or user-agent policy check failed.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/list": {
+      "get": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "List every subscription-conversion entry with linked inbounds, usage stats, and bound IP count.",
+        "operationId": "get_panel_api_subconverter_list",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/get/{id}": {
+      "get": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Fetch one subscription-conversion detail by ID, including top-level entry fields, bound IP records, and the most recent access logs.",
+        "operationId": "get_panel_api_subconverter_get_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subscription-conversion ID.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/add": {
+      "post": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Create a subscription-conversion entry. The token is generated server-side.",
+        "operationId": "post_panel_api_subconverter_add",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "remark": "Mihomo users",
+                "limitIp": 1,
+                "enable": true,
+                "inboundIds": [
+                  1,
+                  2
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/update/{id}": {
+      "post": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Update remark, enabled state, IP limit, and linked inbound IDs for one entry.",
+        "operationId": "post_panel_api_subconverter_update_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subscription-conversion ID.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "remark": "Mihomo users",
+                "limitIp": 2,
+                "enable": true,
+                "inboundIds": [
+                  1
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/del/{id}": {
+      "post": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Delete one subscription-conversion entry and its related bindings, logs, stats, and inbound links.",
+        "operationId": "post_panel_api_subconverter_del_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subscription-conversion ID.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/settings": {
+      "get": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Read global subconverter settings, including User-Agent filtering keywords and reject status.",
+        "operationId": "get_panel_api_subconverter_settings",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Update global subconverter settings.",
+        "operationId": "post_panel_api_subconverter_settings",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "uaFilterEnabled": true,
+                "uaKeywords": [
+                  "clash",
+                  "mihomo"
+                ],
+                "uaRejectStatus": 403
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/logs": {
+      "get": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Return recent known-token public feed access logs across subscription-conversion entries.",
+        "operationId": "get_panel_api_subconverter_logs",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of logs to return. Defaults to 100 and is capped at 500.",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/logs/{id}": {
+      "get": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Return the most recent 100 known-token public feed access logs for one entry.",
+        "operationId": "get_panel_api_subconverter_logs_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subscription-conversion ID.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/ips/{id}": {
+      "get": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "List bound IP records for one entry.",
+        "operationId": "get_panel_api_subconverter_ips_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subscription-conversion ID.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/ips/{subscriptionId}/del/{bindingId}": {
+      "post": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Delete one bound IP record, scoped to its parent subscription-conversion entry.",
+        "operationId": "post_panel_api_subconverter_ips_subscriptionId_del_bindingId",
+        "parameters": [
+          {
+            "name": "subscriptionId",
+            "in": "path",
+            "required": true,
+            "description": "Subscription-conversion ID.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "bindingId",
+            "in": "path",
+            "required": true,
+            "description": "Bound IP row ID.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/ips/clear/{id}": {
+      "post": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Clear all bound IP records for one entry.",
+        "operationId": "post_panel_api_subconverter_ips_clear_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subscription-conversion ID.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/reset-token/{id}": {
+      "post": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Generate a new token for one entry and clear its bound IP records, completed subscription stats, and access logs.",
+        "operationId": "post_panel_api_subconverter_reset_token_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subscription-conversion ID.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
                 }
               }
             }

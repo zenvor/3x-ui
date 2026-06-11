@@ -111,7 +111,8 @@
     "apiDocs": "Документація API",
     "logout": "Вийти",
     "link": "Керувати",
-    "donate": "Підтримати"
+    "donate": "Підтримати",
+    "subconverter": "Конвертер підписок"
   },
   "pages": {
     "login": {
@@ -1537,6 +1538,61 @@
         "edit": "Редагувати підроблений DNS",
         "ipPool": "Підмережа IP-пулу",
         "poolSize": "Розмір пулу"
+      }
+    },
+    "subconverter": {
+      "create": "Додати конвертер підписки",
+      "edit": "Редагувати конвертер підписки",
+      "enabledCount": "Увімкнено",
+      "linkedInbounds": "Пов’язані вхідні",
+      "copyFeedUrl": "Копіювати",
+      "feedUrl": "URL підписки",
+      "searchPlaceholder": "Пошук",
+      "inbounds": "Пов’язані вхідні",
+      "completedSubscriptions": "Підписки",
+      "totalCompletedSubscriptions": "Усього підписок",
+      "inboundsPlaceholder": "Виберіть один або кілька вхідних",
+      "inboundsRequired": "Виберіть принаймні один вхідний",
+      "maxIps": "Ліміт IP",
+      "maxIpsHint": "Запити з нових IP відхиляються, коли кількість перевищує це значення. (0 = без обмежень)",
+      "confirmDelete": "Видалити цей конвертер підписки? Пов’язані IP та вхідні посилання також буде видалено.",
+      "saved": "Збережено",
+      "updated": "Конвертер підписки оновлено",
+      "deleted": "Видалено",
+      "loadFailed": "Не вдалося завантажити",
+      "saveFailed": "Не вдалося зберегти",
+      "deleteFailed": "Не вдалося видалити",
+      "settings": "Налаштування",
+      "uaFilter": "Фільтр UA",
+      "uaKeywords": "Ключові слова UA",
+      "uaKeywordsRequired": "Введіть принаймні одне ключове слово UA",
+      "uaRejectStatus": "Статус відхилення",
+      "overview": "Огляд",
+      "accessLogs": "Журнали доступу",
+      "boundIps": "Пов’язані IP",
+      "resetToken": "Скинути токен",
+      "confirmResetToken": "Скинути токен і очистити всі пов’язані IP? Старий URL підписки перестане працювати.",
+      "clearIps": "Очистити IP",
+      "confirmClearIps": "Очистити всі IP, пов’язані з цим конвертером підписки?",
+      "confirmDeleteIp": "Видалити цей пов’язаний IP?",
+      "boundAt": "Час прив’язки",
+      "lastSeenAt": "Останній раз помічено",
+      "subscription": "Підписка",
+      "accessedAt": "Час доступу",
+      "endpoint": "Ендпоінт",
+      "statusCode": "Код статусу",
+      "result": "Результат",
+      "endpointValues": {
+        "full": "Повний",
+        "nodes": "Вузли"
+      },
+      "accessResult": {
+        "success": "Успішно",
+        "ua_rejected": "UA відхилено",
+        "ip_limit_exceeded": "Ліміт IP перевищено",
+        "subscription_disabled": "Підписку вимкнено",
+        "ip_missing": "IP відсутній",
+        "internal_error": "Внутрішня помилка"
       }
     }
   },

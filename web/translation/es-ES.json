@@ -111,7 +111,8 @@
     "apiDocs": "Documentación de la API",
     "logout": "Cerrar Sesión",
     "link": "Gestionar",
-    "donate": "Donar"
+    "donate": "Donar",
+    "subconverter": "Conversor de suscripciones"
   },
   "pages": {
     "login": {
@@ -1537,6 +1538,61 @@
         "edit": "Editar DNS Falso",
         "ipPool": "Subred del grupo de IP",
         "poolSize": "Tamaño del grupo"
+      }
+    },
+    "subconverter": {
+      "create": "Agregar conversor de suscripción",
+      "edit": "Editar conversor de suscripción",
+      "enabledCount": "Habilitado",
+      "linkedInbounds": "Entradas vinculadas",
+      "copyFeedUrl": "Copiar",
+      "feedUrl": "URL de suscripción",
+      "searchPlaceholder": "Buscar",
+      "inbounds": "Entradas asociadas",
+      "completedSubscriptions": "Suscripciones",
+      "totalCompletedSubscriptions": "Suscripciones totales",
+      "inboundsPlaceholder": "Selecciona una o más entradas",
+      "inboundsRequired": "Selecciona al menos una entrada",
+      "maxIps": "Límite de IP",
+      "maxIpsHint": "Las solicitudes desde nuevas IP se rechazan cuando el recuento supera este valor. (0 = ilimitado)",
+      "confirmDelete": "¿Eliminar este conversor de suscripción? También se eliminarán las IP vinculadas y los enlaces de entradas.",
+      "saved": "Guardado",
+      "updated": "Conversor de suscripción actualizado",
+      "deleted": "Eliminado",
+      "loadFailed": "Error al cargar",
+      "saveFailed": "Error al guardar",
+      "deleteFailed": "Error al eliminar",
+      "settings": "Ajustes",
+      "uaFilter": "Filtro UA",
+      "uaKeywords": "Palabras clave UA",
+      "uaKeywordsRequired": "Introduce al menos una palabra clave UA",
+      "uaRejectStatus": "Estado de rechazo",
+      "overview": "Resumen",
+      "accessLogs": "Registros de acceso",
+      "boundIps": "IP vinculadas",
+      "resetToken": "Restablecer token",
+      "confirmResetToken": "¿Restablecer el token y borrar todas las IP vinculadas? La URL de suscripción anterior dejará de funcionar.",
+      "clearIps": "Borrar IP",
+      "confirmClearIps": "¿Borrar todas las IP vinculadas de este conversor de suscripción?",
+      "confirmDeleteIp": "¿Eliminar esta IP vinculada?",
+      "boundAt": "Vinculado el",
+      "lastSeenAt": "Visto por última vez",
+      "subscription": "Suscripción",
+      "accessedAt": "Accedido el",
+      "endpoint": "Punto final",
+      "statusCode": "Código de estado",
+      "result": "Resultado",
+      "endpointValues": {
+        "full": "Completo",
+        "nodes": "Nodos"
+      },
+      "accessResult": {
+        "success": "Correcto",
+        "ua_rejected": "UA rechazado",
+        "ip_limit_exceeded": "Límite de IP superado",
+        "subscription_disabled": "Suscripción deshabilitada",
+        "ip_missing": "IP faltante",
+        "internal_error": "Error interno"
       }
     }
   },
