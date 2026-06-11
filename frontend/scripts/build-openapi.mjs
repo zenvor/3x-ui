@@ -66,6 +66,8 @@ function paramToOpenApi(p) {
     schema: { type: mapType(p.type) },
   };
   if (p.defaultValue !== undefined) out.schema.default = p.defaultValue;
+  if (p.maximum !== undefined) out.schema.maximum = p.maximum;
+  if (p.pattern !== undefined) out.schema.pattern = p.pattern;
   return out;
 }
 
@@ -77,6 +79,7 @@ function buildOperation(ep, tag) {
   };
   if (ep.description) op.description = ep.description;
   if (ep.deprecated) op.deprecated = true;
+  if (ep.public) op.security = [];
 
   const params = [];
   const bodyParams = [];
@@ -130,44 +133,34 @@ function buildOperation(ep, tag) {
   }
 
   const responses = {};
-  let successExample = tryParseJson(ep.response);
-  let objSchema = {};
-  if (ep.responseSchema) {
-    const obj = EXAMPLES[ep.responseSchema];
-    if (obj === undefined) {
-      throw new Error(`${ep.method} ${ep.path}: responseSchema "${ep.responseSchema}" has no generated example`);
-    }
-    if (SCHEMAS[ep.responseSchema] === undefined) {
-      throw new Error(`${ep.method} ${ep.path}: responseSchema "${ep.responseSchema}" has no generated schema`);
-    }
-    const ref = { $ref: `#/components/schemas/${ep.responseSchema}` };
-    objSchema = ep.responseSchemaArray ? { type: 'array', items: ref } : ref;
-    if (successExample === undefined) {
-      successExample = { success: true, obj: ep.responseSchemaArray ? [obj] : obj };
-    }
-  }
-  responses['200'] = {
-    description: 'Successful response',
-    content: {
-      'application/json': {
-        schema: {
-          type: 'object',
-          properties: {
-            success: { type: 'boolean' },
-            msg: { type: 'string' },
-            obj: objSchema,
-          },
+  if (ep.responseContentType) {
+    responses['200'] = {
+      description: ep.responseDescription || 'Successful response',
+      content: {
+        [ep.responseContentType]: {
+          schema: { type: mapType(ep.responseType || 'string') },
         },
-        ...(successExample !== undefined ? { example: successExample } : {}),
       },
-    },
-  };
-
-  const errExample = tryParseJson(ep.errorResponse);
-  if (errExample !== undefined || ep.errorStatus) {
-    const code = String(ep.errorStatus || 400);
-    responses[code] = {
-      description: 'Error response',
+    };
+  } else {
+    let successExample = tryParseJson(ep.response);
+    let objSchema = {};
+    if (ep.responseSchema) {
+      const obj = EXAMPLES[ep.responseSchema];
+      if (obj === undefined) {
+        throw new Error(`${ep.method} ${ep.path}: responseSchema "${ep.responseSchema}" has no generated example`);
+      }
+      if (SCHEMAS[ep.responseSchema] === undefined) {
+        throw new Error(`${ep.method} ${ep.path}: responseSchema "${ep.responseSchema}" has no generated schema`);
+      }
+      const ref = { $ref: `#/components/schemas/${ep.responseSchema}` };
+      objSchema = ep.responseSchemaArray ? { type: 'array', items: ref } : ref;
+      if (successExample === undefined) {
+        successExample = { success: true, obj: ep.responseSchemaArray ? [obj] : obj };
+      }
+    }
+    responses['200'] = {
+      description: ep.responseDescription || 'Successful response',
       content: {
         'application/json': {
           schema: {
@@ -175,9 +168,32 @@ function buildOperation(ep, tag) {
             properties: {
               success: { type: 'boolean' },
               msg: { type: 'string' },
+              obj: objSchema,
             },
           },
-          ...(errExample !== undefined ? { example: errExample } : {}),
+          ...(successExample !== undefined ? { example: successExample } : {}),
+        },
+      },
+    };
+  }
+
+  const errExample = tryParseJson(ep.errorResponse);
+  if (errExample !== undefined || ep.errorStatus) {
+    const code = String(ep.errorStatus || 400);
+    responses[code] = {
+      description: ep.errorDescription || 'Error response',
+      content: {
+        [ep.errorContentType || 'application/json']: {
+          schema: ep.errorContentType === 'text/plain'
+            ? { type: 'string' }
+            : {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean' },
+                  msg: { type: 'string' },
+                },
+              },
+          ...(errExample !== undefined && ep.errorContentType !== 'text/plain' ? { example: errExample } : {}),
         },
       },
     };

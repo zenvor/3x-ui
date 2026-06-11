@@ -62,8 +62,10 @@ func (s *AccessLogService) List(subscriptionID int) ([]model.AccessLog, error) {
 }
 
 func (s *AccessLogService) ListRecent(limit int) ([]AccessLogListItem, error) {
-	if limit <= 0 || limit > accessLogListMaxLimit {
+	if limit <= 0 {
 		limit = accessLogRetention
+	} else if limit > accessLogListMaxLimit {
+		limit = accessLogListMaxLimit
 	}
 	var logs []model.AccessLog
 	if err := database.GetDB().

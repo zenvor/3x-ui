@@ -8,7 +8,7 @@ import {
   InfoCircleOutlined,
   KeyOutlined,
 } from '@ant-design/icons';
-import { Switch, Tag, Tooltip } from 'antd';
+import { Button, Switch, Tag, Tooltip } from 'antd';
 
 import type { SubscriptionRecord } from './types';
 import { buildFeedUrl, formatIpLimitUsage, ipLimitTagColor } from './utils';
@@ -56,25 +56,63 @@ export default function SubconverterMobileList({
             <span className="subconverter-card-title">{record.remark || '—'}</span>
             <div className="subconverter-card-actions">
               <Tooltip title={t('info')}>
-                <InfoCircleOutlined className="row-action-trigger" onClick={() => onInfo(record)} />
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<InfoCircleOutlined />}
+                  className="row-action-trigger"
+                  aria-label={t('info')}
+                  onClick={() => onInfo(record)}
+                />
               </Tooltip>
               <Tooltip title={t('edit')}>
-                <EditOutlined className="row-action-trigger" onClick={() => onEdit(record)} />
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EditOutlined />}
+                  className="row-action-trigger"
+                  aria-label={t('edit')}
+                  onClick={() => onEdit(record)}
+                />
               </Tooltip>
               <Tooltip title={t('pages.subconverter.copyFeedUrl')}>
-                <CopyOutlined className="row-action-trigger" onClick={() => onCopy(buildFeedUrl(record.token))} />
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<CopyOutlined />}
+                  className="row-action-trigger"
+                  aria-label={t('pages.subconverter.copyFeedUrl')}
+                  onClick={() => onCopy(buildFeedUrl(record.token))}
+                />
               </Tooltip>
               <Tooltip title={t('pages.subconverter.resetToken')}>
-                <KeyOutlined className="row-action-trigger danger" onClick={() => onResetToken(record)} />
+                <Button
+                  danger
+                  type="text"
+                  size="small"
+                  icon={<KeyOutlined />}
+                  className="row-action-trigger"
+                  aria-label={t('pages.subconverter.resetToken')}
+                  onClick={() => onResetToken(record)}
+                />
               </Tooltip>
               <Switch
                 checked={record.enable}
                 size="small"
                 loading={togglingId === record.id}
+                aria-label={record.enable ? t('enabled') : t('disabled')}
                 onChange={(checked) => onToggleEnabled(record, checked)}
               />
               <Tooltip title={t('delete')}>
-                <DeleteOutlined className="row-action-trigger danger" onClick={() => onRemove(record)} />
+                <Button
+                  danger
+                  type="text"
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  className="row-action-trigger"
+                  aria-label={t('delete')}
+                  onClick={() => onRemove(record)}
+                />
               </Tooltip>
             </div>
           </div>

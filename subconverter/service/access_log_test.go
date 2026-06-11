@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mhsanaei/3x-ui/v3/subconverter/database"
+	"github.com/mhsanaei/3x-ui/v3/subconverter/model"
 )
 
 func TestAccessLogKeepsRecentEntries(t *testing.T) {
@@ -124,5 +125,34 @@ func TestAccessLogListRecentIncludesSubscriptionRemark(t *testing.T) {
 	}
 	if items[1].Ip != "10.0.0.2" || items[1].SubscriptionRemark != "second sub" {
 		t.Fatalf("second item unexpected: %+v", items[1])
+	}
+}
+
+func TestAccessLogListRecentClampsOversizedLimit(t *testing.T) {
+	setupTestDB(t)
+	sub := seedSubscription(t, 1)
+	now := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
+	logs := make([]model.AccessLog, 0, accessLogListMaxLimit+5)
+	for i := 0; i < accessLogListMaxLimit+5; i++ {
+		logs = append(logs, model.AccessLog{
+			SubscriptionId: sub.Id,
+			Endpoint:       AccessEndpointFull,
+			Ip:             fmt.Sprintf("10.1.0.%d", i),
+			UserAgent:      "mihomo",
+			StatusCode:     200,
+			Result:         AccessResultSuccess,
+			AccessedAt:     now.Add(time.Duration(i) * time.Second),
+		})
+	}
+	if err := database.GetDB().Create(&logs).Error; err != nil {
+		t.Fatalf("seed logs: %v", err)
+	}
+
+	items, err := NewAccessLogService().ListRecent(accessLogListMaxLimit + 100)
+	if err != nil {
+		t.Fatalf("list recent logs: %v", err)
+	}
+	if len(items) != accessLogListMaxLimit {
+		t.Fatalf("items len = %d, want %d", len(items), accessLogListMaxLimit)
 	}
 }

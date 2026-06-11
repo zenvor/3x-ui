@@ -1,7 +1,9 @@
 package service
 
 import (
+	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -73,6 +75,53 @@ func TestEnforceRejectsBeyondQuota(t *testing.T) {
 	}
 	if err := svc.Enforce(sub.Id, sub.MaxIps, "3.3.3.3"); err != ErrIPLimitExceeded {
 		t.Fatalf("3rd IP err = %v, want ErrIPLimitExceeded", err)
+	}
+}
+
+func TestEnforceRejectsConcurrentNewIPsBeyondQuota(t *testing.T) {
+	setupTestDB(t)
+	sub := seedSubscription(t, 1)
+	svc := NewIPBindingService()
+	const workers = 12
+	start := make(chan struct{})
+	errs := make(chan error, workers)
+	var wg sync.WaitGroup
+
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			errs <- svc.Enforce(sub.Id, sub.MaxIps, fmt.Sprintf("10.0.0.%d", i+1))
+		}(i)
+	}
+
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	successes := 0
+	quotaExceeded := 0
+	for err := range errs {
+		switch {
+		case err == nil:
+			successes++
+		case errors.Is(err, ErrIPLimitExceeded):
+			quotaExceeded++
+		default:
+			t.Fatalf("unexpected Enforce error: %v", err)
+		}
+	}
+	if successes != 1 || quotaExceeded != workers-1 {
+		t.Fatalf("successes=%d quotaExceeded=%d, want 1/%d", successes, quotaExceeded, workers-1)
+	}
+
+	var count int64
+	if err := database.GetDB().Model(&model.IpBinding{}).Where("subscription_id = ?", sub.Id).Count(&count).Error; err != nil {
+		t.Fatalf("count bindings: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("binding count = %d, want 1", count)
 	}
 }
 

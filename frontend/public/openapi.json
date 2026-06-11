@@ -2884,6 +2884,96 @@
         }
       }
     },
+    "/feed/{token}": {
+      "get": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Return the managed Mihomo YAML for a public token.",
+        "operationId": "get_feed_token",
+        "description": "Unauthenticated public feed endpoint. When the immediate client IP is a configured trusted proxy, X-Real-IP, X-Forwarded-For, X-Forwarded-Proto, and X-Forwarded-Host are honoured for client IP and feed URL generation; otherwise forwarded headers are ignored.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "description": "32-character hexadecimal subscription token.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mihomo YAML subscription.",
+            "content": {
+              "application/x-yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Subscription not found, disabled, or hidden by user-agent policy.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/feed/{token}/nodes": {
+      "get": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Return the proxy-provider node list for a public token.",
+        "operationId": "get_feed_token_nodes",
+        "description": "Unauthenticated public provider endpoint. It checks the same token, user-agent, and trusted-proxy header rules as /feed/:token, but does not bind a new IP slot.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "description": "32-character hexadecimal subscription token.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mihomo proxy-provider YAML.",
+            "content": {
+              "application/x-yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Subscription not found, disabled, or hidden by user-agent policy.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/panel/api/subconverter/list": {
       "get": {
         "tags": [
@@ -3191,10 +3281,12 @@
           {
             "name": "limit",
             "in": "query",
-            "required": true,
+            "required": false,
             "description": "Maximum number of logs to return. Defaults to 100 and is capped at 500.",
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "default": 100,
+              "maximum": 500
             }
           }
         ],

@@ -47,6 +47,7 @@ func NewPublicController(engine *gin.Engine) *PublicController {
 }
 
 const yamlContentType = "application/x-yaml; charset=utf-8"
+const subscriptionTokenLength = 32
 
 // full serves /feed/:token. It binds the requesting IP on first hit and
 // rejects with 403 once the subscription's MaxIps quota is full.
@@ -137,6 +138,10 @@ func (p *PublicController) provider(c *gin.Context) {
 // success.
 func (p *PublicController) lookup(c *gin.Context) *submodel.Subscription {
 	token := c.Param("token")
+	if !validSubscriptionToken(token) {
+		c.String(http.StatusNotFound, "subscription not found")
+		return nil
+	}
 	sub, err := p.subSvc.FindByToken(token)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "lookup failed")
@@ -202,7 +207,11 @@ func (p *PublicController) rejectDisallowedUserAgent(c *gin.Context, endpoint st
 }
 
 func (p *PublicController) recordKnownTokenAccess(c *gin.Context, endpoint string, status int, result string) {
-	sub, err := p.subSvc.FindByToken(c.Param("token"))
+	token := c.Param("token")
+	if !validSubscriptionToken(token) {
+		return
+	}
+	sub, err := p.subSvc.FindByToken(token)
 	if err != nil {
 		logger.Warning("subconverter access log token lookup failed:", err)
 		return
@@ -211,6 +220,22 @@ func (p *PublicController) recordKnownTokenAccess(c *gin.Context, endpoint strin
 		return
 	}
 	p.recordAccess(sub, endpoint, c, remoteIP(c), status, result)
+}
+
+func validSubscriptionToken(token string) bool {
+	if len(token) != subscriptionTokenLength {
+		return false
+	}
+	for _, r := range token {
+		switch {
+		case r >= '0' && r <= '9':
+		case r >= 'a' && r <= 'f':
+		case r >= 'A' && r <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func (p *PublicController) recordAccess(sub *submodel.Subscription, endpoint string, c *gin.Context, ip string, status int, result string) {

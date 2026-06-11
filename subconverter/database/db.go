@@ -49,16 +49,27 @@ func InitDB() error {
 		cfg.Logger = logger.New(log.New(io.Discard, "", 0), logger.Config{})
 	}
 
-	conn, err := gorm.Open(sqlite.Open(dbPath), cfg)
+	dsn := dbPath + "?_journal_mode=WAL&_busy_timeout=10000&_synchronous=NORMAL&_txlock=immediate"
+	conn, err := gorm.Open(sqlite.Open(dsn), cfg)
 	if err != nil {
 		return err
 	}
 	db = conn
+	initialized := false
+	defer func() {
+		if !initialized {
+			_ = Reset()
+		}
+	}()
 
 	if err := dropObsoleteTables(); err != nil {
 		return err
 	}
-	return autoMigrate()
+	if err := autoMigrate(); err != nil {
+		return err
+	}
+	initialized = true
+	return nil
 }
 
 // GetDB returns the package-level GORM handle. Returns nil if InitDB has not

@@ -83,7 +83,7 @@ export function invalidateSubconverterSettings(queryClient: QueryClient) {
 }
 
 export function invalidateSubconverterLogs(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ queryKey: ['subconverter', 'logs'] });
+  return queryClient.invalidateQueries({ queryKey: keys.subconverter.logs() });
 }
 
 export function invalidateSubconverterDetail(queryClient: QueryClient, id: number) {
@@ -98,9 +98,9 @@ export function invalidateSubconverterRecord(queryClient: QueryClient, id?: numb
 
 export function useSubconverterDetail(id: number | null) {
   return useQuery({
-    queryKey: keys.subconverter.detail(id || 0),
-    queryFn: () => fetchSubconverterDetail(id || 0),
-    enabled: !!id,
+    queryKey: keys.subconverter.detail(id ?? -1),
+    queryFn: () => fetchSubconverterDetail(id!),
+    enabled: id !== null,
   });
 }
 

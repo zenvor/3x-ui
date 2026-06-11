@@ -1,14 +1,14 @@
 import { z } from 'zod';
 
-export const SubscriptionInboundSchema = z.object({
+export const SubscriptionInboundSchema = z.looseObject({
   id: z.number(),
   subscriptionId: z.number(),
   inboundId: z.number(),
   clientEmail: z.string().optional(),
   sortOrder: z.number().optional(),
-}).loose();
+});
 
-export const SubscriptionStatsSchema = z.object({
+export const SubscriptionStatsSchema = z.looseObject({
   subscriptionId: z.number().optional(),
   completedCount: z.number().optional(),
   lastCompletedAt: z.string().optional(),
@@ -16,17 +16,17 @@ export const SubscriptionStatsSchema = z.object({
   lastCompletedUserAgent: z.string().optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
-}).loose();
+});
 
-export const IpBindingRecordSchema = z.object({
+export const IpBindingRecordSchema = z.looseObject({
   id: z.number(),
   subscriptionId: z.number(),
   ip: z.string(),
   boundAt: z.string(),
   lastSeenAt: z.string(),
-}).loose();
+});
 
-export const AccessLogRecordSchema = z.object({
+export const AccessLogRecordSchema = z.looseObject({
   id: z.number(),
   subscriptionId: z.number(),
   subscriptionRemark: z.string().optional(),
@@ -36,9 +36,9 @@ export const AccessLogRecordSchema = z.object({
   statusCode: z.number(),
   result: z.string(),
   accessedAt: z.string(),
-}).loose();
+});
 
-export const SubscriptionRecordSchema = z.object({
+export const SubscriptionRecordSchema = z.looseObject({
   id: z.number(),
   token: z.string(),
   remark: z.string(),
@@ -49,31 +49,31 @@ export const SubscriptionRecordSchema = z.object({
   inbounds: z.array(SubscriptionInboundSchema).optional(),
   stats: SubscriptionStatsSchema.optional(),
   boundIpCount: z.number().optional(),
-}).loose();
+});
 
 export const SubscriptionDetailRecordSchema = SubscriptionRecordSchema.extend({
   boundIps: z.array(IpBindingRecordSchema).optional(),
   accessLogs: z.array(AccessLogRecordSchema).optional(),
-}).loose();
+});
 
-export const InboundOptionSchema = z.object({
+export const InboundOptionSchema = z.looseObject({
   id: z.number(),
   remark: z.string().optional(),
   tag: z.string().optional(),
   protocol: z.string().optional(),
   port: z.number().optional(),
   tlsFlowCapable: z.boolean().optional(),
-}).loose();
+});
 
-export const DefaultsPayloadSchema = z.object({
+export const DefaultsPayloadSchema = z.looseObject({
   pageSize: z.number().optional(),
-}).loose();
+});
 
-export const SubconverterSettingsSchema = z.object({
+export const SubconverterSettingsSchema = z.looseObject({
   uaFilterEnabled: z.boolean(),
   uaKeywords: z.array(z.string()).default([]),
   uaRejectStatus: z.number().default(403),
-}).loose();
+});
 
 export const FormValuesSchema = z.object({
   remark: z.string(),

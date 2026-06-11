@@ -354,15 +354,13 @@ export default function SubconverterPage() {
     try {
       const msg = await subconverter.save(record.id, payload);
       if (!msg?.success) throw new Error(msg?.msg || t('pages.subconverter.saveFailed'));
-      queryClient.setQueryData<SubscriptionRecord[]>(keys.subconverter.list(), (rows) =>
-        rows?.map((row) => (row.id === record.id ? { ...row, enable: checked } : row)));
       messageApi.success(t('pages.subconverter.updated'));
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : t('pages.subconverter.saveFailed'));
     } finally {
       setTogglingId(null);
     }
-  }, [messageApi, queryClient, subconverter, t]);
+  }, [messageApi, subconverter, t]);
 
   const infoTitle = infoRecord || infoTarget;
   return (

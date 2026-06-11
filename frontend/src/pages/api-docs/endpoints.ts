@@ -25,6 +25,8 @@ export interface EndpointParam {
   desc?: string;
   optional?: boolean;
   defaultValue?: string | number | boolean;
+  maximum?: number;
+  pattern?: string;
 }
 
 export interface Endpoint {
@@ -33,11 +35,17 @@ export interface Endpoint {
   summary: string;
   description?: string;
   deprecated?: boolean;
+  public?: boolean;
   params?: EndpointParam[];
   body?: string;
   response?: string;
+  responseContentType?: string;
+  responseType?: ParamType;
+  responseDescription?: string;
   errorResponse?: string;
   errorStatus?: number;
+  errorContentType?: string;
+  errorDescription?: string;
   responseSchema?: string;
   responseSchemaArray?: boolean;
 }
@@ -237,6 +245,38 @@ export const sections: readonly Section[] = [
     endpoints: [
       {
         method: 'GET',
+        path: '/feed/:token',
+        summary: 'Return the managed Mihomo YAML for a public token.',
+        description: 'Unauthenticated public feed endpoint. When the immediate client IP is a configured trusted proxy, X-Real-IP, X-Forwarded-For, X-Forwarded-Proto, and X-Forwarded-Host are honoured for client IP and feed URL generation; otherwise forwarded headers are ignored.',
+        public: true,
+        params: [
+          { name: 'token', in: 'path', type: 'string', desc: '32-character hexadecimal subscription token.', pattern: '^[0-9a-fA-F]{32}$' },
+        ],
+        responseContentType: 'application/x-yaml',
+        responseType: 'string',
+        responseDescription: 'Mihomo YAML subscription.',
+        errorStatus: 404,
+        errorContentType: 'text/plain',
+        errorDescription: 'Subscription not found, disabled, or hidden by user-agent policy.',
+      },
+      {
+        method: 'GET',
+        path: '/feed/:token/nodes',
+        summary: 'Return the proxy-provider node list for a public token.',
+        description: 'Unauthenticated public provider endpoint. It checks the same token, user-agent, and trusted-proxy header rules as /feed/:token, but does not bind a new IP slot.',
+        public: true,
+        params: [
+          { name: 'token', in: 'path', type: 'string', desc: '32-character hexadecimal subscription token.', pattern: '^[0-9a-fA-F]{32}$' },
+        ],
+        responseContentType: 'application/x-yaml',
+        responseType: 'string',
+        responseDescription: 'Mihomo proxy-provider YAML.',
+        errorStatus: 404,
+        errorContentType: 'text/plain',
+        errorDescription: 'Subscription not found, disabled, or hidden by user-agent policy.',
+      },
+      {
+        method: 'GET',
         path: '/panel/api/subconverter/list',
         summary: 'List every subscription-conversion entry with linked inbounds, usage stats, and bound IP count.',
       },
@@ -290,7 +330,7 @@ export const sections: readonly Section[] = [
         path: '/panel/api/subconverter/logs',
         summary: 'Return recent known-token public feed access logs across subscription-conversion entries.',
         params: [
-          { name: 'limit', in: 'query', type: 'number', desc: 'Maximum number of logs to return. Defaults to 100 and is capped at 500.' },
+          { name: 'limit', in: 'query', type: 'number', desc: 'Maximum number of logs to return. Defaults to 100 and is capped at 500.', optional: true, defaultValue: 100, maximum: 500 },
         ],
       },
       {

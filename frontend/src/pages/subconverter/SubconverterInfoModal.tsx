@@ -173,7 +173,12 @@ export default function SubconverterInfoModal({
                       <div className="link-panel-header">
                         <Tag color="lime">{t('pages.subconverter.feedUrl')}</Tag>
                         <Tooltip title={t('copy')}>
-                          <Button size="small" icon={<CopyOutlined />} onClick={() => onCopy(infoFeedUrl)} />
+                          <Button
+                            size="small"
+                            icon={<CopyOutlined />}
+                            aria-label={t('pages.subconverter.copyFeedUrl')}
+                            onClick={() => onCopy(infoFeedUrl)}
+                          />
                         </Tooltip>
                       </div>
                       <code className="link-panel-text">{infoFeedUrl}</code>

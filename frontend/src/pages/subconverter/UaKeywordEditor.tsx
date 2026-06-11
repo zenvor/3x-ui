@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Button, Input, Space } from 'antd';
 import { DeleteOutlined, PlusOutlined, StopOutlined } from '@ant-design/icons';
 
@@ -10,6 +11,7 @@ interface UaKeywordEditorProps {
 }
 
 export default function UaKeywordEditor({ addLabel, value = [], onChange }: UaKeywordEditorProps) {
+  const { t } = useTranslation();
   const rows = value.length > 0 ? value : [''];
 
   const updateAt = (index: number, nextValue: string) => {
@@ -38,6 +40,8 @@ export default function UaKeywordEditor({ addLabel, value = [], onChange }: UaKe
         />
         <Button
           disabled={!removable}
+          aria-label={removable ? t('delete') : t('pages.subconverter.uaKeywordsRequired')}
+          title={removable ? t('delete') : t('pages.subconverter.uaKeywordsRequired')}
           icon={removable ? <DeleteOutlined /> : <StopOutlined />}
           onClick={() => removeAt(index)}
         />

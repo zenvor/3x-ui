@@ -13,8 +13,10 @@ func TestInitDB(t *testing.T) {
 	t.Setenv("XUI_DB_FOLDER", tmpDir)
 
 	// Reset package state so the test exercises a real init.
-	db = nil
-	t.Cleanup(func() { db = nil })
+	if err := Reset(); err != nil {
+		t.Fatalf("reset db: %v", err)
+	}
+	t.Cleanup(func() { _ = Reset() })
 
 	if err := InitDB(); err != nil {
 		t.Fatalf("InitDB failed: %v", err)
@@ -54,8 +56,10 @@ func TestInitDBIdempotent(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XUI_DB_FOLDER", tmpDir)
 
-	db = nil
-	t.Cleanup(func() { db = nil })
+	if err := Reset(); err != nil {
+		t.Fatalf("reset db: %v", err)
+	}
+	t.Cleanup(func() { _ = Reset() })
 
 	if err := InitDB(); err != nil {
 		t.Fatalf("first InitDB failed: %v", err)

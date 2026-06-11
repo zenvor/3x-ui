@@ -239,7 +239,23 @@ func TestFeedAccessLogsKnownSubscriptionOutcomes(t *testing.T) {
 func TestUnknownTokenDoesNotRecordAccessLog(t *testing.T) {
 	engine := setupPublicControllerTest(t)
 
-	resp := performFeedRequest(engine, "/feed/missing", "1.1.1.1")
+	resp := performFeedRequest(engine, "/feed/ffffffffffffffffffffffffffffffff", "1.1.1.1")
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("feed status = %d, want 404", resp.Code)
+	}
+	var count int64
+	if err := database.GetDB().Model(&model.AccessLog{}).Count(&count).Error; err != nil {
+		t.Fatalf("count logs: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("access logs = %d, want 0", count)
+	}
+}
+
+func TestMalformedTokenDoesNotRecordAccessLog(t *testing.T) {
+	engine := setupPublicControllerTest(t)
+
+	resp := performFeedRequest(engine, "/feed/not-a-token", "1.1.1.1")
 	if resp.Code != http.StatusNotFound {
 		t.Fatalf("feed status = %d, want 404", resp.Code)
 	}
@@ -278,7 +294,7 @@ func TestFeedIgnoresForwardedHeadersFromUntrustedRemote(t *testing.T) {
 func createPublicTestSubscription(t *testing.T, maxIps int) *model.Subscription {
 	t.Helper()
 	sub := &model.Subscription{
-		Token:   "test-token",
+		Token:   "0123456789abcdef0123456789abcdef",
 		Remark:  "mobile",
 		MaxIps:  maxIps,
 		Enabled: true,
