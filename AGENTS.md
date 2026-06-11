@@ -27,6 +27,9 @@ SQLite or PostgreSQL, depending on runtime configuration.
 - Prefer root-cause fixes over temporary patches.
 - Keep changes narrow. Do not reformat or refactor unrelated files.
 - Before calling work done, run the smallest meaningful verification command.
+- When merging a GitHub PR through the web UI, review and fill both the commit
+  message title and the Extended description before clicking the final confirm
+  button.
 - Do not run `git pull`, `git pull --rebase`, or automatic merge/rebase flows
   unless explicitly asked. If the branch is behind or diverged, stop and report
   options instead.
