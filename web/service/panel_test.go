@@ -2,6 +2,18 @@ package service
 
 import "testing"
 
+func TestPanelUpdateSourceUsesForkRepository(t *testing.T) {
+	if panelGitHubRepo != "zenvor/3x-ui" {
+		t.Fatalf("unexpected panel repository: %s", panelGitHubRepo)
+	}
+	if panelReleaseAPIURL != "https://api.github.com/repos/zenvor/3x-ui/releases/latest" {
+		t.Fatalf("unexpected release API URL: %s", panelReleaseAPIURL)
+	}
+	if panelUpdaterURL != "https://raw.githubusercontent.com/zenvor/3x-ui/main/update.sh" {
+		t.Fatalf("unexpected updater URL: %s", panelUpdaterURL)
+	}
+}
+
 func TestIsNewerVersion(t *testing.T) {
 	cases := []struct {
 		latest  string
