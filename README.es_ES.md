@@ -119,7 +119,7 @@ docker compose --profile postgres up -d
 La imagen incluye Fail2ban (habilitado de forma predeterminada) para aplicar **límites de IP** por cliente. Fail2ban banea a los infractores con `iptables`, lo que requiere la capacidad `NET_ADMIN`. `docker-compose.yml` ya la concede mediante `cap_add`; si en su lugar inicias el contenedor con `docker run`, añade tú mismo las capacidades, de lo contrario los baneos se registran pero nunca se aplican:
 
 ```bash
-docker run -d --cap-add=NET_ADMIN --cap-add=NET_RAW ... ghcr.io/zenvor/3x-ui
+docker run -d --cap-add=NET_ADMIN --cap-add=NET_RAW ... zenvorhub/3x-ui
 ```
 
 ## Variables de Entorno

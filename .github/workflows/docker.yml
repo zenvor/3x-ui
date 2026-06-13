@@ -24,7 +24,7 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: |
-            zenvor/3x-ui
+            zenvorhub/3x-ui
             ghcr.io/zenvor/3x-ui
           tags: |
             type=ref,event=branch
