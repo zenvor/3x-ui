@@ -1,8 +1,8 @@
 package service
 
 import (
-	xmodel "github.com/mhsanaei/3x-ui/v3/database/model"
-	xservice "github.com/mhsanaei/3x-ui/v3/web/service"
+	xmodel "github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	xservice "github.com/mhsanaei/3x-ui/v3/internal/web/service"
 
 	submodel "github.com/mhsanaei/3x-ui/v3/subconverter/model"
 )

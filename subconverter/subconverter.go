@@ -14,9 +14,9 @@ package subconverter
 import (
 	"github.com/gin-gonic/gin"
 
+	"github.com/mhsanaei/3x-ui/v3/internal/web/middleware"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/controller"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/database"
-	"github.com/mhsanaei/3x-ui/v3/web/middleware"
 )
 
 // RegisterRoutes initializes the subconverter database and mounts every route

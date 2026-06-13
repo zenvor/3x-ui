@@ -13,8 +13,8 @@ SQLite or PostgreSQL, depending on runtime configuration.
 - Module path: `github.com/mhsanaei/3x-ui/v3`
 - Go version: `1.26.4`
 - Frontend: React 19, TypeScript, Ant Design 6, Vite 8
-- Frontend output: `web/dist/`, embedded into the Go binary
-- i18n files: `web/translation/*.json`
+- Frontend output: `internal/web/dist/`, embedded into the Go binary
+- i18n files: `internal/web/translation/*.json`
 - Local branch work often includes custom `subconverter/` changes on top of
   upstream 3X-UI.
 
@@ -39,8 +39,8 @@ SQLite or PostgreSQL, depending on runtime configuration.
 The repository has no Makefile. Use direct Go and npm commands.
 
 ```bash
-# Backend tests. CI stubs web/dist first because go:embed requires it.
-mkdir -p web/dist && touch web/dist/.gitkeep
+# Backend tests. CI stubs internal/web/dist first because go:embed requires it.
+mkdir -p internal/web/dist && touch internal/web/dist/.gitkeep
 go test ./...
 
 # CI uses an explicit package list.
@@ -48,7 +48,7 @@ go list ./... | grep -v '/frontend/node_modules/' > /tmp/go-packages.txt
 go test $(cat /tmp/go-packages.txt)
 
 # Targeted backend tests.
-go test ./web/service/...
+go test ./internal/web/service/...
 go test -run TestSomething ./path/to/pkg
 
 # Frontend setup and checks. Use Node 22+ from .nvmrc.
@@ -62,7 +62,7 @@ npm run build
 # resolve to the local x-ui/ folder instead of production locations.
 XUI_DEBUG=true go run ./main.go
 
-# Build production binary. Build frontend first so web/dist exists.
+# Build production binary. Build frontend first so internal/web/dist exists.
 cd frontend && npm run build
 cd ..
 CGO_ENABLED=1 go build -o bin/3x-ui ./main.go
@@ -71,14 +71,14 @@ CGO_ENABLED=1 go build -o bin/3x-ui ./main.go
 CI currently runs Go tests, `govulncheck`, frontend lint, frontend build, and
 `npm audit --audit-level=high`. CI does not currently run `npm run typecheck`,
 but local frontend changes should. Release builds compile the frontend before Go
-because `web/web.go` embeds `web/dist`.
+because `internal/web/web.go` embeds `internal/web/dist`.
 
 ## Frontend Architecture
 
 `frontend/` is the source tree for the panel UI. Vite emits HTML, JS, and CSS
-into `web/dist/`. `web/controller/dist.go` serves the page HTML, while
-`web/web.go` serves `/assets/` from either disk in debug mode or embedded
-`dist/assets` in production.
+into `internal/web/dist/`. `internal/web/controller/dist.go` serves the page
+HTML, while `internal/web/web.go` serves `/assets/` from either disk in debug
+mode or embedded `dist/assets` in production.
 
 Important frontend conventions:
 
@@ -86,10 +86,10 @@ Important frontend conventions:
 - Use shared API setup in `frontend/src/api/` and shared domain models in
   `frontend/src/models/`.
 - Use `frontend/src/i18n/` for React i18n wiring; locale data lives in
-  `web/translation/*.json`.
+  `internal/web/translation/*.json`.
 - Normal panel pages share `frontend/index.html`. Add the React page, register
   it in `frontend/src/routes.tsx`, add sidebar/navigation as needed, and add a
-  `panelSPA` route in `web/controller/xui.go`.
+  `panelSPA` route in `internal/web/controller/spa.go`.
 - Add a new HTML entry and Vite `rollupOptions.input` only for a standalone
   entry page like login or subpage.
 - Vite dev reads the panel base path from the configured SQLite DB through
@@ -102,19 +102,19 @@ The main server layers are:
 
 - `main.go` starts the panel server and subscription server, wires global
   handles, and handles signals.
-- `web/web.go` configures Gin, sessions, security headers, gzip, i18n,
+- `internal/web/web.go` configures Gin, sessions, security headers, gzip, i18n,
   embedded frontend assets, controllers, WebSocket, cron jobs, and
   `subconverter` route registration.
-- `web/controller/` owns HTTP handlers and request/response concerns.
-- `web/service/` owns business logic and database-facing operations.
-- `web/job/` owns cron jobs for Xray health, traffic accounting, IP limits,
+- `internal/web/controller/` owns HTTP handlers and request/response concerns.
+- `internal/web/service/` owns business logic and database-facing operations.
+- `internal/web/job/` owns cron jobs for Xray health, traffic accounting, IP limits,
   LDAP sync, log cleanup, node sync, and other periodic tasks.
-- `web/runtime/` abstracts local and remote node runtime behavior.
-- `web/websocket/` owns live panel updates.
-- `database/` owns main database setup and models.
-- `xray/` owns config generation, process lifecycle, and stats API access.
+- `internal/web/runtime/` abstracts local and remote node runtime behavior.
+- `internal/web/websocket/` owns live panel updates.
+- `internal/database/` owns main database setup and models.
+- `internal/xray/` owns config generation, process lifecycle, and stats API access.
 
-Use config helpers from `config/` instead of reading `XUI_*` environment
+Use config helpers from `internal/config/` instead of reading `XUI_*` environment
 variables directly.
 
 ## Critical Runtime Invariants
@@ -138,7 +138,7 @@ variables directly.
 
 ## Subconverter Module
 
-`subconverter/` is a local module integrated from `web/web.go` through
+`subconverter/` is a local module integrated from `internal/web/web.go` through
 `subconverter.RegisterRoutes`.
 
 Routes:
@@ -149,7 +149,7 @@ Routes:
 - Public Mihomo provider nodes: `/feed/:token/nodes`
 
 Persistence uses a separate SQLite database at
-`config.GetDBFolderPath()/subconverter.db`. With the local `.env.example`
+`internal/config.GetDBFolderPath()/subconverter.db`. With the local `.env.example`
 defaults this is normally `x-ui/subconverter.db`; on production installs it is
 normally `/etc/x-ui/subconverter.db`. Keeping the file separate means normal
 3X-UI import/export and upstream database migrations do not touch its data.
@@ -167,11 +167,11 @@ This branch carries local work on top of upstream 3X-UI. During upstream merges
 or rebases, explicitly check these integration points:
 
 - `subconverter/` package and `subconverter.RegisterRoutes` call in
-  `web/web.go`.
+  `internal/web/web.go`.
 - `sub.SetDistFS(web.EmbeddedDist())` before subscription server startup.
-- `web/controller/dist.go` and all React SPA serving behavior.
+- `internal/web/controller/dist.go` and all React SPA serving behavior.
 - `frontend/src/routes.tsx`, `frontend/vite.config.js`, and sidebar navigation.
-- API docs route whitelist in `web/controller/api_docs_test.go`.
+- API docs route whitelist in `internal/web/controller/api_docs_test.go`.
 - PostgreSQL support and SQLite-to-Postgres migration paths.
 
 ## Generated and Local Files
@@ -179,7 +179,7 @@ or rebases, explicitly check these integration points:
 Do not commit local runtime or dependency output:
 
 - `.env`
-- `web/dist/*` except `web/dist/.gitkeep`
+- `internal/web/dist/*` except `internal/web/dist/.gitkeep`
 - `frontend/node_modules/` and root `node_modules/`
 - local `x-ui/` runtime folders
 - SQLite files and WAL/SHM files such as `x-ui.db`, `subconverter.db`, `*.db-wal`
@@ -193,9 +193,9 @@ change is intentional.
 
 ## i18n
 
-Backend and frontend translations live in `web/translation/*.json`. The Go
-bundle registers JSON unmarshalling in `web/locale/locale.go`; React reads the
-same locale files through frontend i18n utilities.
+Backend and frontend translations live in `internal/web/translation/*.json`.
+The Go bundle registers JSON unmarshalling in `internal/web/locale/locale.go`;
+React reads the same locale files through frontend i18n utilities.
 
 When adding user-facing strings:
 
@@ -206,15 +206,15 @@ When adding user-facing strings:
 
 ## Database and Migrations
 
-- Main models live under `database/model/`.
-- Main DB initialization is in `database/db.go`.
-- Default main DB storage is SQLite at `config.GetDBPath()`. When
-  `XUI_DB_TYPE=postgres`, `database.InitDB` ignores that path and uses
+- Main models live under `internal/database/model/`.
+- Main DB initialization is in `internal/database/db.go`.
+- Default main DB storage is SQLite at `internal/config.GetDBPath()`. When
+  `XUI_DB_TYPE=postgres`, `internal/database.InitDB` ignores that path and uses
   `XUI_DB_DSN`.
 - `migrate-db -dsn ... -src ...` copies data from a SQLite file into a
   PostgreSQL database.
 - The main DB can use PostgreSQL, but `subconverter` still persists in its own
-  SQLite file under `config.GetDBFolderPath()`.
+  SQLite file under `internal/config.GetDBFolderPath()`.
 - One-time seed/migration history uses the `HistoryOfSeeders` table; check the
   existing pattern before adding a new seeder.
 - CLI recovery commands operate directly on the DB and should be tested as CLI
@@ -237,7 +237,7 @@ When changing these paths, run the built binary directly and verify the flags.
 Choose verification based on risk:
 
 - Go service/controller changes: targeted `go test ./path/...`.
-- Shared backend behavior: `mkdir -p web/dist && touch web/dist/.gitkeep`
+- Shared backend behavior: `mkdir -p internal/web/dist && touch internal/web/dist/.gitkeep`
   followed by `go test ./...`.
 - Frontend changes: `npm run lint`, `npm run typecheck`, and usually
   `npm run build` from `frontend/`.

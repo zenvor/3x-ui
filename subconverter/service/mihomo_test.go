@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	xmodel "github.com/mhsanaei/3x-ui/v3/database/model"
+	xmodel "github.com/mhsanaei/3x-ui/v3/internal/database/model"
 )
 
 func vlessInbound(remark, listen string, port int, streamSettings string) *xmodel.Inbound {

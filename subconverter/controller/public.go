@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/mhsanaei/3x-ui/v3/logger"
+	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 	submodel "github.com/mhsanaei/3x-ui/v3/subconverter/model"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/service"
 )

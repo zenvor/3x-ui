@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
-import { HttpUtil, Msg, PromiseUtil } from '@/utils';
+import { HttpUtil, Msg } from '@/utils';
 import { parseMsg } from '@/utils/zodValidate';
 import { keys } from '@/api/queryKeys';
 import {
   OutboundTrafficListSchema,
-  OutboundTestResultSchema,
+  OutboundTestResultListSchema,
   XrayConfigPayloadSchema,
   XraySettingsValueSchema,
   type OutboundTestResult,
@@ -16,6 +16,10 @@ import {
 
 const DIRTY_POLL_MS = 1000;
 const DEFAULT_TEST_URL = 'https://www.google.com/generate_204';
+// One HTTP-mode batch request tests this many outbounds through a single
+// shared temp xray instance; chunking keeps responses bounded (~15s worst
+// case) and lands Test All results progressively.
+const HTTP_BATCH_CHUNK = 16;
 
 export function isUdpOutbound(outbound: unknown): boolean {
   const o = outbound as { protocol?: string; streamSettings?: { network?: string } } | null | undefined;
@@ -53,7 +57,6 @@ export interface UseXraySettingResult {
   clientReverseTags: string[];
   subscriptionOutbounds: unknown[];
   subscriptionOutboundTags: string[];
-  restartResult: string;
   outboundsTraffic: OutboundTrafficRow[];
   outboundTestStates: Record<number, OutboundTestState>;
   subscriptionTestStates: Record<string, OutboundTestState>;
@@ -74,12 +77,11 @@ export interface UseXraySettingResult {
   testAllOutbounds: (mode?: string) => Promise<void>;
   saveAll: () => Promise<void>;
   resetToDefault: () => Promise<void>;
-  restartXray: () => Promise<void>;
 }
 
 type XrayConfigPayload = z.infer<typeof XrayConfigPayloadSchema>;
 
-async function fetchXrayConfig(): Promise<XrayConfigPayload> {
+export async function fetchXrayConfig(): Promise<XrayConfigPayload> {
   const msg = await HttpUtil.post('/panel/api/xray/', undefined, { silent: true });
   if (!msg?.success) throw new Error(msg?.msg || 'Failed to load xray config');
   if (typeof msg.obj !== 'string') throw new Error('Malformed xray config response: expected string');
@@ -128,7 +130,6 @@ export function useXraySetting(): UseXraySettingResult {
   const [clientReverseTags, setClientReverseTags] = useState<string[]>([]);
   const [subscriptionOutbounds, setSubscriptionOutbounds] = useState<unknown[]>([]);
   const [subscriptionOutboundTags, setSubscriptionOutboundTags] = useState<string[]>([]);
-  const [restartResult, setRestartResult] = useState('');
   const [outboundTestStates, setOutboundTestStates] = useState<Record<number, OutboundTestState>>({});
   // Subscription outbounds aren't in templateSettings.outbounds, so their test
   // results are keyed by tag rather than by index.
@@ -238,18 +239,6 @@ export function useXraySetting(): UseXraySettingResult {
     },
   });
 
-  const restartMut = useMutation({
-    mutationFn: async () => {
-      const msg = await HttpUtil.post('/panel/api/server/restartXrayService');
-      if (!msg?.success) return msg;
-      await PromiseUtil.sleep(500);
-      const r = await HttpUtil.get('/panel/api/xray/getXrayResult');
-      const validated = parseMsg(r, z.string(), 'xray/getXrayResult');
-      if (validated?.success) setRestartResult(validated.obj || '');
-      return msg;
-    },
-  });
-
   const resetDefaultMut = useMutation({
     mutationFn: async (): Promise<Msg<XraySettingsValue>> => {
       const raw = await HttpUtil.get('/panel/api/setting/getDefaultJsonConfig');
@@ -265,26 +254,30 @@ export function useXraySetting(): UseXraySettingResult {
 
   const saveAll = useCallback(async () => { await saveMut.mutateAsync(); }, [saveMut]);
   const resetOutboundsTraffic = useCallback(async (tag: string) => { await resetTrafficMut.mutateAsync(tag); }, [resetTrafficMut]);
-  const restartXray = useCallback(async () => { await restartMut.mutateAsync(); }, [restartMut]);
   const resetToDefault = useCallback(async () => { await resetDefaultMut.mutateAsync(); }, [resetDefaultMut]);
 
-  const spinning = saveMut.isPending || restartMut.isPending || resetDefaultMut.isPending;
+  const spinning = saveMut.isPending || resetDefaultMut.isPending;
 
-  // Shared POST + parse for a single outbound test. Returns an OutboundTestResult
-  // (success or a failure-shaped result); callers store it under their own key.
-  const postOutboundTest = useCallback(
-    async (outbound: unknown, effMode: string): Promise<OutboundTestResult> => {
+  // Shared POST + parse for a batch of outbound tests. The backend probes the
+  // whole batch through one shared temp xray instance and returns results in
+  // request order; this aligns them by index and shapes failures so every
+  // input gets an OutboundTestResult.
+  const postOutboundTestBatch = useCallback(
+    async (outbounds: unknown[], effMode: string): Promise<OutboundTestResult[]> => {
+      const failAll = (error: string): OutboundTestResult[] =>
+        outbounds.map(() => ({ success: false, error, mode: effMode }));
       try {
-        const raw = await HttpUtil.post('/panel/api/xray/testOutbound', {
-          outbound: JSON.stringify(outbound),
+        const raw = await HttpUtil.post('/panel/api/xray/testOutbounds', {
+          outbounds: JSON.stringify(outbounds),
           allOutbounds: JSON.stringify(templateSettingsRef.current?.outbounds || []),
           mode: effMode,
         });
-        const msg = parseMsg(raw, OutboundTestResultSchema, 'xray/testOutbound');
-        if (msg?.success && msg.obj) return msg.obj;
-        return { success: false, error: msg?.msg || 'Unknown error', mode: effMode };
+        const msg = parseMsg(raw, OutboundTestResultListSchema, 'xray/testOutbounds');
+        if (!msg?.success || !Array.isArray(msg.obj)) return failAll(msg?.msg || 'Unknown error');
+        const list = msg.obj;
+        return outbounds.map((_ob, i) => list[i] ?? { success: false, error: 'Missing result', mode: effMode });
       } catch (e) {
-        return { success: false, error: String(e), mode: effMode };
+        return failAll(String(e));
       }
     },
     [],
@@ -298,11 +291,11 @@ export function useXraySetting(): UseXraySettingResult {
         ...prev,
         [index]: { testing: true, result: null, mode: effMode },
       }));
-      const result = await postOutboundTest(outbound, effMode);
+      const [result] = await postOutboundTestBatch([outbound], effMode);
       setOutboundTestStates((prev) => ({ ...prev, [index]: { testing: false, result } }));
       return result.success ? result : null;
     },
-    [postOutboundTest],
+    [postOutboundTestBatch],
   );
 
   // Test a subscription outbound (not present in templateSettings.outbounds);
@@ -315,11 +308,11 @@ export function useXraySetting(): UseXraySettingResult {
         ...prev,
         [tag]: { testing: true, result: null, mode: effMode },
       }));
-      const result = await postOutboundTest(outbound, effMode);
+      const [result] = await postOutboundTestBatch([outbound], effMode);
       setSubscriptionTestStates((prev) => ({ ...prev, [tag]: { testing: false, result } }));
       return result.success ? result : null;
     },
-    [postOutboundTest],
+    [postOutboundTestBatch],
   );
 
   const testAllOutbounds = useCallback(async (mode = 'tcp') => {
@@ -340,7 +333,10 @@ export function useXraySetting(): UseXraySettingResult {
           tcpQueue.push({ index: i, outbound: ob });
         }
       });
-      const runLane = async (queue: { index: number; outbound: unknown }[], concurrency: number) => {
+      // TCP probes are dial-only and cheap server-side; per-item requests
+      // keep results landing one by one.
+      const runTcpLane = async () => {
+        const queue = [...tcpQueue];
         const worker = async () => {
           while (queue.length > 0) {
             const item = queue.shift();
@@ -348,14 +344,33 @@ export function useXraySetting(): UseXraySettingResult {
             await testOutbound(item.index, item.outbound, mode);
           }
         };
-        const workers = Array.from({ length: Math.min(concurrency, queue.length) }, () => worker());
-        await Promise.all(workers);
+        await Promise.all(Array.from({ length: Math.min(8, queue.length) }, () => worker()));
       };
-      await Promise.all([runLane(tcpQueue, 8), runLane(httpQueue, 1)]);
+      // HTTP probes go out as chunked batches — one temp xray spawn per
+      // chunk instead of one per outbound, with results landing per chunk.
+      const runHttpLane = async () => {
+        for (let at = 0; at < httpQueue.length; at += HTTP_BATCH_CHUNK) {
+          const chunk = httpQueue.slice(at, at + HTTP_BATCH_CHUNK);
+          setOutboundTestStates((prev) => {
+            const next = { ...prev };
+            for (const item of chunk) next[item.index] = { testing: true, result: null, mode: 'http' };
+            return next;
+          });
+          const results = await postOutboundTestBatch(chunk.map((c) => c.outbound), 'http');
+          setOutboundTestStates((prev) => {
+            const next = { ...prev };
+            chunk.forEach((item, i) => {
+              next[item.index] = { testing: false, result: results[i] };
+            });
+            return next;
+          });
+        }
+      };
+      await Promise.all([runTcpLane(), runHttpLane()]);
     } finally {
       setTestingAll(false);
     }
-  }, [testingAll, testOutbound]);
+  }, [testingAll, testOutbound, postOutboundTestBatch]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -384,7 +399,6 @@ export function useXraySetting(): UseXraySettingResult {
       clientReverseTags,
       subscriptionOutbounds,
       subscriptionOutboundTags,
-      restartResult,
       outboundsTraffic,
       outboundTestStates,
       subscriptionTestStates,
@@ -397,7 +411,6 @@ export function useXraySetting(): UseXraySettingResult {
       testAllOutbounds,
       saveAll,
       resetToDefault,
-      restartXray,
     }),
     [
       fetched,
@@ -414,7 +427,6 @@ export function useXraySetting(): UseXraySettingResult {
       clientReverseTags,
       subscriptionOutbounds,
       subscriptionOutboundTags,
-      restartResult,
       outboundsTraffic,
       outboundTestStates,
       subscriptionTestStates,
@@ -427,7 +439,6 @@ export function useXraySetting(): UseXraySettingResult {
       testAllOutbounds,
       saveAll,
       resetToDefault,
-      restartXray,
     ],
   );
 }

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/mhsanaei/3x-ui/v3/database/model"
+	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 )
 
 // MihomoProxy 是 Mihomo YAML 中的一条代理节点。
