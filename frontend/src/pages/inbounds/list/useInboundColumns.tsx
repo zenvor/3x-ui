@@ -1,6 +1,6 @@
 import { useMemo, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Popover, Switch, Tag, type TableColumnType } from 'antd';
+import { Popover, Switch, Tag, Tooltip, type TableColumnType } from 'antd';
 import { TeamOutlined } from '@ant-design/icons';
 
 import { SizeFormatter, IntlUtil, ColorUtils } from '@/utils';
@@ -21,6 +21,7 @@ import type { ClientCountEntry, DBInboundRecord, RowAction } from './types';
 
 interface UseInboundColumnsParams {
   hasAnyRemark: boolean;
+  hasAnySubSortIndex: boolean;
   hasActiveNode: boolean;
   nodesById: Map<number, NodeRecord>;
   clientCount: Record<number, ClientCountEntry>;
@@ -33,6 +34,7 @@ interface UseInboundColumnsParams {
 
 export function useInboundColumns({
   hasAnyRemark,
+  hasAnySubSortIndex,
   hasActiveNode,
   nodesById,
   clientCount,
@@ -113,6 +115,20 @@ export function useInboundColumns({
       });
     }
 
+    if (hasAnySubSortIndex) {
+      cols.push({
+        title: (
+          <Tooltip title={t('pages.inbounds.form.subSortIndex')}>
+            {t('pages.inbounds.subSortIndex')}
+          </Tooltip>
+        ),
+        dataIndex: 'subSortIndex',
+        key: 'subSortIndex',
+        align: 'right',
+        width: 70,
+      });
+    }
+
     cols.push(
       {
         title: t('pages.inbounds.port'),
@@ -159,7 +175,7 @@ export function useInboundColumns({
           if (!cc) return null;
           return (
             <>
-              <Tag className="client-count-tag" style={{ margin: 0, padding: '0 2px' }}>
+              <Tag className="client-count-tag" style={{ margin: 0, marginRight: 4, padding: '0 2px' }}>
                 <TeamOutlined /> {cc.clients}
               </Tag>
               {cc.active.length > 0 && (
@@ -267,5 +283,5 @@ export function useInboundColumns({
     );
 
     return cols;
-  }, [t, hasAnyRemark, hasActiveNode, nodesById, clientCount, subEnable, expireDiff, trafficDiff, datepicker, onRowAction, onSwitchEnable]);
+  }, [t, hasAnyRemark, hasAnySubSortIndex, hasActiveNode, nodesById, clientCount, subEnable, expireDiff, trafficDiff, datepicker, onRowAction, onSwitchEnable]);
 }

@@ -13,10 +13,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/mhsanaei/3x-ui/v3/web/entity"
-	"github.com/mhsanaei/3x-ui/v3/web/locale"
-	"github.com/mhsanaei/3x-ui/v3/web/service"
-	"github.com/mhsanaei/3x-ui/v3/web/session"
+	"github.com/mhsanaei/3x-ui/v3/internal/web/entity"
+	"github.com/mhsanaei/3x-ui/v3/internal/web/locale"
+	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
+	panelservice "github.com/mhsanaei/3x-ui/v3/internal/web/service/panel"
+	"github.com/mhsanaei/3x-ui/v3/internal/web/session"
 )
 
 // jsonMsg sends an entity.Msg with no payload. err == nil means success.
@@ -86,8 +87,8 @@ func CheckLogin(c *gin.Context) {
 func CheckAPIAuth(c *gin.Context) {
 	auth := c.GetHeader("Authorization")
 	if after, ok := strings.CutPrefix(auth, "Bearer "); ok {
-		if (&service.ApiTokenService{}).Match(after) {
-			if u, err := (&service.UserService{}).GetFirstUser(); err == nil {
+		if (&panelservice.ApiTokenService{}).Match(after) {
+			if u, err := (&panelservice.UserService{}).GetFirstUser(); err == nil {
 				session.SetAPIAuthUser(c, u)
 			}
 			c.Set("api_authed", true)

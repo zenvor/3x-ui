@@ -9,17 +9,20 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 	_ "unsafe"
 
-	"github.com/mhsanaei/3x-ui/v3/config"
-	"github.com/mhsanaei/3x-ui/v3/database"
-	"github.com/mhsanaei/3x-ui/v3/logger"
-	"github.com/mhsanaei/3x-ui/v3/sub"
-	"github.com/mhsanaei/3x-ui/v3/util/crypto"
-	"github.com/mhsanaei/3x-ui/v3/util/sys"
-	"github.com/mhsanaei/3x-ui/v3/web"
-	"github.com/mhsanaei/3x-ui/v3/web/global"
-	"github.com/mhsanaei/3x-ui/v3/web/service"
+	"github.com/mhsanaei/3x-ui/v3/internal/config"
+	"github.com/mhsanaei/3x-ui/v3/internal/database"
+	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	"github.com/mhsanaei/3x-ui/v3/internal/sub"
+	"github.com/mhsanaei/3x-ui/v3/internal/util/crypto"
+	"github.com/mhsanaei/3x-ui/v3/internal/util/sys"
+	"github.com/mhsanaei/3x-ui/v3/internal/web"
+	"github.com/mhsanaei/3x-ui/v3/internal/web/global"
+	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
+	"github.com/mhsanaei/3x-ui/v3/internal/web/service/panel"
+	"github.com/mhsanaei/3x-ui/v3/internal/web/service/tgbot"
 
 	"github.com/joho/godotenv"
 	"github.com/op/go-logging"
@@ -123,7 +126,7 @@ func runWebServer() {
 
 		default:
 			// --- FIX FOR TELEGRAM BOT CONFLICT (409) on full shutdown ---
-			service.StopBot()
+			tgbot.StopBot()
 			// ------------------------------------------------------------
 
 			server.Stop()
@@ -176,7 +179,7 @@ func showSetting(show bool) {
 			fmt.Println("get key file failed, error info:", err)
 		}
 
-		userService := service.UserService{}
+		userService := panel.UserService{}
 		userModel, err := userService.GetFirstUser()
 		if err != nil {
 			fmt.Println("get current user info failed, error info:", err)
@@ -270,7 +273,7 @@ func updateSetting(port int, username string, password string, webBasePath strin
 	}
 
 	settingService := service.SettingService{}
-	userService := service.UserService{}
+	userService := panel.UserService{}
 
 	if port > 0 {
 		err := settingService.SetPort(port)
@@ -401,14 +404,30 @@ func GetApiToken(getApiToken bool) {
 	if !getApiToken {
 		return
 	}
-	apiTokenService := service.ApiTokenService{}
+	err := database.InitDB(config.GetDBPath())
+	if err != nil {
+		fmt.Println("open database failed, error info:", err)
+		return
+	}
+	apiTokenService := panel.ApiTokenService{}
 	tokens, err := apiTokenService.List()
 	if err != nil {
 		fmt.Println("get apiToken failed, error info:", err)
 		return
 	}
 	if len(tokens) > 0 {
-		fmt.Println("apiToken:", tokens[0].Token)
+		fmt.Printf("There are %d API token(s) configured. Existing tokens cannot be retrieved in plaintext because only hashes are stored.\n", len(tokens))
+		fmt.Println("If you have lost your token, you can manage and generate new tokens through the Panel UI (Settings -> API Tokens).")
+
+		// Create a new fallback token so the CLI is still useful without the UI
+		fallbackName := fmt.Sprintf("cli-fallback-%d", time.Now().Unix())
+		created, err := apiTokenService.Create(fallbackName)
+		if err != nil {
+			fmt.Println("Failed to create a fallback API token:", err)
+			return
+		}
+		fmt.Println("\nA new fallback token has been generated for your convenience:")
+		fmt.Println("apiToken:", created.Token)
 		return
 	}
 	created, err := apiTokenService.Create("install")

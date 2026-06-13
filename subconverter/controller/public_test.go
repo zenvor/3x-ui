@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	logging "github.com/op/go-logging"
 
-	"github.com/mhsanaei/3x-ui/v3/logger"
+	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/database"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/model"
 )
