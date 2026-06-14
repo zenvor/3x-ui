@@ -13,7 +13,7 @@ type Subscription struct {
 	Id        int       `json:"id" gorm:"primaryKey;autoIncrement"`
 	Token     string    `json:"token" gorm:"uniqueIndex;not null;size:64"`
 	Remark    string    `json:"remark" gorm:"not null"`
-	MaxIps    int       `json:"limitIp" gorm:"default:1"`   // 0 = unlimited; JSON name matches 3X-UI's Client.LimitIP
+	MaxIps    int       `json:"limitIp" gorm:"default:0"`   // 0 = unlimited; JSON name matches 3X-UI's Client.LimitIP
 	Enabled   bool      `json:"enable" gorm:"default:true"` // JSON name matches 3X-UI's Inbound.Enable
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
@@ -37,6 +37,12 @@ type SubscriptionInbound struct {
 	InboundId      int       `json:"inboundId" gorm:"not null"`
 	ClientEmail    string    `json:"clientEmail"`
 	SortOrder      int       `json:"sortOrder" gorm:"default:0"`
+	CdnTLS         bool      `json:"cdnTls" gorm:"default:false"`
+	CdnServer      string    `json:"cdnServer" gorm:"column:cdn_server;size:255"`
+	CdnPort        int       `json:"cdnPort" gorm:"column:cdn_port;default:443"`
+	CdnServerName  string    `json:"cdnServerName" gorm:"column:cdn_server_name;size:255"`
+	CdnXHTTPHost   string    `json:"cdnXhttpHost" gorm:"column:cdn_xhttp_host;size:255"`
+	CdnClientFp    string    `json:"cdnClientFingerprint" gorm:"column:cdn_client_fingerprint;size:64"`
 	CreatedAt      time.Time `json:"createdAt"`
 }
 

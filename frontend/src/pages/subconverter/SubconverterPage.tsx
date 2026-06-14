@@ -35,6 +35,7 @@ import { LazyMount } from '@/components/utility';
 import AppSidebar from '@/layouts/AppSidebar';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useTheme } from '@/hooks/useTheme';
+import { formatInboundLabel } from '@/lib/inbounds/label';
 import { setMessageInstance } from '@/utils/messageBus';
 import SubconverterSettingsModal from './SubconverterSettingsModal';
 import SubconverterSubscriptionList from './SubconverterSubscriptionList';
@@ -47,10 +48,12 @@ import type {
   SubscriptionRecord,
 } from './types';
 import {
+  canConfigureCdnTls,
   fallbackCopy,
   INBOUND_TAG_COLOR,
   isSupportedInbound,
   normalizeUAKeywords,
+  requiresCdnTls,
 } from './utils';
 import './SubconverterPage.css';
 
@@ -132,6 +135,13 @@ export default function SubconverterPage() {
     [inbounds],
   );
 
+  const canConfigureInboundCdnTls = useCallback((id: number) => (
+    canConfigureCdnTls(inboundById.get(id))
+  ), [inboundById]);
+  const inboundRequiresCdnTls = useCallback((id: number) => (
+    requiresCdnTls(inboundById.get(id))
+  ), [inboundById]);
+
   const stats = useMemo(() => {
     let enabled = 0;
     let completedSubscriptions = 0;
@@ -149,15 +159,13 @@ export default function SubconverterPage() {
   const inboundSelectLabel = useCallback((id: number) => {
     const inbound = inboundById.get(id);
     if (!inbound) return `#${id}`;
-    const name = inbound.remark || inbound.tag || `#${id}`;
-    return `${name} · ${inbound.protocol}:${inbound.port}`;
+    return formatInboundLabel(inbound.tag, inbound.remark) || `#${id}`;
   }, [inboundById]);
 
   const inboundTagLabel = useCallback((id: number) => {
     const inbound = inboundById.get(id);
     if (!inbound) return `#${id}`;
-    const name = inbound.remark || inbound.tag;
-    return name ? `${name} (${inbound.protocol}:${inbound.port})` : `${inbound.protocol}:${inbound.port}`;
+    return formatInboundLabel(inbound.tag, inbound.remark) || `#${id}`;
   }, [inboundById]);
 
   const renderInboundTags = useCallback((record: SubscriptionRecord, color: string = INBOUND_TAG_COLOR) => {
@@ -190,7 +198,8 @@ export default function SubconverterPage() {
 
   const openCreate = useCallback(() => {
     setEditingId(null);
-    form.setFieldsValue({ remark: '', limitIp: 1, enable: true, inboundIds: [] });
+    form.resetFields();
+    form.setFieldsValue({ remark: '', limitIp: 0, enable: true, inboundIds: [], cdnTls: {} });
     setFormOpen(true);
   }, [form]);
 
@@ -215,17 +224,29 @@ export default function SubconverterPage() {
   }, [messageApi, queryClient, settingsForm, t]);
 
   const openEdit = useCallback((record: SubscriptionRecord) => {
+    const cdnTls: FormValues['cdnTls'] = {};
+    for (const item of record.inbounds || []) {
+      if (!canConfigureInboundCdnTls(item.inboundId)) continue;
+      cdnTls[String(item.inboundId)] = {
+        enabled: inboundRequiresCdnTls(item.inboundId) || !!item.cdnTls,
+        server: item.cdnServer || '',
+        port: item.cdnPort || 443,
+        serverName: item.cdnServerName || '',
+      };
+    }
     setEditingId(record.id);
+    form.resetFields();
     form.setFieldsValue({
       remark: record.remark,
       limitIp: record.limitIp,
       enable: record.enable,
+      cdnTls,
       inboundIds: (record.inbounds || [])
         .map((item) => item.inboundId)
         .filter((id) => inboundById.has(id)),
     });
     setFormOpen(true);
-  }, [form, inboundById]);
+  }, [canConfigureInboundCdnTls, form, inboundById, inboundRequiresCdnTls]);
 
   const openInfo = useCallback((record: SubscriptionRecord) => {
     setInfoTarget({ id: record.id, remark: record.remark });
@@ -233,11 +254,25 @@ export default function SubconverterPage() {
 
   const save = useCallback(async () => {
     const values = await form.validateFields();
+    const inboundIds = values.inboundIds || [];
+    const inbounds = inboundIds.map((id) => {
+      const cdn = values.cdnTls?.[String(id)];
+      const cdnEnabled = canConfigureInboundCdnTls(id) && (inboundRequiresCdnTls(id) || !!cdn?.enabled);
+      return {
+        inboundId: id,
+        cdnTls: cdnEnabled,
+        cdnServer: cdnEnabled ? cdn?.server?.trim() || '' : '',
+        cdnPort: cdnEnabled ? Number(cdn?.port) || 443 : 0,
+        cdnServerName: cdnEnabled ? cdn?.serverName?.trim() || '' : '',
+      };
+    });
     const payload: FormValues = {
       remark: values.remark,
       limitIp: Number(values.limitIp) || 0,
       enable: !!values.enable,
-      inboundIds: values.inboundIds || [],
+      inboundIds,
+      cdnTls: values.cdnTls || {},
+      inbounds,
     };
     try {
       const msg = await subconverter.save(editingId, payload);
@@ -247,7 +282,7 @@ export default function SubconverterPage() {
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : t('pages.subconverter.saveFailed'));
     }
-  }, [editingId, form, messageApi, subconverter, t]);
+  }, [canConfigureInboundCdnTls, editingId, form, inboundRequiresCdnTls, messageApi, subconverter, t]);
 
   const saveSettings = useCallback(async () => {
     const values = await settingsForm.validateFields();
@@ -284,7 +319,7 @@ export default function SubconverterPage() {
     modal.confirm({
       title: t('pages.subconverter.confirmDeleteIp'),
       content: (
-        <Space direction="vertical" size={4}>
+        <Space orientation="vertical" size={4}>
           <span>{`#${binding.subscriptionId}`}</span>
           <span>{`IP: ${binding.ip}`}</span>
         </Space>
@@ -307,7 +342,7 @@ export default function SubconverterPage() {
     modal.confirm({
       title: t('pages.subconverter.confirmClearIps'),
       content: (
-        <Space direction="vertical" size={4}>
+        <Space orientation="vertical" size={4}>
           <span>{`#${record.id}${record.remark ? ` ${record.remark}` : ''}`}</span>
           <span>{`${t('pages.subconverter.boundIps')}: ${boundIps.length}`}</span>
         </Space>
@@ -327,7 +362,7 @@ export default function SubconverterPage() {
     modal.confirm({
       title: t('pages.subconverter.confirmResetToken'),
       content: (
-        <Space direction="vertical" size={4}>
+        <Space orientation="vertical" size={4}>
           <span>{`#${record.id}${record.remark ? ` ${record.remark}` : ''}`}</span>
           <span>{`${t('pages.subconverter.boundIps')}: ${record.boundIpCount || 0}`}</span>
         </Space>
@@ -350,6 +385,14 @@ export default function SubconverterPage() {
       limitIp: record.limitIp,
       enable: checked,
       inboundIds: (record.inbounds || []).map((item) => item.inboundId),
+      inbounds: (record.inbounds || []).map((item) => ({
+        inboundId: item.inboundId,
+        clientEmail: item.clientEmail || '',
+        cdnTls: !!item.cdnTls,
+        cdnServer: item.cdnServer || '',
+        cdnPort: item.cdnPort || 443,
+        cdnServerName: item.cdnServerName || '',
+      })),
     };
     try {
       const msg = await subconverter.save(record.id, payload);
@@ -375,7 +418,7 @@ export default function SubconverterPage() {
               {!fetched ? (
                 <div className="loading-spacer" />
               ) : (
-                <Space direction="vertical" size={16} className="subconverter-stack">
+                <Space orientation="vertical" size={16} className="subconverter-stack">
                   <Card className="summary-card" size="small" hoverable>
                     <Row gutter={[16, 12]}>
                       <Col xs={12} sm={12} md={8}>
@@ -446,6 +489,8 @@ export default function SubconverterPage() {
               supportedInbounds={supportedInbounds}
               inboundSelectLabel={inboundSelectLabel}
               inboundTagLabel={inboundTagLabel}
+              canConfigureCdnTls={canConfigureInboundCdnTls}
+              isCdnTlsRequired={inboundRequiresCdnTls}
               onOk={save}
               onCancel={() => setFormOpen(false)}
             />

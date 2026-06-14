@@ -142,7 +142,7 @@ export default function SubconverterInfoModal({
                 key: 'overview',
                 label: t('pages.subconverter.overview'),
                 children: (
-                  <Space direction="vertical" size={16} className="subconverter-stack">
+                  <Space orientation="vertical" size={16} className="subconverter-stack">
                     <table className="subconverter-info-table">
                       <tbody>
                         <tr>
@@ -190,7 +190,7 @@ export default function SubconverterInfoModal({
                 key: 'ips',
                 label: t('pages.subconverter.boundIps'),
                 children: (
-                  <Space direction="vertical" size={12} className="subconverter-stack">
+                  <Space orientation="vertical" size={12} className="subconverter-stack">
                     <div className="subconverter-info-actions">
                       <Button danger icon={<DeleteOutlined />} disabled={boundIps.length === 0} onClick={() => onClearBoundIps(infoRecord)}>
                         {t('pages.subconverter.clearIps')}

@@ -50,7 +50,10 @@ export function useAllSettings() {
       return HttpUtil.post('/panel/api/setting/update', body.success ? body.data : next);
     },
     onSuccess: (msg) => {
-      if (msg?.success) queryClient.invalidateQueries({ queryKey: keys.settings.all() });
+      if (msg?.success) {
+        queryClient.invalidateQueries({ queryKey: keys.settings.all() });
+        queryClient.invalidateQueries({ queryKey: keys.settings.defaults() });
+      }
     },
   });
 

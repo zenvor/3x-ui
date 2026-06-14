@@ -61,8 +61,8 @@ type MihomoXHTTPOpts struct {
 // ErrUnsupportedProtocol 表示入站不是 VLESS。
 var ErrUnsupportedProtocol = errors.New("only VLESS protocol is supported")
 
-// ErrUnsupportedInbound 表示入站不是本转换器支持的 VLESS Reality 形态。
-var ErrUnsupportedInbound = errors.New("only VLESS TCP/xHTTP Reality inbounds are supported")
+// ErrUnsupportedInbound 表示入站不是本转换器支持的 VLESS 形态。
+var ErrUnsupportedInbound = errors.New("only VLESS TCP/xHTTP Reality or xHTTP CDN TLS inbounds are supported")
 
 type realityInfo struct {
 	Servername        string
@@ -71,26 +71,45 @@ type realityInfo struct {
 	ClientFingerprint string
 }
 
+type tlsInfo struct {
+	Servername        string
+	ClientFingerprint string
+	ALPN              []string
+}
+
 type transportInfo struct {
 	Network   string
 	XHTTPOpts *MihomoXHTTPOpts
 }
 
-// IsVlessRealityInbound 判断入站是否可以被 subconverter 导出。
+type ProxyOptions struct {
+	CDNTLS *CDNTLSOptions
+}
+
+type CDNTLSOptions struct {
+	Enabled    bool
+	Server     string
+	Port       int
+	Servername string
+	XHTTPHost  string
+	ClientFp   string
+}
+
+// IsVlessSupportedInbound 判断入站是否可以被 subconverter 导出。
 // resolver 和转换器共用这条规则，避免旧订阅记录绕过前端过滤。
-func IsVlessRealityInbound(inbound *model.Inbound) bool {
-	_, _, err := parseVlessReality(inbound)
+func IsVlessSupportedInbound(inbound *model.Inbound, opts ProxyOptions) bool {
+	_, _, _, err := parseVlessSupported(inbound, opts)
 	return err == nil
 }
 
 // ConvertInboundToProxy 将一个 (inbound, client) 组合转换成 Mihomo 节点。
 //
 //   - 当 inbound.Listen 为空或通配地址时，hostFallback 作为对外地址。
-func ConvertInboundToProxy(inbound *model.Inbound, client *model.Client, hostFallback string) (*MihomoProxy, error) {
+func ConvertInboundToProxy(inbound *model.Inbound, client *model.Client, hostFallback string, opts ProxyOptions) (*MihomoProxy, error) {
 	if inbound == nil || client == nil {
 		return nil, errors.New("inbound and client must be non-nil")
 	}
-	transport, reality, err := parseVlessReality(inbound)
+	transport, reality, tls, err := parseVlessSupported(inbound, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -102,16 +121,30 @@ func ConvertInboundToProxy(inbound *model.Inbound, client *model.Client, hostFal
 		Port:              inbound.Port,
 		UUID:              client.ID,
 		TLS:               true,
-		Servername:        reality.Servername,
-		ClientFingerprint: reality.ClientFingerprint,
-		RealityOpts: &MihomoRealityOpts{
+		Servername:        tls.Servername,
+		ClientFingerprint: tls.ClientFingerprint,
+		ALPN:              tls.ALPN,
+	}
+	if reality.PublicKey != "" {
+		proxy.RealityOpts = &MihomoRealityOpts{
 			PublicKey: reality.PublicKey,
 			ShortId:   reality.ShortID,
-		},
+		}
 	}
 	if transport.Network != "tcp" {
 		proxy.Network = transport.Network
 		proxy.XHTTPOpts = transport.XHTTPOpts
+	}
+	if cdn := normalizeCDNTLSOptions(opts.CDNTLS); cdn.Enabled && canApplyCDNTLSOverlay(transport, reality) {
+		proxy.Server = cdn.Server
+		proxy.Port = cdn.Port
+		proxy.Servername = cdn.Servername
+		proxy.ClientFingerprint = cdn.ClientFp
+		proxy.ALPN = []string{"h2"}
+		if proxy.XHTTPOpts == nil {
+			proxy.XHTTPOpts = &MihomoXHTTPOpts{}
+		}
+		proxy.XHTTPOpts.Host = cdn.XHTTPHost
 	}
 
 	if proxy.ClientFingerprint == "" {
@@ -124,21 +157,25 @@ func ConvertInboundToProxy(inbound *model.Inbound, client *model.Client, hostFal
 	return proxy, nil
 }
 
-func parseVlessReality(inbound *model.Inbound) (transportInfo, realityInfo, error) {
+func canApplyCDNTLSOverlay(transport transportInfo, reality realityInfo) bool {
+	return transport.Network == "xhttp" && reality.PublicKey == ""
+}
+
+func parseVlessSupported(inbound *model.Inbound, opts ProxyOptions) (transportInfo, realityInfo, tlsInfo, error) {
 	if inbound == nil {
-		return transportInfo{}, realityInfo{}, errors.New("inbound must be non-nil")
+		return transportInfo{}, realityInfo{}, tlsInfo{}, errors.New("inbound must be non-nil")
 	}
 	if inbound.Protocol != model.VLESS {
-		return transportInfo{}, realityInfo{}, ErrUnsupportedProtocol
+		return transportInfo{}, realityInfo{}, tlsInfo{}, ErrUnsupportedProtocol
 	}
 	if !inbound.Enable {
-		return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
+		return transportInfo{}, realityInfo{}, tlsInfo{}, ErrUnsupportedInbound
 	}
 
 	stream := map[string]any{}
 	if inbound.StreamSettings != "" {
 		if err := json.Unmarshal([]byte(inbound.StreamSettings), &stream); err != nil {
-			return transportInfo{}, realityInfo{}, fmt.Errorf("parse streamSettings: %w", err)
+			return transportInfo{}, realityInfo{}, tlsInfo{}, fmt.Errorf("parse streamSettings: %w", err)
 		}
 	}
 	network, _ := stream["network"].(string)
@@ -146,28 +183,44 @@ func parseVlessReality(inbound *model.Inbound) (transportInfo, realityInfo, erro
 	if network == "" {
 		network = "tcp"
 	}
-	if security != "reality" {
-		return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
-	}
 	if hasExternalProxy(stream) {
-		return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
+		return transportInfo{}, realityInfo{}, tlsInfo{}, ErrUnsupportedInbound
 	}
 
 	transport := transportInfo{Network: network}
 	switch network {
 	case "tcp":
 		if !hasSupportedTCPSettings(stream) {
-			return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
+			return transportInfo{}, realityInfo{}, tlsInfo{}, ErrUnsupportedInbound
 		}
 	case "xhttp":
 		transport.XHTTPOpts = parseXHTTPOpts(stream)
 	default:
-		return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
+		return transportInfo{}, realityInfo{}, tlsInfo{}, ErrUnsupportedInbound
 	}
 
+	switch security {
+	case "reality":
+		reality, tls, err := parseRealityInfo(stream)
+		return transport, reality, tls, err
+	case "none", "":
+		cdn := normalizeCDNTLSOptions(opts.CDNTLS)
+		if network == "xhttp" && cdn.Enabled {
+			return transport, realityInfo{}, tlsInfo{
+				Servername:        cdn.Servername,
+				ClientFingerprint: cdn.ClientFp,
+			}, nil
+		}
+		return transportInfo{}, realityInfo{}, tlsInfo{}, ErrUnsupportedInbound
+	default:
+		return transportInfo{}, realityInfo{}, tlsInfo{}, ErrUnsupportedInbound
+	}
+}
+
+func parseRealityInfo(stream map[string]any) (realityInfo, tlsInfo, error) {
 	realitySetting, _ := stream["realitySettings"].(map[string]any)
 	if realitySetting == nil {
-		return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
+		return realityInfo{}, tlsInfo{}, ErrUnsupportedInbound
 	}
 
 	info := realityInfo{}
@@ -190,10 +243,41 @@ func parseVlessReality(inbound *model.Inbound) (transportInfo, realityInfo, erro
 		}
 	}
 	if info.Servername == "" || info.PublicKey == "" {
-		return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
+		return realityInfo{}, tlsInfo{}, ErrUnsupportedInbound
 	}
 
-	return transport, info, nil
+	return info, tlsInfo{
+		Servername:        info.Servername,
+		ClientFingerprint: info.ClientFingerprint,
+	}, nil
+}
+
+func normalizeCDNTLSOptions(in *CDNTLSOptions) CDNTLSOptions {
+	if in == nil || !in.Enabled {
+		return CDNTLSOptions{}
+	}
+	out := *in
+	out.Server = strings.TrimSpace(out.Server)
+	out.Servername = strings.TrimSpace(out.Servername)
+	out.XHTTPHost = strings.TrimSpace(out.XHTTPHost)
+	out.ClientFp = strings.TrimSpace(out.ClientFp)
+	if out.Port == 0 {
+		out.Port = 443
+	}
+	if out.Servername == "" {
+		out.Servername = out.Server
+	}
+	if out.XHTTPHost == "" {
+		out.XHTTPHost = out.Servername
+	}
+	if out.ClientFp == "" {
+		out.ClientFp = "chrome"
+	}
+	if out.Server == "" {
+		return CDNTLSOptions{}
+	}
+	out.Enabled = true
+	return out
 }
 
 func parseXHTTPOpts(stream map[string]any) *MihomoXHTTPOpts {
