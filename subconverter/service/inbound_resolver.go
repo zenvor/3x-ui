@@ -43,7 +43,7 @@ func (r *InboundResolver) Resolve(items []submodel.SubscriptionInbound) ([]Proxy
 			inbound = loaded
 			cache[ref.InboundId] = inbound
 		}
-		if !IsVlessTCPRealityInbound(inbound) {
+		if !IsVlessRealityInbound(inbound) {
 			continue
 		}
 

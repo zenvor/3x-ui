@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 )
 
 // MihomoProxy 是 Mihomo YAML 中的一条代理节点。
 //
-// 字段标签面向 goccy/go-yaml 编码器。subconverter 只支持普通
-// VLESS TCP Reality 入站，其他传输和安全模式会在转换前被过滤。
+// 字段标签面向 goccy/go-yaml 编码器。subconverter 只支持 VLESS
+// Reality 入站的少量明确形态，其他传输和安全模式会在转换前被过滤。
 type MihomoProxy struct {
 	Name              string             `yaml:"name"`
 	Type              string             `yaml:"type"`
@@ -25,6 +26,7 @@ type MihomoProxy struct {
 	Flow              string             `yaml:"flow,omitempty"`
 	ALPN              []string           `yaml:"alpn,omitempty"`
 	RealityOpts       *MihomoRealityOpts `yaml:"reality-opts,omitempty"`
+	XHTTPOpts         *MihomoXHTTPOpts   `yaml:"xhttp-opts,omitempty"`
 }
 
 type MihomoRealityOpts struct {
@@ -32,11 +34,35 @@ type MihomoRealityOpts struct {
 	ShortId   string `yaml:"short-id,omitempty"`
 }
 
+type MihomoXHTTPOpts struct {
+	Path                string            `yaml:"path,omitempty"`
+	Host                string            `yaml:"host,omitempty"`
+	Mode                string            `yaml:"mode,omitempty"`
+	Headers             map[string]string `yaml:"headers,omitempty"`
+	NoGRPCHeader        bool              `yaml:"no-grpc-header,omitempty"`
+	XPaddingBytes       string            `yaml:"x-padding-bytes,omitempty"`
+	XPaddingObfsMode    bool              `yaml:"x-padding-obfs-mode,omitempty"`
+	XPaddingKey         string            `yaml:"x-padding-key,omitempty"`
+	XPaddingHeader      string            `yaml:"x-padding-header,omitempty"`
+	XPaddingPlacement   string            `yaml:"x-padding-placement,omitempty"`
+	XPaddingMethod      string            `yaml:"x-padding-method,omitempty"`
+	UplinkHTTPMethod    string            `yaml:"uplink-http-method,omitempty"`
+	SessionPlacement    string            `yaml:"session-placement,omitempty"`
+	SessionKey          string            `yaml:"session-key,omitempty"`
+	SeqPlacement        string            `yaml:"seq-placement,omitempty"`
+	SeqKey              string            `yaml:"seq-key,omitempty"`
+	UplinkDataPlacement string            `yaml:"uplink-data-placement,omitempty"`
+	UplinkDataKey       string            `yaml:"uplink-data-key,omitempty"`
+	UplinkChunkSize     string            `yaml:"uplink-chunk-size,omitempty"`
+	ScMaxEachPostBytes  string            `yaml:"sc-max-each-post-bytes,omitempty"`
+	ScMinPostsInterval  string            `yaml:"sc-min-posts-interval-ms,omitempty"`
+}
+
 // ErrUnsupportedProtocol 表示入站不是 VLESS。
 var ErrUnsupportedProtocol = errors.New("only VLESS protocol is supported")
 
-// ErrUnsupportedInbound 表示入站不是本转换器支持的 VLESS TCP Reality 形态。
-var ErrUnsupportedInbound = errors.New("only VLESS TCP Reality inbounds are supported")
+// ErrUnsupportedInbound 表示入站不是本转换器支持的 VLESS Reality 形态。
+var ErrUnsupportedInbound = errors.New("only VLESS TCP/xHTTP Reality inbounds are supported")
 
 type realityInfo struct {
 	Servername        string
@@ -45,10 +71,15 @@ type realityInfo struct {
 	ClientFingerprint string
 }
 
-// IsVlessTCPRealityInbound 判断入站是否可以被 subconverter 导出。
+type transportInfo struct {
+	Network   string
+	XHTTPOpts *MihomoXHTTPOpts
+}
+
+// IsVlessRealityInbound 判断入站是否可以被 subconverter 导出。
 // resolver 和转换器共用这条规则，避免旧订阅记录绕过前端过滤。
-func IsVlessTCPRealityInbound(inbound *model.Inbound) bool {
-	_, _, err := parseVlessTCPReality(inbound)
+func IsVlessRealityInbound(inbound *model.Inbound) bool {
+	_, _, err := parseVlessReality(inbound)
 	return err == nil
 }
 
@@ -59,7 +90,7 @@ func ConvertInboundToProxy(inbound *model.Inbound, client *model.Client, hostFal
 	if inbound == nil || client == nil {
 		return nil, errors.New("inbound and client must be non-nil")
 	}
-	_, reality, err := parseVlessTCPReality(inbound)
+	transport, reality, err := parseVlessReality(inbound)
 	if err != nil {
 		return nil, err
 	}
@@ -78,46 +109,65 @@ func ConvertInboundToProxy(inbound *model.Inbound, client *model.Client, hostFal
 			ShortId:   reality.ShortID,
 		},
 	}
+	if transport.Network != "tcp" {
+		proxy.Network = transport.Network
+		proxy.XHTTPOpts = transport.XHTTPOpts
+	}
 
 	if proxy.ClientFingerprint == "" {
 		proxy.ClientFingerprint = "chrome"
 	}
-	if client.Flow != "" {
+	if client.Flow != "" && transport.Network == "tcp" {
 		proxy.Flow = client.Flow
 	}
 
 	return proxy, nil
 }
 
-func parseVlessTCPReality(inbound *model.Inbound) (map[string]any, realityInfo, error) {
+func parseVlessReality(inbound *model.Inbound) (transportInfo, realityInfo, error) {
 	if inbound == nil {
-		return nil, realityInfo{}, errors.New("inbound must be non-nil")
+		return transportInfo{}, realityInfo{}, errors.New("inbound must be non-nil")
 	}
 	if inbound.Protocol != model.VLESS {
-		return nil, realityInfo{}, ErrUnsupportedProtocol
+		return transportInfo{}, realityInfo{}, ErrUnsupportedProtocol
 	}
 	if !inbound.Enable {
-		return nil, realityInfo{}, ErrUnsupportedInbound
+		return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
 	}
 
 	stream := map[string]any{}
 	if inbound.StreamSettings != "" {
 		if err := json.Unmarshal([]byte(inbound.StreamSettings), &stream); err != nil {
-			return nil, realityInfo{}, fmt.Errorf("parse streamSettings: %w", err)
+			return transportInfo{}, realityInfo{}, fmt.Errorf("parse streamSettings: %w", err)
 		}
 	}
 	network, _ := stream["network"].(string)
 	security, _ := stream["security"].(string)
-	if network != "tcp" || security != "reality" {
-		return nil, realityInfo{}, ErrUnsupportedInbound
+	if network == "" {
+		network = "tcp"
 	}
-	if !hasSupportedTCPSettings(stream) || hasExternalProxy(stream) {
-		return nil, realityInfo{}, ErrUnsupportedInbound
+	if security != "reality" {
+		return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
+	}
+	if hasExternalProxy(stream) {
+		return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
+	}
+
+	transport := transportInfo{Network: network}
+	switch network {
+	case "tcp":
+		if !hasSupportedTCPSettings(stream) {
+			return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
+		}
+	case "xhttp":
+		transport.XHTTPOpts = parseXHTTPOpts(stream)
+	default:
+		return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
 	}
 
 	realitySetting, _ := stream["realitySettings"].(map[string]any)
 	if realitySetting == nil {
-		return nil, realityInfo{}, ErrUnsupportedInbound
+		return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
 	}
 
 	info := realityInfo{}
@@ -140,10 +190,176 @@ func parseVlessTCPReality(inbound *model.Inbound) (map[string]any, realityInfo, 
 		}
 	}
 	if info.Servername == "" || info.PublicKey == "" {
-		return nil, realityInfo{}, ErrUnsupportedInbound
+		return transportInfo{}, realityInfo{}, ErrUnsupportedInbound
 	}
 
-	return stream, info, nil
+	return transport, info, nil
+}
+
+func parseXHTTPOpts(stream map[string]any) *MihomoXHTTPOpts {
+	xhttp, _ := stream["xhttpSettings"].(map[string]any)
+	if xhttp == nil {
+		return nil
+	}
+
+	opts := &MihomoXHTTPOpts{}
+	if path, ok := xhttp["path"].(string); ok && path != "" {
+		opts.Path = path
+	}
+	if host, ok := xhttp["host"].(string); ok && host != "" {
+		opts.Host = host
+	} else if headers, ok := xhttp["headers"].(map[string]any); ok {
+		opts.Host = searchHeaderHost(headers)
+	}
+	if mode, ok := xhttp["mode"].(string); ok && mode != "" {
+		opts.Mode = mode
+	}
+
+	applyXHTTPString(xhttp, "xPaddingBytes", &opts.XPaddingBytes)
+	if obfs, ok := xhttp["xPaddingObfsMode"].(bool); ok && obfs {
+		opts.XPaddingObfsMode = true
+		applyXHTTPString(xhttp, "xPaddingKey", &opts.XPaddingKey)
+		applyXHTTPString(xhttp, "xPaddingHeader", &opts.XPaddingHeader)
+		applyXHTTPString(xhttp, "xPaddingPlacement", &opts.XPaddingPlacement)
+		applyXHTTPString(xhttp, "xPaddingMethod", &opts.XPaddingMethod)
+	}
+	applyXHTTPString(xhttp, "uplinkHTTPMethod", &opts.UplinkHTTPMethod)
+	applyXHTTPString(xhttp, "sessionPlacement", &opts.SessionPlacement)
+	applyXHTTPString(xhttp, "sessionKey", &opts.SessionKey)
+	applyXHTTPString(xhttp, "seqPlacement", &opts.SeqPlacement)
+	applyXHTTPString(xhttp, "seqKey", &opts.SeqKey)
+	applyXHTTPString(xhttp, "uplinkDataPlacement", &opts.UplinkDataPlacement)
+	applyXHTTPString(xhttp, "uplinkDataKey", &opts.UplinkDataKey)
+	applyXHTTPStringExceptDefault(xhttp, "scMaxEachPostBytes", "1000000", &opts.ScMaxEachPostBytes)
+	applyXHTTPStringExceptDefault(xhttp, "scMinPostsIntervalMs", "30", &opts.ScMinPostsInterval)
+	if chunkSize := xhttpNonZeroString(xhttp["uplinkChunkSize"]); chunkSize != "" {
+		opts.UplinkChunkSize = chunkSize
+	}
+	if noGRPCHeader, ok := xhttp["noGRPCHeader"].(bool); ok && noGRPCHeader {
+		opts.NoGRPCHeader = true
+	}
+	if headers, ok := xhttp["headers"].(map[string]any); ok {
+		opts.Headers = xhttpHeaders(headers)
+	}
+
+	if !hasXHTTPOpts(opts) {
+		return nil
+	}
+	return opts
+}
+
+func applyXHTTPString(xhttp map[string]any, field string, out *string) {
+	if value, ok := xhttp[field].(string); ok && value != "" {
+		*out = value
+	}
+}
+
+func applyXHTTPStringExceptDefault(xhttp map[string]any, field, defaultValue string, out *string) {
+	if value, ok := xhttp[field].(string); ok && value != "" && value != defaultValue {
+		*out = value
+	}
+}
+
+func xhttpNonZeroString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case int:
+		if typed != 0 {
+			return fmt.Sprint(typed)
+		}
+	case int32:
+		if typed != 0 {
+			return fmt.Sprint(typed)
+		}
+	case int64:
+		if typed != 0 {
+			return fmt.Sprint(typed)
+		}
+	case float32:
+		if typed != 0 {
+			return fmt.Sprintf("%g", typed)
+		}
+	case float64:
+		if typed != 0 {
+			return fmt.Sprintf("%g", typed)
+		}
+	}
+	return ""
+}
+
+func xhttpHeaders(headers map[string]any) map[string]string {
+	out := map[string]string{}
+	for key, value := range headers {
+		if strings.EqualFold(key, "host") {
+			continue
+		}
+		if header := xhttpHeaderValue(value); header != "" {
+			out[key] = header
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func xhttpHeaderValue(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case []any:
+		if len(typed) == 0 {
+			return ""
+		}
+		header, _ := typed[0].(string)
+		return header
+	default:
+		return ""
+	}
+}
+
+func hasXHTTPOpts(opts *MihomoXHTTPOpts) bool {
+	return opts.Path != "" ||
+		opts.Host != "" ||
+		opts.Mode != "" ||
+		len(opts.Headers) > 0 ||
+		opts.NoGRPCHeader ||
+		opts.XPaddingBytes != "" ||
+		opts.XPaddingObfsMode ||
+		opts.XPaddingKey != "" ||
+		opts.XPaddingHeader != "" ||
+		opts.XPaddingPlacement != "" ||
+		opts.XPaddingMethod != "" ||
+		opts.UplinkHTTPMethod != "" ||
+		opts.SessionPlacement != "" ||
+		opts.SessionKey != "" ||
+		opts.SeqPlacement != "" ||
+		opts.SeqKey != "" ||
+		opts.UplinkDataPlacement != "" ||
+		opts.UplinkDataKey != "" ||
+		opts.UplinkChunkSize != "" ||
+		opts.ScMaxEachPostBytes != "" ||
+		opts.ScMinPostsInterval != ""
+}
+
+func searchHeaderHost(headers map[string]any) string {
+	for key, value := range headers {
+		if !strings.EqualFold(key, "host") {
+			continue
+		}
+		switch typed := value.(type) {
+		case string:
+			return typed
+		case []any:
+			if len(typed) == 0 {
+				return ""
+			}
+			host, _ := typed[0].(string)
+			return host
+		}
+	}
+	return ""
 }
 
 func hasSupportedTCPSettings(stream map[string]any) bool {
