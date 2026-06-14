@@ -140,9 +140,9 @@ export default function AppSidebar() {
     { key: '/groups', icon: 'groups', title: t('menu.groups') },
     { key: '/nodes', icon: 'cluster', title: t('menu.nodes') },
     { key: '/xray#outbound', icon: 'outbound', title: t('pages.xray.Outbounds') },
+    { key: '/subconverter', icon: 'swap', title: t('menu.subconverter') },
     { key: '/settings', icon: 'setting', title: t('menu.settings') },
     { key: '/xray', icon: 'tool', title: t('menu.xray') },
-    { key: '/subconverter', icon: 'swap', title: t('menu.subconverter') },
     { key: '/api-docs', icon: 'apidocs', title: t('menu.apiDocs') },
     { key: LOGOUT_KEY, icon: 'logout', title: t('logout') },
   ], [t]);

@@ -13,6 +13,7 @@ import {
 } from '@/schemas/subconverter';
 import type { InboundOption, SubscriptionRecord } from '@/schemas/subconverter';
 import {
+  canConfigureCdnTls,
   filterSubscriptions,
   formatIpLimitUsage,
   getSubscriptionProtocolOptions,
@@ -20,6 +21,7 @@ import {
   ipLimitSortValue,
   ipLimitTagColor,
   normalizeUAKeywords,
+  requiresCdnTls,
 } from '@/pages/subconverter/utils';
 
 function sub(overrides: Partial<SubscriptionRecord>): SubscriptionRecord {
@@ -92,10 +94,25 @@ describe('subconverter utilities', () => {
     ])).toEqual(['vless', 'vmess']);
   });
 
-  it('keeps the product rule to VLESS inbound selection', () => {
-    expect(isSupportedInbound(inbound({ protocol: 'vless' }))).toBe(true);
-    expect(isSupportedInbound(inbound({ protocol: 'vmess' }))).toBe(false);
-    expect(isSupportedInbound(inbound({ protocol: 'trojan' }))).toBe(false);
+  it('keeps the product rule to Mihomo-compatible inbound selection', () => {
+    expect(isSupportedInbound(inbound({ protocol: 'vless', subconverterCapable: true }))).toBe(true);
+    expect(isSupportedInbound(inbound({ protocol: 'vless', cdnTlsCapable: true }))).toBe(true);
+    expect(isSupportedInbound(inbound({ protocol: 'vless' }))).toBe(false);
+    expect(isSupportedInbound(inbound({ protocol: 'vmess', subconverterCapable: true }))).toBe(false);
+  });
+
+  it('shows CDN TLS controls only for CDN-capable VLESS inbounds', () => {
+    expect(canConfigureCdnTls(inbound({ protocol: 'vless', cdnTlsCapable: true }))).toBe(true);
+    expect(canConfigureCdnTls(inbound({ protocol: 'vless', cdnTlsCapable: false }))).toBe(false);
+    expect(canConfigureCdnTls(inbound({ protocol: 'vmess', cdnTlsCapable: true }))).toBe(false);
+    expect(canConfigureCdnTls(undefined)).toBe(false);
+  });
+
+  it('requires CDN TLS for bare xhttp candidates', () => {
+    expect(requiresCdnTls(inbound({ cdnTlsCapable: true, subconverterCapable: false }))).toBe(true);
+    expect(requiresCdnTls(inbound({ cdnTlsCapable: true, subconverterCapable: true }))).toBe(false);
+    expect(requiresCdnTls(inbound({ cdnTlsCapable: false, subconverterCapable: true }))).toBe(false);
+    expect(requiresCdnTls(undefined)).toBe(false);
   });
 });
 

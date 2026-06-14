@@ -13,10 +13,6 @@
   max-width: 320px;
 }
 
-.subconverter-help-icon {
-  color: #8c8c8c;
-}
-
 .subconverter-muted {
   color: var(--ant-color-text-quaternary);
 }
@@ -119,6 +115,24 @@
 
 .subconverter-ua-editor {
   width: 100%;
+}
+
+.subconverter-full-width,
+.subconverter-cdn-overrides,
+.subconverter-cdn-override-inner {
+  width: 100%;
+}
+
+.subconverter-cdn-override {
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--ant-color-fill-quaternary);
+}
+
+.subconverter-cdn-override-head {
+  width: 100%;
+  justify-content: space-between;
 }
 
 .subconverter-info-table {

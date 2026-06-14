@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -24,6 +25,7 @@ var (
 	ErrSubscriptionNotFound = errors.New("subscription not found")
 	ErrInboundsRequired     = errors.New("at least one inbound is required")
 	ErrTokenGeneration      = errors.New("token generation failed")
+	ErrCDNServerRequired    = errors.New("cdn server is required when CDN TLS override is enabled")
 )
 
 // SubscriptionService provides CRUD over subscriptions and their inbound
@@ -60,29 +62,36 @@ type SubscriptionDetail struct {
 // ClientEmail empty means the subscription will export every client of that
 // inbound; non-empty pins it to a single client.
 type InboundInput struct {
-	InboundId   int    `json:"inboundId"`
-	ClientEmail string `json:"clientEmail"`
+	InboundId     int    `json:"inboundId"`
+	ClientEmail   string `json:"clientEmail"`
+	CdnTLS        bool   `json:"cdnTls"`
+	CdnServer     string `json:"cdnServer"`
+	CdnPort       int    `json:"cdnPort"`
+	CdnServerName string `json:"cdnServerName"`
+	CdnXHTTPHost  string `json:"cdnXhttpHost"`
+	CdnClientFp   string `json:"cdnClientFingerprint"`
 }
 
-// SubscriptionFormInput is the wire shape the controller binds from the
-// panel form (application/x-www-form-urlencoded, matching every other 3X-UI
-// API). Form encoding can't faithfully represent nested arrays of structs,
-// so the inbound list collapses to a flat `inboundIds` int array; the
-// controller widens it back to []InboundInput before calling the service.
+// SubscriptionFormInput is the admin API wire shape. Newer callers send the
+// richer JSON `inbounds` list; `inboundIds` remains for older flat payloads.
 type SubscriptionFormInput struct {
-	Remark     string `json:"remark" form:"remark"`
-	MaxIps     int    `json:"limitIp" form:"limitIp"`
-	Enabled    *bool  `json:"enable" form:"enable"`
-	InboundIds []int  `json:"inboundIds" form:"inboundIds"`
+	Remark     string         `json:"remark" form:"remark"`
+	MaxIps     int            `json:"limitIp" form:"limitIp"`
+	Enabled    *bool          `json:"enable" form:"enable"`
+	InboundIds []int          `json:"inboundIds" form:"inboundIds"`
+	Inbounds   []InboundInput `json:"inbounds" form:"inbounds"`
 }
 
 // ToInput widens the flat form into the richer service input shape. Every
 // inbound reference is created with an empty ClientEmail (current UI exposes
 // inbound-level selection only).
 func (f SubscriptionFormInput) ToInput() SubscriptionInput {
-	inbounds := make([]InboundInput, 0, len(f.InboundIds))
-	for _, id := range f.InboundIds {
-		inbounds = append(inbounds, InboundInput{InboundId: id})
+	inbounds := f.Inbounds
+	if len(inbounds) == 0 {
+		inbounds = make([]InboundInput, 0, len(f.InboundIds))
+		for _, id := range f.InboundIds {
+			inbounds = append(inbounds, InboundInput{InboundId: id})
+		}
 	}
 	return SubscriptionInput{
 		Remark:   f.Remark,
@@ -323,17 +332,55 @@ func (s *SubscriptionService) ResetToken(id int) (*model.Subscription, error) {
 
 func insertInbounds(tx *gorm.DB, subID int, items []InboundInput) error {
 	for i, in := range items {
+		normalizeInboundInput(&in)
+		if in.CdnTLS && in.CdnServer == "" {
+			return ErrCDNServerRequired
+		}
 		row := model.SubscriptionInbound{
 			SubscriptionId: subID,
 			InboundId:      in.InboundId,
 			ClientEmail:    in.ClientEmail,
 			SortOrder:      i,
+			CdnTLS:         in.CdnTLS,
+			CdnServer:      in.CdnServer,
+			CdnPort:        in.CdnPort,
+			CdnServerName:  in.CdnServerName,
+			CdnXHTTPHost:   in.CdnXHTTPHost,
+			CdnClientFp:    in.CdnClientFp,
 		}
 		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func normalizeInboundInput(in *InboundInput) {
+	in.ClientEmail = strings.TrimSpace(in.ClientEmail)
+	in.CdnServer = strings.TrimSpace(in.CdnServer)
+	in.CdnServerName = strings.TrimSpace(in.CdnServerName)
+	in.CdnXHTTPHost = strings.TrimSpace(in.CdnXHTTPHost)
+	in.CdnClientFp = strings.TrimSpace(in.CdnClientFp)
+	if !in.CdnTLS {
+		in.CdnServer = ""
+		in.CdnPort = 0
+		in.CdnServerName = ""
+		in.CdnXHTTPHost = ""
+		in.CdnClientFp = ""
+		return
+	}
+	if in.CdnPort == 0 {
+		in.CdnPort = 443
+	}
+	if in.CdnServerName == "" {
+		in.CdnServerName = in.CdnServer
+	}
+	if in.CdnXHTTPHost == "" {
+		in.CdnXHTTPHost = in.CdnServerName
+	}
+	if in.CdnClientFp == "" {
+		in.CdnClientFp = "chrome"
+	}
 }
 
 func attachBoundIPCounts(tx *gorm.DB, subs []model.Subscription) error {

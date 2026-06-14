@@ -42,7 +42,15 @@ export function fallbackCopy(text: string): void {
 }
 
 export function isSupportedInbound(inbound: InboundOption): boolean {
-  return inbound.protocol === 'vless';
+  return inbound.protocol === 'vless' && (inbound.subconverterCapable === true || inbound.cdnTlsCapable === true);
+}
+
+export function canConfigureCdnTls(inbound?: InboundOption): boolean {
+  return inbound?.protocol === 'vless' && inbound.cdnTlsCapable === true;
+}
+
+export function requiresCdnTls(inbound?: InboundOption): boolean {
+  return inbound?.cdnTlsCapable === true && inbound.subconverterCapable !== true;
 }
 
 export function formatIpLimitUsage(record: SubscriptionRecord): string {

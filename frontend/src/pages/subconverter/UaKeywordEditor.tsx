@@ -50,7 +50,7 @@ export default function UaKeywordEditor({ addLabel, value = [], onChange }: UaKe
   };
 
   return (
-    <Space direction="vertical" size={8} className="subconverter-ua-editor">
+    <Space orientation="vertical" size={8} className="subconverter-ua-editor">
       {rows.map(renderKeywordRow)}
       <Button
         type="dashed"
