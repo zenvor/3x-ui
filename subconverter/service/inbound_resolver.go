@@ -12,6 +12,7 @@ import (
 type ProxySource struct {
 	Inbound *xmodel.Inbound
 	Client  *xmodel.Client
+	Ref     submodel.SubscriptionInbound
 }
 
 // InboundResolver 将订阅中的入站关联展开为可导出的 (Inbound, Client) 组合。
@@ -43,7 +44,7 @@ func (r *InboundResolver) Resolve(items []submodel.SubscriptionInbound) ([]Proxy
 			inbound = loaded
 			cache[ref.InboundId] = inbound
 		}
-		if !IsVlessTCPRealityInbound(inbound) {
+		if !IsVlessSupportedInbound(inbound, proxyOptionsFromRef(ref)) {
 			continue
 		}
 
@@ -55,7 +56,7 @@ func (r *InboundResolver) Resolve(items []submodel.SubscriptionInbound) ([]Proxy
 		if ref.ClientEmail == "" {
 			for i := range clients {
 				if isExportableClient(clients[i]) {
-					sources = append(sources, ProxySource{Inbound: inbound, Client: &clients[i]})
+					sources = append(sources, ProxySource{Inbound: inbound, Client: &clients[i], Ref: ref})
 				}
 			}
 			continue
@@ -63,7 +64,7 @@ func (r *InboundResolver) Resolve(items []submodel.SubscriptionInbound) ([]Proxy
 
 		for i := range clients {
 			if clients[i].Email == ref.ClientEmail && isExportableClient(clients[i]) {
-				sources = append(sources, ProxySource{Inbound: inbound, Client: &clients[i]})
+				sources = append(sources, ProxySource{Inbound: inbound, Client: &clients[i], Ref: ref})
 				break
 			}
 		}
@@ -74,4 +75,22 @@ func (r *InboundResolver) Resolve(items []submodel.SubscriptionInbound) ([]Proxy
 
 func isExportableClient(client xmodel.Client) bool {
 	return client.Enable && client.ID != ""
+}
+
+func ProxyOptionsFromSource(source ProxySource) ProxyOptions {
+	return proxyOptionsFromRef(source.Ref)
+}
+
+func proxyOptionsFromRef(ref submodel.SubscriptionInbound) ProxyOptions {
+	if !ref.CdnTLS {
+		return ProxyOptions{}
+	}
+	return ProxyOptions{CDNTLS: &CDNTLSOptions{
+		Enabled:    ref.CdnTLS,
+		Server:     ref.CdnServer,
+		Port:       ref.CdnPort,
+		Servername: ref.CdnServerName,
+		XHTTPHost:  ref.CdnXHTTPHost,
+		ClientFp:   ref.CdnClientFp,
+	}}
 }

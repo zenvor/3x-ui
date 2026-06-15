@@ -6,6 +6,12 @@ export const SubscriptionInboundSchema = z.looseObject({
   inboundId: z.number(),
   clientEmail: z.string().optional(),
   sortOrder: z.number().optional(),
+  cdnTls: z.boolean().optional(),
+  cdnServer: z.string().optional(),
+  cdnPort: z.number().optional(),
+  cdnServerName: z.string().optional(),
+  cdnXhttpHost: z.string().optional(),
+  cdnClientFingerprint: z.string().optional(),
 });
 
 export const SubscriptionStatsSchema = z.looseObject({
@@ -63,6 +69,8 @@ export const InboundOptionSchema = z.looseObject({
   protocol: z.string().optional(),
   port: z.number().optional(),
   tlsFlowCapable: z.boolean().optional(),
+  cdnTlsCapable: z.boolean().optional(),
+  subconverterCapable: z.boolean().optional(),
 });
 
 export const DefaultsPayloadSchema = z.looseObject({
@@ -75,11 +83,29 @@ export const SubconverterSettingsSchema = z.looseObject({
   uaRejectStatus: z.number().default(403),
 });
 
+export const SubscriptionInboundInputSchema = z.object({
+  inboundId: z.number(),
+  clientEmail: z.string().optional(),
+  cdnTls: z.boolean().optional(),
+  cdnServer: z.string().optional(),
+  cdnPort: z.number().optional(),
+  cdnServerName: z.string().optional(),
+});
+
+export const CdnTLSOverrideSchema = z.object({
+  enabled: z.boolean().optional(),
+  server: z.string().optional(),
+  port: z.number().optional(),
+  serverName: z.string().optional(),
+});
+
 export const FormValuesSchema = z.object({
   remark: z.string(),
   limitIp: z.number(),
   enable: z.boolean(),
   inboundIds: z.array(z.number()),
+  inbounds: z.array(SubscriptionInboundInputSchema).optional(),
+  cdnTls: z.record(z.string(), CdnTLSOverrideSchema).optional(),
 });
 
 export const SettingsValuesSchema = z.object({

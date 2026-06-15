@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/mhsanaei/3x-ui/v3/internal/web/session"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/service"
 )
 
@@ -29,6 +30,7 @@ import (
 type SubscriptionController struct {
 	subSvc      *service.SubscriptionService
 	settingsSvc *service.SettingsService
+	inboundOpts *service.InboundOptionService
 	ipBindings  *service.IPBindingService
 	accessLogs  *service.AccessLogService
 }
@@ -39,6 +41,7 @@ func NewSubscriptionController(g *gin.RouterGroup) *SubscriptionController {
 	a := &SubscriptionController{
 		subSvc:      service.NewSubscriptionService(),
 		settingsSvc: service.NewSettingsService(),
+		inboundOpts: service.NewInboundOptionService(),
 		ipBindings:  service.NewIPBindingService(),
 		accessLogs:  service.NewAccessLogService(),
 	}
@@ -53,6 +56,7 @@ func (a *SubscriptionController) initRouter(g *gin.RouterGroup) {
 	g.GET("/logs/:id", a.logs)
 	g.GET("/ips/:id", a.ips)
 	g.GET("/settings", a.settings)
+	g.GET("/inbounds", a.inbounds)
 	g.POST("/add", a.add)
 	g.POST("/update/:id", a.update)
 	g.POST("/del/:id", a.delete)
@@ -92,6 +96,16 @@ func (a *SubscriptionController) settings(c *gin.Context) {
 		return
 	}
 	jsonObj(c, settings, nil)
+}
+
+func (a *SubscriptionController) inbounds(c *gin.Context) {
+	user := session.GetLoginUser(c)
+	options, err := a.inboundOpts.List(user.Id)
+	if err != nil {
+		jsonMsg(c, "list inbounds failed", err)
+		return
+	}
+	jsonObj(c, options, nil)
 }
 
 func (a *SubscriptionController) logs(c *gin.Context) {

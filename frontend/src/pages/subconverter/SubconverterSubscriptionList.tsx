@@ -172,7 +172,7 @@ export default function SubconverterSubscriptionList({
   }, [inboundById, inboundFilter]);
 
   return (
-    <Space direction="vertical" size={12} className="subconverter-stack">
+    <Space orientation="vertical" size={12} className="subconverter-stack">
       <div className="subconverter-toolbar">
         <Switch
           checked={filterMode}

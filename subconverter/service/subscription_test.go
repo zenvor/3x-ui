@@ -157,6 +157,75 @@ func TestCreateRequiresInbounds(t *testing.T) {
 	}
 }
 
+func TestSubscriptionPersistsCDNTLSOverride(t *testing.T) {
+	setupTestDB(t)
+	svc := NewSubscriptionService()
+	enabled := true
+
+	created, err := svc.Create(SubscriptionInput{
+		Remark:  "cdn",
+		MaxIps:  1,
+		Enabled: &enabled,
+		Inbounds: []InboundInput{{
+			InboundId:     10,
+			CdnTLS:        true,
+			CdnServer:     " edge.example.com ",
+			CdnServerName: "",
+			CdnXHTTPHost:  "",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if len(created.Inbounds) != 1 {
+		t.Fatalf("inbounds len = %d, want 1", len(created.Inbounds))
+	}
+	got := created.Inbounds[0]
+	if !got.CdnTLS || got.CdnServer != "edge.example.com" || got.CdnPort != 443 {
+		t.Fatalf("cdn endpoint not normalized: %+v", got)
+	}
+	if got.CdnServerName != "edge.example.com" || got.CdnXHTTPHost != "edge.example.com" {
+		t.Fatalf("cdn sni/host not defaulted: %+v", got)
+	}
+	if got.CdnClientFp != "chrome" {
+		t.Fatalf("cdn client defaults wrong: %+v", got)
+	}
+
+	updated, err := svc.Update(created.Id, SubscriptionInput{
+		Remark:  "cdn",
+		MaxIps:  1,
+		Enabled: &enabled,
+		Inbounds: []InboundInput{{
+			InboundId:     10,
+			CdnTLS:        true,
+			CdnServer:     "203.0.113.20",
+			CdnPort:       8443,
+			CdnServerName: "edge.example.com",
+			CdnXHTTPHost:  "host.example.com",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	got = updated.Inbounds[0]
+	if got.CdnServer != "203.0.113.20" || got.CdnPort != 8443 || got.CdnServerName != "edge.example.com" || got.CdnXHTTPHost != "host.example.com" {
+		t.Fatalf("cdn override update not persisted: %+v", got)
+	}
+}
+
+func TestSubscriptionCDNTLSOverrideRequiresServer(t *testing.T) {
+	setupTestDB(t)
+	svc := NewSubscriptionService()
+
+	_, err := svc.Create(SubscriptionInput{
+		Remark:   "bad",
+		Inbounds: []InboundInput{{InboundId: 1, CdnTLS: true}},
+	})
+	if err != ErrCDNServerRequired {
+		t.Fatalf("err = %v, want ErrCDNServerRequired", err)
+	}
+}
+
 func TestResetTokenClearsBindingsStatsAndLogs(t *testing.T) {
 	setupTestDB(t)
 	svc := NewSubscriptionService()

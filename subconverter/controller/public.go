@@ -171,7 +171,7 @@ func (p *PublicController) resolveProxies(sub *submodel.Subscription, c *gin.Con
 	host := requestHostOnly(c)
 	proxies := make([]service.MihomoProxy, 0, len(sources))
 	for _, src := range sources {
-		proxy, convErr := service.ConvertInboundToProxy(src.Inbound, src.Client, host)
+		proxy, convErr := service.ConvertInboundToProxy(src.Inbound, src.Client, host, service.ProxyOptionsFromSource(src))
 		if convErr != nil || proxy == nil {
 			continue
 		}

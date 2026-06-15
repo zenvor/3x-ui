@@ -198,6 +198,17 @@ func TestRenderMihomoProviderYAMLRoundTrip(t *testing.T) {
 				PublicKey: "pubkey-a",
 				ShortId:   "abcd",
 			},
+			Network: "xhttp",
+			XHTTPOpts: &MihomoXHTTPOpts{
+				Path:               "/abc123",
+				Host:               "cdn.example.com",
+				Mode:               "auto",
+				XPaddingBytes:      "100-1000",
+				UplinkHTTPMethod:   "PUT",
+				UplinkChunkSize:    "8192",
+				NoGRPCHeader:       true,
+				ScMaxEachPostBytes: "2000000",
+			},
 		},
 	}
 	out, err := RenderMihomoProviderYAML(in)
@@ -212,5 +223,19 @@ func TestRenderMihomoProviderYAMLRoundTrip(t *testing.T) {
 	}
 	if !strings.Contains(out, "public-key: pubkey-a") {
 		t.Errorf("expected reality public key, got:\n%s", out)
+	}
+	if !strings.Contains(out, "xhttp-opts:") || !strings.Contains(out, "mode: auto") {
+		t.Errorf("expected xhttp options, got:\n%s", out)
+	}
+	for _, want := range []string{
+		"x-padding-bytes: 100-1000",
+		"uplink-http-method: PUT",
+		"uplink-chunk-size: \"8192\"",
+		"no-grpc-header: true",
+		"sc-max-each-post-bytes: \"2000000\"",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in xhttp options, got:\n%s", want, out)
+		}
 	}
 }

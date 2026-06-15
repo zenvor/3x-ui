@@ -39,8 +39,8 @@ export async function fetchSubconverterList(): Promise<SubscriptionRecord[]> {
 }
 
 export async function fetchSubconverterInbounds(): Promise<InboundOption[]> {
-  const msg = await HttpUtil.get('/panel/api/inbounds/options', undefined, { silent: true });
-  const validated = parseMsg(assertSuccess(msg, 'Failed to fetch inbound options'), InboundOptionListSchema, 'inbounds/options');
+  const msg = await HttpUtil.get(`${SUBCONVERTER_API}/inbounds`, undefined, { silent: true });
+  const validated = parseMsg(assertSuccess(msg, 'Failed to fetch inbound options'), InboundOptionListSchema, 'subconverter/inbounds');
   return Array.isArray(validated.obj) ? validated.obj : [];
 }
 
@@ -113,13 +113,13 @@ export function useSubconverter() {
   });
 
   const inboundsQuery = useQuery({
-    queryKey: keys.subconverter.inbounds(),
+    queryKey: ['inbounds', 'subconverterOptions'] as const,
     queryFn: fetchSubconverterInbounds,
     staleTime: Infinity,
   });
 
   const defaultsQuery = useQuery({
-    queryKey: keys.subconverter.defaults(),
+    queryKey: keys.settings.defaults(),
     queryFn: fetchSubconverterDefaults,
     staleTime: Infinity,
   });
@@ -156,7 +156,10 @@ export function useSubconverter() {
   const removeMut = useMutation({
     mutationFn: (id: number) => HttpUtil.post(`${SUBCONVERTER_API}/del/${id}`, undefined, { silent: true }),
     onSuccess: (msg) => {
-      if (msg?.success) invalidateSubconverterList(queryClient);
+      if (msg?.success) {
+        invalidateSubconverterList(queryClient);
+        invalidateSubconverterLogs(queryClient);
+      }
     },
   });
 
@@ -166,7 +169,10 @@ export function useSubconverter() {
       return parseMsg(raw, SubscriptionRecordSchema, `subconverter/reset-token/${id}`);
     },
     onSuccess: (msg, id) => {
-      if (msg?.success) invalidateSubconverterRecord(queryClient, id);
+      if (msg?.success) {
+        invalidateSubconverterRecord(queryClient, id);
+        invalidateSubconverterLogs(queryClient);
+      }
     },
   });
 
