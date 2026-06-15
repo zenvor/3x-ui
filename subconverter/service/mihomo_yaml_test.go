@@ -196,7 +196,7 @@ func TestRenderMihomoProviderYAMLRoundTrip(t *testing.T) {
 			TLS:    true,
 			RealityOpts: &MihomoRealityOpts{
 				PublicKey: "pubkey-a",
-				ShortId:   "abcd",
+				ShortId:   "08",
 			},
 			Network: "xhttp",
 			XHTTPOpts: &MihomoXHTTPOpts{
@@ -223,6 +223,9 @@ func TestRenderMihomoProviderYAMLRoundTrip(t *testing.T) {
 	}
 	if !strings.Contains(out, "public-key: pubkey-a") {
 		t.Errorf("expected reality public key, got:\n%s", out)
+	}
+	if !strings.Contains(out, `short-id: "08"`) {
+		t.Errorf("expected quoted reality short id, got:\n%s", out)
 	}
 	if !strings.Contains(out, "xhttp-opts:") || !strings.Contains(out, "mode: auto") {
 		t.Errorf("expected xhttp options, got:\n%s", out)
