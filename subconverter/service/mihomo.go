@@ -31,8 +31,14 @@ type MihomoProxy struct {
 }
 
 type MihomoRealityOpts struct {
-	PublicKey string `yaml:"public-key,omitempty"`
-	ShortId   string `yaml:"short-id,omitempty"`
+	PublicKey string           `yaml:"public-key,omitempty"`
+	ShortId   quotedYAMLString `yaml:"short-id,omitempty"`
+}
+
+type quotedYAMLString string
+
+func (s quotedYAMLString) MarshalYAML() ([]byte, error) {
+	return []byte(strconv.Quote(string(s))), nil
 }
 
 type MihomoXHTTPOpts struct {
@@ -129,7 +135,7 @@ func ConvertInboundToProxy(inbound *model.Inbound, client *model.Client, hostFal
 	if reality.PublicKey != "" {
 		proxy.RealityOpts = &MihomoRealityOpts{
 			PublicKey: reality.PublicKey,
-			ShortId:   reality.ShortID,
+			ShortId:   quotedYAMLString(reality.ShortID),
 		}
 	}
 	if transport.Network != "tcp" {
