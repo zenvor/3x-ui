@@ -249,6 +249,19 @@ Choose verification based on risk:
 Add regression tests for bug fixes when the behavior can be isolated without
 external services such as Xray, Telegram, LDAP, or remote nodes.
 
+## Release and Tag Checklist
+
+Before preparing a release or creating a tag, verify that every tracked project
+version source is updated consistently:
+
+- Update `internal/config/version` to the release version.
+- Update the `version` field in `frontend/package.json` to the same release
+  version.
+- Update `frontend/package-lock.json` so its top-level package version and root
+  package entry match `frontend/package.json`.
+- Check all three files in the final diff before tagging so the frontend
+  package metadata, lockfile metadata, and Go runtime version do not drift.
+
 ## Install and Deployment Scripts
 
 `install.sh` is the production installer. It writes under `/usr/local`,
