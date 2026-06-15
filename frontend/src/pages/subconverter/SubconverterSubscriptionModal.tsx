@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Col, Form, Input, InputNumber, Modal, Row, Select, Space, Switch, Tag } from 'antd';
 import type { FormInstance } from 'antd/es/form';
@@ -52,37 +52,6 @@ export default function SubconverterSubscriptionModal({
     [canConfigureCdnTls, selectedInboundIds],
   );
   const cdnFieldLayout = { labelCol: { span: 24 }, wrapperCol: { span: 24 } };
-
-  useEffect(() => {
-    let next = cdnTls;
-    let changed = false;
-    for (const id of cdnTlsInboundIds) {
-      const key = String(id);
-      if (Object.prototype.hasOwnProperty.call(next, key)) {
-        const current = next[key] || {};
-        const patch = {
-          ...(isCdnTlsRequired(id) && !current.enabled ? { enabled: true } : {}),
-          ...(current.port == null ? { port: 443 } : {}),
-        };
-        if (Object.keys(patch).length > 0) {
-          if (!changed) {
-            next = { ...cdnTls };
-          }
-          next[key] = { ...current, ...patch };
-          changed = true;
-        }
-        continue;
-      }
-      if (!changed) {
-        next = { ...cdnTls };
-      }
-      next[key] = { enabled: true, port: 443 };
-      changed = true;
-    }
-    if (changed) {
-      form.setFieldsValue({ cdnTls: next });
-    }
-  }, [cdnTls, cdnTlsInboundIds, form, isCdnTlsRequired]);
 
   return (
     <Modal
@@ -161,7 +130,7 @@ export default function SubconverterSubscriptionModal({
                 {cdnTlsInboundIds.map((id) => {
                   const key = String(id);
                   const required = isCdnTlsRequired(id);
-                  const enabled = !!cdnTls?.[key]?.enabled;
+                  const enabled = required || !!cdnTls?.[key]?.enabled;
                   return (
                     <div className="subconverter-cdn-override" key={key}>
                       <Space orientation="vertical" size={8} className="subconverter-cdn-override-inner">
@@ -170,7 +139,13 @@ export default function SubconverterSubscriptionModal({
                         </div>
                         <Row gutter={12}>
                           <Col xs={24} sm={12}>
-                            <Form.Item {...cdnFieldLayout} name={['cdnTls', key, 'enabled']} label={t('pages.subconverter.cdnTlsOverride')} valuePropName="checked">
+                            <Form.Item
+                              {...cdnFieldLayout}
+                              name={['cdnTls', key, 'enabled']}
+                              label={t('pages.subconverter.cdnTlsOverride')}
+                              valuePropName="checked"
+                              initialValue={required}
+                            >
                               <Switch disabled={required} />
                             </Form.Item>
                           </Col>
@@ -184,7 +159,7 @@ export default function SubconverterSubscriptionModal({
                                 label={t('pages.subconverter.cdnServer')}
                                 rules={[{
                                   validator: (_, value) => {
-                                    if (!cdnTls?.[key]?.enabled || String(value || '').trim()) return Promise.resolve();
+                                    if (!enabled || String(value || '').trim()) return Promise.resolve();
                                     return Promise.reject(new Error(t('pages.subconverter.cdnServerRequired')));
                                   },
                                 }]}
@@ -193,7 +168,12 @@ export default function SubconverterSubscriptionModal({
                               </Form.Item>
                             </Col>
                             <Col xs={24} sm={12}>
-                              <Form.Item {...cdnFieldLayout} name={['cdnTls', key, 'port']} label={t('pages.subconverter.cdnPort')}>
+                              <Form.Item
+                                {...cdnFieldLayout}
+                                name={['cdnTls', key, 'port']}
+                                label={t('pages.subconverter.cdnPort')}
+                                initialValue={443}
+                              >
                                 <InputNumber min={1} max={65535} placeholder="443" className="subconverter-full-width" />
                               </Form.Item>
                             </Col>

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
@@ -339,7 +340,7 @@ func applyXHTTPString(xhttp map[string]any, field string, out *string) {
 }
 
 func applyXHTTPStringExceptDefault(xhttp map[string]any, field, defaultValue string, out *string) {
-	if value, ok := xhttp[field].(string); ok && value != "" && value != defaultValue {
+	if value := xhttpNonZeroString(xhttp[field]); value != "" && value != defaultValue {
 		*out = value
 	}
 }
@@ -347,7 +348,10 @@ func applyXHTTPStringExceptDefault(xhttp map[string]any, field, defaultValue str
 func xhttpNonZeroString(value any) string {
 	switch typed := value.(type) {
 	case string:
-		return typed
+		v := strings.TrimSpace(typed)
+		if v != "" && v != "0" {
+			return v
+		}
 	case int:
 		if typed != 0 {
 			return fmt.Sprint(typed)
@@ -362,11 +366,11 @@ func xhttpNonZeroString(value any) string {
 		}
 	case float32:
 		if typed != 0 {
-			return fmt.Sprintf("%g", typed)
+			return strconv.FormatFloat(float64(typed), 'f', -1, 32)
 		}
 	case float64:
 		if typed != 0 {
-			return fmt.Sprintf("%g", typed)
+			return strconv.FormatFloat(typed, 'f', -1, 64)
 		}
 	}
 	return ""

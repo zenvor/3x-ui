@@ -1609,7 +1609,7 @@
       "cdnPort": "Cổng",
       "cdnServerName": "SNI",
       "cdnServerNamePlaceholder": "Nếu để trống, mặc định dùng máy chủ",
-      "cdnXhttpHost": "Máy chủ",
+      "cdnXhttpHost": "XHTTP Host",
       "cdnXhttpHostPlaceholder": "Mặc định dùng SNI",
       "maxIps": "Giới hạn IP",
       "maxIpsHint": "Yêu cầu từ IP mới sẽ bị từ chối khi số lượng vượt quá giá trị này. (0 = không giới hạn)",

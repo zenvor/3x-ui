@@ -188,8 +188,8 @@ func TestConvertVlessXHTTPRealityAdvancedClientOptions(t *testing.T) {
 			"uplinkDataPlacement":"body",
 			"uplinkDataKey":"u",
 			"uplinkChunkSize":8192,
-			"scMaxEachPostBytes":"2000000",
-			"scMinPostsIntervalMs":"60",
+			"scMaxEachPostBytes":2000000,
+			"scMinPostsIntervalMs":60,
 			"noGRPCHeader":true,
 			"scMaxBufferedPosts":30,
 			"scStreamUpServerSecs":"20-80",
@@ -239,7 +239,7 @@ func TestConvertVlessXHTTPRealityFiltersRedundantDefaults(t *testing.T) {
 			"mode":"auto",
 			"scMaxEachPostBytes":"1000000",
 			"scMinPostsIntervalMs":"30",
-			"uplinkChunkSize":0
+			"uplinkChunkSize":"0"
 		},
 		"security":"reality",
 		"realitySettings":{

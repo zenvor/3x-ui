@@ -331,8 +331,9 @@ func (s *SubscriptionService) ResetToken(id int) (*model.Subscription, error) {
 }
 
 func insertInbounds(tx *gorm.DB, subID int, items []InboundInput) error {
-	for i, in := range items {
-		normalizeInboundInput(&in)
+	for i := range items {
+		normalizeInboundInput(&items[i])
+		in := items[i]
 		if in.CdnTLS && in.CdnServer == "" {
 			return ErrCDNServerRequired
 		}
