@@ -34,7 +34,7 @@
 - **多节点支持** — 从单一面板管理并扩展到多台服务器。
 - **出站与路由** — WARP、NordVPN、自定义路由规则、负载均衡器和出站代理链。
 - **内置订阅服务器**，支持多种输出格式。
-- **订阅转换** — 本 Fork 新增的 Mihomo 订阅转换，支持入站/客户端选择、IP 限制、User-Agent 过滤和访问日志。
+- **订阅转换** — 本 Fork 新增的 Mihomo 订阅转换，支持入站/客户端选择、IP 限制、User-Agent 过滤和访问日志。目前仅支持 **VLESS + XHTTP + REALITY**、**VLESS + TCP + REALITY**、**VLESS + XHTTP + CDN TLS**；其他协议、传输方式和安全模式暂不支持转换。
 - **Telegram 机器人**，用于远程监控和管理。
 - **RESTful API**，带有面板内置的 Swagger 文档。
 - **灵活的存储** — SQLite（默认）或 PostgreSQL。

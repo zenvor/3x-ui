@@ -34,7 +34,7 @@ Orijinal X-UI projesinin geliştirilmiş bir çatallaması (fork) olarak inşa e
 - **Çoklu düğüm (Multi-node) desteği** — Tek bir panel üzerinden birden fazla sunucuyu yönetin ve ölçeklendirin.
 - **Giden bağlantı (Outbound) ve yönlendirme** — WARP, NordVPN, özel yönlendirme kuralları, yük dengeleyiciler (load balancers) ve giden bağlantı proxy zincirleme (proxy chaining).
 - **Dahili abonelik sunucusu** (Birden fazla çıktı formatı ile).
-- **Subconverter** — Bu fork tarafından eklenen; gelen bağlantı/istemci seçimi, IP sınırları, User-Agent filtreleme ve erişim günlükleri sunan Mihomo abonelik dönüştürücü.
+- **Subconverter** — Bu fork tarafından eklenen; gelen bağlantı/istemci seçimi, IP sınırları, User-Agent filtreleme ve erişim günlükleri sunan Mihomo abonelik dönüştürücü. Şu anda yalnızca **VLESS + XHTTP + REALITY**, **VLESS + TCP + REALITY** ve **VLESS + XHTTP + CDN TLS** desteklenir; diğer protokoller, taşıma yöntemleri ve güvenlik modları desteklenmez.
 - Uzaktan izleme ve yönetim için **Telegram botu**.
 - Panel içi Swagger dokümantasyonuna sahip **RESTful API**.
 - **Esnek depolama** — SQLite (varsayılan) veya PostgreSQL.
