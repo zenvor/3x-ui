@@ -2,7 +2,9 @@ import type { InboundOption, SubscriptionRecord } from './types';
 
 export const SUBCONVERTER_API = '/panel/api/subconverter';
 export const DEFAULT_UA_KEYWORDS = ['clash', 'mihomo', 'shadowrocket'];
-export const INBOUND_TAG_COLOR = 'green';
+export const INBOUND_TAG_COLOR = 'blue';
+
+export type InboundOptionClient = InboundOption['clients'][number];
 
 export interface SubscriptionFilterState {
   filterMode?: boolean;
@@ -51,6 +53,117 @@ export function canConfigureCdnTls(inbound?: InboundOption): boolean {
 
 export function requiresCdnTls(inbound?: InboundOption): boolean {
   return inbound?.cdnTlsCapable === true && inbound.subconverterCapable !== true;
+}
+
+export function getCommonClientEmails(
+  inboundIds: number[],
+  inboundById: Map<number, InboundOption>,
+): string[] {
+  if (inboundIds.length === 0) return [];
+
+  let common: string[] | null = null;
+  for (const id of inboundIds) {
+    const inbound = inboundById.get(id);
+    const emails = uniqueEmails((inbound?.clients || [])
+      .filter(isExportableInboundClient)
+      .map((client) => client.email));
+    if (emails.length === 0) return [];
+    if (common === null) {
+      common = emails;
+      continue;
+    }
+    const emailSet = new Set(emails);
+    common = common.filter((email) => emailSet.has(email));
+    if (common.length === 0) return [];
+  }
+  return common || [];
+}
+
+export function getCommonClientDetails(
+  inboundIds: number[],
+  inboundById: Map<number, InboundOption>,
+): InboundOptionClient[] {
+  if (inboundIds.length === 0) return [];
+
+  let common: Map<string, InboundOptionClient> | null = null;
+  for (const id of inboundIds) {
+    const inbound = inboundById.get(id);
+    const clientsByEmail = clientsByEmailMap(inbound?.clients || []);
+    if (clientsByEmail.size === 0) return [];
+    if (common === null) {
+      common = clientsByEmail;
+      continue;
+    }
+    for (const [email, current] of [...common.entries()]) {
+      const next = clientsByEmail.get(email);
+      if (!next) {
+        common.delete(email);
+        continue;
+      }
+      common.set(email, mergeClientDetails(current, next));
+    }
+    if (common.size === 0) return [];
+  }
+  return common ? [...common.values()] : [];
+}
+
+export function isExportableInboundClient(client: InboundOptionClient): boolean {
+  return client.enable !== false && client.hasId !== false;
+}
+
+export function clientTrafficUsed(client?: InboundOptionClient): number {
+  return Math.max(0, Number(client?.up || 0) + Number(client?.down || 0));
+}
+
+export function clientTrafficTotal(client?: InboundOptionClient): number {
+  return Math.max(0, Number(client?.totalGB || 0));
+}
+
+export function isClientDepleted(client?: InboundOptionClient, now = Date.now()): boolean {
+  if (!client) return false;
+  const total = clientTrafficTotal(client);
+  const expiryTime = Number(client.expiryTime || 0);
+  return (total > 0 && clientTrafficUsed(client) >= total) || (expiryTime > 0 && expiryTime <= now);
+}
+
+function uniqueEmails(values: string[]): string[] {
+  const seen = new Set<string>();
+  const emails: string[] = [];
+  for (const value of values) {
+    const email = String(value || '').trim();
+    if (!email || seen.has(email)) continue;
+    seen.add(email);
+    emails.push(email);
+  }
+  return emails;
+}
+
+function clientsByEmailMap(clients: InboundOptionClient[]): Map<string, InboundOptionClient> {
+  const out = new Map<string, InboundOptionClient>();
+  for (const client of clients) {
+    const email = String(client.email || '').trim();
+    if (!email) continue;
+    const normalized = { ...client, email };
+    const existing = out.get(email);
+    out.set(email, existing ? mergeClientDetails(existing, normalized) : normalized);
+  }
+  return out;
+}
+
+function mergeClientDetails(left: InboundOptionClient, right: InboundOptionClient): InboundOptionClient {
+  const leftExpiry = Number(left.expiryTime || 0);
+  const rightExpiry = Number(right.expiryTime || 0);
+  return {
+    ...left,
+    enable: left.enable !== false && right.enable !== false,
+    hasId: left.hasId !== false && right.hasId !== false,
+    totalGB: Math.max(Number(left.totalGB || 0), Number(right.totalGB || 0)),
+    expiryTime: leftExpiry > 0 && rightExpiry > 0
+      ? Math.min(leftExpiry, rightExpiry)
+      : Math.max(leftExpiry, rightExpiry),
+    up: Math.max(Number(left.up || 0), Number(right.up || 0)),
+    down: Math.max(Number(left.down || 0), Number(right.down || 0)),
+  };
 }
 
 export function formatIpLimitUsage(record: SubscriptionRecord): string {

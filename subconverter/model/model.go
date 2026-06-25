@@ -10,13 +10,14 @@ import "time"
 // Subscription maps a public token to a set of 3X-UI inbounds and is the root
 // of a Mihomo subscription link.
 type Subscription struct {
-	Id        int       `json:"id" gorm:"primaryKey;autoIncrement"`
-	Token     string    `json:"token" gorm:"uniqueIndex;not null;size:64"`
-	Remark    string    `json:"remark" gorm:"not null"`
-	MaxIps    int       `json:"limitIp" gorm:"default:0"`   // 0 = unlimited; JSON name matches 3X-UI's Client.LimitIP
-	Enabled   bool      `json:"enable" gorm:"default:true"` // JSON name matches 3X-UI's Inbound.Enable
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Id           int       `json:"id" gorm:"primaryKey;autoIncrement"`
+	Token        string    `json:"token" gorm:"uniqueIndex;not null;size:64"`
+	Remark       string    `json:"remark" gorm:"not null"`
+	MaxIps       int       `json:"limitIp" gorm:"default:0"`   // 0 = unlimited; JSON name matches 3X-UI's Client.LimitIP
+	Enabled      bool      `json:"enable" gorm:"default:true"` // JSON name matches 3X-UI's Inbound.Enable
+	TrafficStats bool      `json:"trafficStats" gorm:"column:traffic_stats;default:false"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 
 	// Inbounds is the preloadable junction list. omitempty keeps the JSON
 	// output compact when a caller does not Preload the relation.

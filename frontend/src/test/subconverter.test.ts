@@ -15,8 +15,11 @@ import type { InboundOption, SubscriptionRecord } from '@/schemas/subconverter';
 import {
   canConfigureCdnTls,
   filterSubscriptions,
+  getCommonClientDetails,
   formatIpLimitUsage,
   getSubscriptionProtocolOptions,
+  getCommonClientEmails,
+  isClientDepleted,
   isSupportedInbound,
   ipLimitSortValue,
   ipLimitTagColor,
@@ -31,6 +34,7 @@ function sub(overrides: Partial<SubscriptionRecord>): SubscriptionRecord {
     remark: 'alpha',
     limitIp: 1,
     enable: true,
+    trafficStats: false,
     inbounds: [],
     ...overrides,
   };
@@ -43,6 +47,7 @@ function inbound(overrides: Partial<InboundOption>): InboundOption {
     tag: '',
     protocol: 'vless',
     port: 443,
+    clients: [],
     ...overrides,
   };
 }
@@ -92,6 +97,31 @@ describe('subconverter utilities', () => {
       inbound({ id: 2, protocol: 'vless' }),
       inbound({ id: 3, protocol: 'vless' }),
     ])).toEqual(['vless', 'vmess']);
+  });
+
+  it('intersects common client emails across selected inbounds', () => {
+    const inbounds = [
+      inbound({ id: 1, clients: [{ email: 'alice@x' }, { email: 'bob@x' }] }),
+      inbound({ id: 2, clients: [{ email: 'alice@x' }] }),
+      inbound({ id: 3, clients: [{ email: 'carol@x' }] }),
+    ];
+    const inboundById = new Map(inbounds.map((item) => [item.id, item]));
+
+    expect(getCommonClientEmails([1, 2], inboundById)).toEqual(['alice@x']);
+    expect(getCommonClientEmails([1, 3], inboundById)).toEqual([]);
+    expect(getCommonClientEmails([], inboundById)).toEqual([]);
+  });
+
+  it('keeps disabled common clients out of selectable emails but available for diagnostics', () => {
+    const inbounds = [
+      inbound({ id: 1, clients: [{ email: 'alice@x', enable: false, totalGB: 100, up: 40, down: 60 }] }),
+      inbound({ id: 2, clients: [{ email: 'alice@x', enable: false, totalGB: 100, up: 40, down: 60 }] }),
+    ];
+    const inboundById = new Map(inbounds.map((item) => [item.id, item]));
+
+    expect(getCommonClientEmails([1, 2], inboundById)).toEqual([]);
+    expect(getCommonClientDetails([1, 2], inboundById).map((client) => client.email)).toEqual(['alice@x']);
+    expect(isClientDepleted(getCommonClientDetails([1, 2], inboundById)[0])).toBe(true);
   });
 
   it('keeps the product rule to Mihomo-compatible inbound selection', () => {

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	subsvc "github.com/mhsanaei/3x-ui/v3/internal/sub"
 	submodel "github.com/mhsanaei/3x-ui/v3/subconverter/model"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/service"
 )
@@ -28,6 +29,7 @@ type PublicController struct {
 	usage      *service.SubscriptionUsageService
 	settings   *service.SettingsService
 	accessLogs *service.AccessLogService
+	subInfo    *subsvc.SubService
 }
 
 // NewPublicController wires both /feed routes onto the root engine and
@@ -40,6 +42,7 @@ func NewPublicController(engine *gin.Engine) *PublicController {
 		usage:      service.NewSubscriptionUsageService(),
 		settings:   service.NewSettingsService(),
 		accessLogs: service.NewAccessLogService(),
+		subInfo:    subsvc.NewSubService(false, ""),
 	}
 	engine.GET("/feed/:token", p.full)
 	engine.GET("/feed/:token/nodes", p.provider)
@@ -81,6 +84,7 @@ func (p *PublicController) full(c *gin.Context) {
 	_ = p.usage.RecordCompleted(sub.Id, ip, c.Request.UserAgent())
 	p.recordAccess(sub, service.AccessEndpointFull, c, ip, http.StatusOK, service.AccessResultSuccess)
 	c.Header("Content-Type", yamlContentType)
+	p.applySubscriptionUserinfoHeader(c, sub)
 	c.String(http.StatusOK, service.RenderMihomoYAML(apiDomain(c), sub.Token))
 }
 
@@ -130,6 +134,9 @@ func (p *PublicController) provider(c *gin.Context) {
 	}
 	p.recordAccess(sub, service.AccessEndpointNodes, c, ip, status, result)
 	c.Header("Content-Type", yamlContentType)
+	if status == http.StatusOK {
+		p.applySubscriptionUserinfoHeader(c, sub)
+	}
 	c.String(status, body)
 }
 
@@ -178,6 +185,51 @@ func (p *PublicController) resolveProxies(sub *submodel.Subscription, c *gin.Con
 		proxies = append(proxies, *proxy)
 	}
 	return proxies
+}
+
+func (p *PublicController) applySubscriptionUserinfoHeader(c *gin.Context, sub *submodel.Subscription) {
+	email := p.subscriptionUserinfoEmail(sub)
+	if email == "" {
+		return
+	}
+	traffic, _ := p.subInfo.AggregateTrafficByEmails([]string{email})
+	header := fmt.Sprintf("upload=%d; download=%d; total=%d; expire=%d",
+		traffic.Up, traffic.Down, traffic.Total, traffic.ExpiryTime/1000)
+	c.Header("Subscription-Userinfo", header)
+}
+
+func (p *PublicController) subscriptionUserinfoEmail(sub *submodel.Subscription) string {
+	sources, err := p.subscriptionUserinfoSources(sub)
+	if err != nil || len(sources) == 0 {
+		return ""
+	}
+	seen := make(map[string]struct{})
+	email := ""
+	for _, source := range sources {
+		if source.Client == nil {
+			continue
+		}
+		current := strings.TrimSpace(source.Client.Email)
+		if current == "" {
+			continue
+		}
+		seen[current] = struct{}{}
+		email = current
+		if len(seen) > 1 {
+			return ""
+		}
+	}
+	if len(seen) != 1 {
+		return ""
+	}
+	return email
+}
+
+func (p *PublicController) subscriptionUserinfoSources(sub *submodel.Subscription) ([]service.ProxySource, error) {
+	if sub == nil || !sub.TrafficStats || len(sub.Inbounds) == 0 {
+		return nil, nil
+	}
+	return p.resolver.Resolve(sub.Inbounds)
 }
 
 func (p *PublicController) rejectDisallowedUserAgent(c *gin.Context, endpoint string) bool {

@@ -3,13 +3,18 @@ package controller
 import (
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	logging "github.com/op/go-logging"
 
+	xdatabase "github.com/mhsanaei/3x-ui/v3/internal/database"
+	xmodel "github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	"github.com/mhsanaei/3x-ui/v3/internal/xray"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/database"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/model"
 )
@@ -150,6 +155,87 @@ func TestProviderDoesNotRecordSubscriptionCount(t *testing.T) {
 		t.Fatalf("provider status = %d, want 200; body=%s", resp.Code, resp.Body.String())
 	}
 	assertCompletedCount(t, sub.Id, 0)
+}
+
+func TestFeedSetsSubscriptionUserinfoHeader(t *testing.T) {
+	engine := setupPublicControllerTest(t)
+	setupPublicControllerMainDB(t)
+	sub := createPublicTestSubscriptionWithInbounds(t, "alice@x", 1, 2)
+	enablePublicTestTrafficStats(t, sub)
+	seedPublicControllerTraffic(t, "alice@x", 123, 456, 7890, 1700000000000)
+
+	resp := performFeedRequest(engine, "/feed/"+sub.Token, "1.1.1.1")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("feed status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+	}
+	want := "upload=123; download=456; total=7890; expire=1700000000"
+	if got := resp.Header().Get("Subscription-Userinfo"); got != want {
+		t.Fatalf("Subscription-Userinfo = %q, want %q", got, want)
+	}
+}
+
+func TestProviderSetsSubscriptionUserinfoHeader(t *testing.T) {
+	engine := setupPublicControllerTest(t)
+	setupPublicControllerMainDB(t)
+	sub := createPublicTestSubscriptionWithInbounds(t, "alice@x", 1, 2)
+	enablePublicTestTrafficStats(t, sub)
+	seedPublicControllerTraffic(t, "alice@x", 11, 22, 33, 1700000000000)
+
+	resp := performFeedRequest(engine, "/feed/"+sub.Token+"/nodes", "1.1.1.1")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("provider status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+	}
+	want := "upload=11; download=22; total=33; expire=1700000000"
+	if got := resp.Header().Get("Subscription-Userinfo"); got != want {
+		t.Fatalf("Subscription-Userinfo = %q, want %q", got, want)
+	}
+}
+
+func TestFeedOmitsSubscriptionUserinfoForAmbiguousLegacyClient(t *testing.T) {
+	engine := setupPublicControllerTest(t)
+	setupPublicControllerMainDB(t)
+	sub := createPublicTestSubscription(t, 1)
+	enablePublicTestTrafficStats(t, sub)
+	createPublicTestSubscriptionInbound(t, sub.Id, 1, "")
+
+	resp := performFeedRequest(engine, "/feed/"+sub.Token, "1.1.1.1")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("feed status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+	}
+	if got := resp.Header().Get("Subscription-Userinfo"); got != "" {
+		t.Fatalf("Subscription-Userinfo = %q, want empty", got)
+	}
+}
+
+func TestFeedOmitsSubscriptionUserinfoWhenTrafficStatsDisabled(t *testing.T) {
+	engine := setupPublicControllerTest(t)
+	setupPublicControllerMainDB(t)
+	sub := createPublicTestSubscriptionWithInbounds(t, "alice@x", 1, 2)
+	seedPublicControllerTraffic(t, "alice@x", 123, 456, 7890, 1700000000000)
+
+	resp := performFeedRequest(engine, "/feed/"+sub.Token, "1.1.1.1")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("feed status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+	}
+	if got := resp.Header().Get("Subscription-Userinfo"); got != "" {
+		t.Fatalf("Subscription-Userinfo = %q, want empty", got)
+	}
+}
+
+func TestFeedOmitsSubscriptionUserinfoWhenStoredClientIsNotExportable(t *testing.T) {
+	engine := setupPublicControllerTest(t)
+	setupPublicControllerMainDB(t)
+	sub := createPublicTestSubscriptionWithInbounds(t, "missing@x", 1, 2)
+	enablePublicTestTrafficStats(t, sub)
+	seedPublicControllerTraffic(t, "missing@x", 123, 456, 7890, 1700000000000)
+
+	resp := performFeedRequest(engine, "/feed/"+sub.Token, "1.1.1.1")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("feed status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+	}
+	if got := resp.Header().Get("Subscription-Userinfo"); got != "" {
+		t.Fatalf("Subscription-Userinfo = %q, want empty", got)
+	}
 }
 
 func TestFeedForbiddenDoesNotRecordSubscriptionCount(t *testing.T) {
@@ -303,6 +389,106 @@ func createPublicTestSubscription(t *testing.T, maxIps int) *model.Subscription 
 		t.Fatalf("create subscription: %v", err)
 	}
 	return sub
+}
+
+func createPublicTestSubscriptionWithInbounds(t *testing.T, clientEmail string, inboundIds ...int) *model.Subscription {
+	t.Helper()
+	sub := createPublicTestSubscription(t, 1)
+	for _, inboundID := range inboundIds {
+		createPublicTestSubscriptionInbound(t, sub.Id, inboundID, clientEmail)
+	}
+	return sub
+}
+
+func enablePublicTestTrafficStats(t *testing.T, sub *model.Subscription) {
+	t.Helper()
+	sub.TrafficStats = true
+	if err := database.GetDB().Model(sub).Update("traffic_stats", true).Error; err != nil {
+		t.Fatalf("enable traffic stats: %v", err)
+	}
+}
+
+func createPublicTestSubscriptionInbound(t *testing.T, subID, inboundID int, clientEmail string) {
+	t.Helper()
+	if err := database.GetDB().Create(&model.SubscriptionInbound{
+		SubscriptionId: subID,
+		InboundId:      inboundID,
+		ClientEmail:    clientEmail,
+	}).Error; err != nil {
+		t.Fatalf("create subscription inbound: %v", err)
+	}
+}
+
+func setupPublicControllerMainDB(t *testing.T) {
+	t.Helper()
+	dbDir := t.TempDir()
+	t.Setenv("XUI_DB_FOLDER", dbDir)
+	if err := xdatabase.CloseDB(); err != nil {
+		t.Fatalf("close main db: %v", err)
+	}
+	if err := xdatabase.InitDB(filepath.Join(dbDir, "x-ui.db")); err != nil {
+		t.Fatalf("init main db: %v", err)
+	}
+	t.Cleanup(func() { _ = xdatabase.CloseDB() })
+
+	for _, inbound := range []*xmodel.Inbound{
+		publicTestInbound(1, []xmodel.Client{
+			{ID: "uuid-1", Email: "alice@x", Enable: true},
+			{ID: "uuid-1b", Email: "bob@x", Enable: true},
+		}),
+		publicTestInbound(2, []xmodel.Client{
+			{ID: "uuid-2", Email: "alice@x", Enable: true},
+		}),
+	} {
+		if err := xdatabase.GetDB().Create(inbound).Error; err != nil {
+			t.Fatalf("seed main inbound %d: %v", inbound.Id, err)
+		}
+	}
+}
+
+func publicTestInbound(id int, clients []xmodel.Client) *xmodel.Inbound {
+	settings := `{"clients":[`
+	for i, client := range clients {
+		if i > 0 {
+			settings += `,`
+		}
+		settings += `{"id":"` + client.ID + `","email":"` + client.Email + `","enable":true}`
+	}
+	settings += `]}`
+	return &xmodel.Inbound{
+		Id:       id,
+		Remark:   "public-test",
+		Tag:      "public-test-inbound-" + strconv.Itoa(id),
+		Enable:   true,
+		Port:     45000 + id,
+		Protocol: xmodel.VLESS,
+		StreamSettings: `{
+			"network":"tcp",
+			"security":"reality",
+			"realitySettings":{
+				"serverNames":["www.cloudflare.com"],
+				"shortIds":["abcd1234"],
+				"settings":{"publicKey":"pubkey-xyz","fingerprint":"chrome"}
+			}
+		}`,
+		Settings: settings,
+	}
+}
+
+func seedPublicControllerTraffic(t *testing.T, email string, up, down, total, expiry int64) {
+	t.Helper()
+	if err := xdatabase.GetDB().Create(&xray.ClientTraffic{
+		InboundId:  1,
+		Email:      email,
+		Enable:     true,
+		Up:         up,
+		Down:       down,
+		Total:      total,
+		ExpiryTime: expiry,
+		LastOnline: expiry,
+	}).Error; err != nil {
+		t.Fatalf("seed client traffic: %v", err)
+	}
 }
 
 func performFeedRequest(engine http.Handler, path, ip string) *httptest.ResponseRecorder {

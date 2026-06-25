@@ -1,8 +1,12 @@
 package service
 
 import (
+	"path/filepath"
+	"strconv"
 	"testing"
 
+	xdatabase "github.com/mhsanaei/3x-ui/v3/internal/database"
+	xmodel "github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/database"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/model"
 )
@@ -14,13 +18,73 @@ func setupTestDB(t *testing.T) {
 	t.Helper()
 	tmpDir := t.TempDir()
 	t.Setenv("XUI_DB_FOLDER", tmpDir)
+	if err := xdatabase.CloseDB(); err != nil {
+		t.Fatalf("close main db: %v", err)
+	}
+	if err := xdatabase.InitDB(filepath.Join(tmpDir, "x-ui.db")); err != nil {
+		t.Fatalf("init main db: %v", err)
+	}
 	if err := database.Reset(); err != nil {
 		t.Fatalf("reset db: %v", err)
 	}
 	if err := database.InitDB(); err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	t.Cleanup(func() { _ = database.Reset() })
+	seedSubscriptionTestInbounds(t, map[int][]xmodel.Client{
+		1:  {testClient("uuid-1", "alice@x")},
+		2:  {testClient("uuid-2", "alice@x")},
+		7:  {testClient("uuid-7", "alice@x")},
+		10: {testClient("uuid-10", "alice@x")},
+	})
+	t.Cleanup(func() {
+		_ = database.Reset()
+		_ = xdatabase.CloseDB()
+	})
+}
+
+func seedSubscriptionTestInbounds(t *testing.T, clientsByID map[int][]xmodel.Client) {
+	t.Helper()
+	for id, clients := range clientsByID {
+		inbound := vlessInboundWithClients(id, clients, realityStream())
+		if id == 10 {
+			inbound.StreamSettings = xhttpNoneStream()
+		}
+		if err := xdatabase.GetDB().Create(inbound).Error; err != nil {
+			t.Fatalf("seed inbound %d: %v", id, err)
+		}
+	}
+}
+
+func vlessInboundWithClients(id int, clients []xmodel.Client, streamSettings string) *xmodel.Inbound {
+	settings := `{"clients":[`
+	for i, client := range clients {
+		if i > 0 {
+			settings += `,`
+		}
+		settings += `{"id":"` + client.ID + `","email":"` + client.Email + `","enable":` + boolJSON(client.Enable) + `}`
+	}
+	settings += `]}`
+	return &xmodel.Inbound{
+		Id:             id,
+		Remark:         "inbound",
+		Tag:            "subconverter-test-inbound-" + strconv.Itoa(id),
+		Enable:         true,
+		Port:           40000 + id,
+		Protocol:       xmodel.VLESS,
+		StreamSettings: streamSettings,
+		Settings:       settings,
+	}
+}
+
+func testClient(id, email string) xmodel.Client {
+	return xmodel.Client{ID: id, Email: email, Enable: true}
+}
+
+func boolJSON(v bool) string {
+	if v {
+		return "true"
+	}
+	return "false"
 }
 
 func TestSubscriptionCRUD(t *testing.T) {
@@ -157,6 +221,37 @@ func TestCreateRequiresInbounds(t *testing.T) {
 	}
 }
 
+func TestSubscriptionKeepsLegacyEmptyClientEmailReadable(t *testing.T) {
+	setupTestDB(t)
+	svc := NewSubscriptionService()
+	legacy := &model.Subscription{
+		Token:   "legacy-empty-client-email",
+		Remark:  "legacy",
+		Enabled: true,
+	}
+	if err := database.GetDB().Create(legacy).Error; err != nil {
+		t.Fatalf("create legacy sub: %v", err)
+	}
+	if err := database.GetDB().Create(&model.SubscriptionInbound{
+		SubscriptionId: legacy.Id,
+		InboundId:      1,
+		ClientEmail:    "",
+	}).Error; err != nil {
+		t.Fatalf("create legacy inbound: %v", err)
+	}
+
+	got, err := svc.Get(legacy.Id)
+	if err != nil {
+		t.Fatalf("get legacy: %v", err)
+	}
+	if len(got.Inbounds) != 1 {
+		t.Fatalf("legacy inbounds len = %d, want 1", len(got.Inbounds))
+	}
+	if got.Inbounds[0].ClientEmail != "" {
+		t.Fatalf("legacy clientEmail = %q, want empty", got.Inbounds[0].ClientEmail)
+	}
+}
+
 func TestSubscriptionPersistsCDNTLSOverride(t *testing.T) {
 	setupTestDB(t)
 	svc := NewSubscriptionService()
@@ -223,6 +318,205 @@ func TestSubscriptionCDNTLSOverrideRequiresServer(t *testing.T) {
 	})
 	if err != ErrCDNServerRequired {
 		t.Fatalf("err = %v, want ErrCDNServerRequired", err)
+	}
+
+	_, err = svc.Create(SubscriptionInput{
+		Remark:       "bad-stats",
+		TrafficStats: true,
+		Inbounds:     []InboundInput{{InboundId: 10, CdnTLS: true}},
+	})
+	if err != ErrCDNServerRequired {
+		t.Fatalf("err = %v, want ErrCDNServerRequired with traffic stats enabled", err)
+	}
+}
+
+func TestSubscriptionInfersSharedClientEmail(t *testing.T) {
+	setupTestDB(t)
+	svc := NewSubscriptionService()
+
+	created, err := svc.Create(SubscriptionInput{
+		Remark:       "shared",
+		TrafficStats: true,
+		Inbounds: []InboundInput{
+			{InboundId: 1},
+			{InboundId: 2},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if len(created.Inbounds) != 2 {
+		t.Fatalf("inbounds len = %d, want 2", len(created.Inbounds))
+	}
+	for _, inbound := range created.Inbounds {
+		if inbound.ClientEmail != "alice@x" {
+			t.Fatalf("clientEmail = %q, want alice@x", inbound.ClientEmail)
+		}
+	}
+}
+
+func TestSubscriptionRejectsInboundsWithoutCommonClient(t *testing.T) {
+	setupTestDB(t)
+	seedSubscriptionTestInbounds(t, map[int][]xmodel.Client{
+		20: {testClient("uuid-20", "alice@x")},
+		21: {testClient("uuid-21", "bob@x")},
+	})
+	svc := NewSubscriptionService()
+
+	_, err := svc.Create(SubscriptionInput{
+		Remark:       "split",
+		TrafficStats: true,
+		Inbounds: []InboundInput{
+			{InboundId: 20},
+			{InboundId: 21},
+		},
+	})
+	if err != ErrCommonClientRequired {
+		t.Fatalf("err = %v, want ErrCommonClientRequired", err)
+	}
+}
+
+func TestSubscriptionRejectsAmbiguousCommonClient(t *testing.T) {
+	setupTestDB(t)
+	clients := []xmodel.Client{
+		testClient("uuid-a", "alice@x"),
+		testClient("uuid-b", "bob@x"),
+	}
+	seedSubscriptionTestInbounds(t, map[int][]xmodel.Client{
+		22: clients,
+		23: clients,
+	})
+	svc := NewSubscriptionService()
+
+	_, err := svc.Create(SubscriptionInput{
+		Remark:       "ambiguous",
+		TrafficStats: true,
+		Inbounds: []InboundInput{
+			{InboundId: 22},
+			{InboundId: 23},
+		},
+	})
+	if err != ErrCommonClientAmbiguous {
+		t.Fatalf("err = %v, want ErrCommonClientAmbiguous", err)
+	}
+}
+
+func TestSubscriptionRejectsSelectedClientMissingFromInbound(t *testing.T) {
+	setupTestDB(t)
+	seedSubscriptionTestInbounds(t, map[int][]xmodel.Client{
+		24: {testClient("uuid-24", "alice@x")},
+		25: {testClient("uuid-25", "bob@x")},
+	})
+	svc := NewSubscriptionService()
+
+	_, err := svc.Create(SubscriptionInput{
+		Remark:       "bad-client",
+		TrafficStats: true,
+		Inbounds: []InboundInput{
+			{InboundId: 24, ClientEmail: "alice@x"},
+			{InboundId: 25, ClientEmail: "alice@x"},
+		},
+	})
+	if err != ErrSelectedClientInvalid {
+		t.Fatalf("err = %v, want ErrSelectedClientInvalid", err)
+	}
+}
+
+func TestSubscriptionAllowsMixedClientsWhenTrafficStatsDisabled(t *testing.T) {
+	setupTestDB(t)
+	seedSubscriptionTestInbounds(t, map[int][]xmodel.Client{
+		26: {testClient("uuid-26", "alice@x")},
+		27: {testClient("uuid-27", "bob@x")},
+	})
+	svc := NewSubscriptionService()
+
+	created, err := svc.Create(SubscriptionInput{
+		Remark: "mixed-no-stats",
+		Inbounds: []InboundInput{
+			{InboundId: 26, ClientEmail: "alice@x"},
+			{InboundId: 27, ClientEmail: "bob@x"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if created.TrafficStats {
+		t.Fatal("trafficStats = true, want false")
+	}
+	for _, inbound := range created.Inbounds {
+		if inbound.ClientEmail != "" {
+			t.Fatalf("clientEmail = %q, want empty when traffic stats disabled", inbound.ClientEmail)
+		}
+	}
+
+	updated, err := svc.Update(created.Id, SubscriptionInput{
+		Remark: "mixed-no-stats-update",
+		Inbounds: []InboundInput{
+			{InboundId: 26, ClientEmail: "alice@x"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if len(updated.Inbounds) != 1 {
+		t.Fatalf("updated inbounds len = %d, want 1", len(updated.Inbounds))
+	}
+	if updated.Inbounds[0].ClientEmail != "" {
+		t.Fatalf("updated clientEmail = %q, want empty when traffic stats disabled", updated.Inbounds[0].ClientEmail)
+	}
+}
+
+func TestSubscriptionAllowsDisablingInvalidTrafficStatsSelection(t *testing.T) {
+	setupTestDB(t)
+	seedSubscriptionTestInbounds(t, map[int][]xmodel.Client{
+		28: {testClient("uuid-28", "alice@x")},
+		29: {testClient("uuid-29", "bob@x")},
+	})
+	svc := NewSubscriptionService()
+
+	created, err := svc.Create(SubscriptionInput{
+		Remark: "mixed-disabled-later",
+		Inbounds: []InboundInput{
+			{InboundId: 28},
+			{InboundId: 29},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	disabled := false
+	updated, err := svc.Update(created.Id, SubscriptionInput{
+		Remark:       "mixed-disabled-later",
+		Enabled:      &disabled,
+		TrafficStats: true,
+		Inbounds: []InboundInput{
+			{InboundId: 28},
+			{InboundId: 29},
+		},
+	})
+	if err != nil {
+		t.Fatalf("disable update: %v", err)
+	}
+	if updated.Enabled {
+		t.Fatal("updated.Enabled = true, want false")
+	}
+	if !updated.TrafficStats {
+		t.Fatal("updated.TrafficStats = false, want true")
+	}
+
+	enabled := true
+	_, err = svc.Update(created.Id, SubscriptionInput{
+		Remark:       "mixed-enabled",
+		Enabled:      &enabled,
+		TrafficStats: true,
+		Inbounds: []InboundInput{
+			{InboundId: 28},
+			{InboundId: 29},
+		},
+	})
+	if err != ErrCommonClientRequired {
+		t.Fatalf("enable err = %v, want ErrCommonClientRequired", err)
 	}
 }
 

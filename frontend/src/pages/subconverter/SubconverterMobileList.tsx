@@ -6,7 +6,7 @@ import {
   DeleteOutlined,
   EditOutlined,
   InfoCircleOutlined,
-  KeyOutlined,
+  RetweetOutlined,
 } from '@ant-design/icons';
 import { Button, Switch, Tag, Tooltip } from 'antd';
 
@@ -17,6 +17,8 @@ interface SubconverterMobileListProps {
   rows: SubscriptionRecord[];
   togglingId: number | null;
   renderInboundTags: (record: SubscriptionRecord) => ReactNode;
+  renderClient: (record: SubscriptionRecord) => ReactNode;
+  renderTraffic: (record: SubscriptionRecord) => ReactNode;
   onInfo: (record: SubscriptionRecord) => void;
   onEdit: (record: SubscriptionRecord) => void;
   onCopy: (text: string) => void;
@@ -29,6 +31,8 @@ export default function SubconverterMobileList({
   rows,
   togglingId,
   renderInboundTags,
+  renderClient,
+  renderTraffic,
   onInfo,
   onEdit,
   onCopy,
@@ -87,10 +91,9 @@ export default function SubconverterMobileList({
               </Tooltip>
               <Tooltip title={t('pages.subconverter.resetToken')}>
                 <Button
-                  danger
                   type="text"
                   size="small"
-                  icon={<KeyOutlined />}
+                  icon={<RetweetOutlined />}
                   className="row-action-trigger"
                   aria-label={t('pages.subconverter.resetToken')}
                   onClick={() => onResetToken(record)}
@@ -120,6 +123,14 @@ export default function SubconverterMobileList({
             <div className="subconverter-card-row">
               <span>{t('pages.subconverter.inbounds')}</span>
               <div>{renderInboundTags(record)}</div>
+            </div>
+            <div className="subconverter-card-row">
+              <span>{t('pages.subconverter.client')}</span>
+              <div>{renderClient(record)}</div>
+            </div>
+            <div className="subconverter-card-row">
+              <span>{t('pages.inbounds.traffic')}</span>
+              <div>{renderTraffic(record)}</div>
             </div>
             <div className="subconverter-card-row">
               <span>{t('pages.subconverter.completedSubscriptions')}</span>
