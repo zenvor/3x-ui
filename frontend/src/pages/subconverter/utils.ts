@@ -51,8 +51,8 @@ export function canConfigureCdnTls(inbound?: InboundOption): boolean {
   return inbound?.protocol === 'vless' && inbound.cdnTlsCapable === true;
 }
 
-export function requiresCdnTls(inbound?: InboundOption): boolean {
-  return inbound?.cdnTlsCapable === true && inbound.subconverterCapable !== true;
+export function requiresCdnTls(_inbound?: InboundOption): boolean {
+  return false;
 }
 
 export function getCommonClientEmails(

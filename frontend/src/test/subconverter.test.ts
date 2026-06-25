@@ -138,8 +138,8 @@ describe('subconverter utilities', () => {
     expect(canConfigureCdnTls(undefined)).toBe(false);
   });
 
-  it('requires CDN TLS for bare xhttp candidates', () => {
-    expect(requiresCdnTls(inbound({ cdnTlsCapable: true, subconverterCapable: false }))).toBe(true);
+  it('keeps CDN TLS optional for CDN-capable inbounds', () => {
+    expect(requiresCdnTls(inbound({ cdnTlsCapable: true, subconverterCapable: false }))).toBe(false);
     expect(requiresCdnTls(inbound({ cdnTlsCapable: true, subconverterCapable: true }))).toBe(false);
     expect(requiresCdnTls(inbound({ cdnTlsCapable: false, subconverterCapable: true }))).toBe(false);
     expect(requiresCdnTls(undefined)).toBe(false);

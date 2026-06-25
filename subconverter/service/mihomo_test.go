@@ -72,6 +72,27 @@ func xhttpNoneStream() string {
 	}`
 }
 
+func xhttpTLSStream() string {
+	return `{
+		"network":"xhttp",
+		"xhttpSettings":{
+			"path":"/tls-path",
+			"host":"cdn.example.com",
+			"mode":"auto",
+			"xPaddingBytes":"100-1000"
+		},
+		"security":"tls",
+		"tlsSettings":{
+			"serverName":"cdn.example.com",
+			"alpn":["h2","http/1.1"],
+			"certificates":[
+				{"certificateFile":"/root/cert/fullchain.pem","keyFile":"/root/cert/private.key"}
+			],
+			"settings":{"fingerprint":"firefox"}
+		}
+	}`
+}
+
 func TestConvertVlessTCPReality(t *testing.T) {
 	in := vlessInbound("home", "203.0.113.5", 443, realityStream())
 	cl := client("uuid-1", "alice@x", "xtls-rprx-vision")
@@ -270,7 +291,6 @@ func TestConvertVlessXHTTPNoneWithCDNTLS(t *testing.T) {
 			Server:     "203.0.113.20",
 			Port:       443,
 			Servername: "cdn.example.com",
-			XHTTPHost:  "cdn.example.com",
 		},
 	})
 	if err != nil {
@@ -291,7 +311,7 @@ func TestConvertVlessXHTTPNoneWithCDNTLS(t *testing.T) {
 	if proxy.Network != "xhttp" || proxy.XHTTPOpts == nil {
 		t.Fatalf("xhttp fields missing: %+v", proxy)
 	}
-	if proxy.XHTTPOpts.Path != "/cdn-path" || proxy.XHTTPOpts.Host != "cdn.example.com" || proxy.XHTTPOpts.Mode != "auto" {
+	if proxy.XHTTPOpts.Path != "/cdn-path" || proxy.XHTTPOpts.Host != "" || proxy.XHTTPOpts.Mode != "auto" {
 		t.Fatalf("xhttp-opts wrong: %+v", proxy.XHTTPOpts)
 	}
 	if proxy.XHTTPOpts.XPaddingBytes != "100-1000" {
@@ -315,11 +335,86 @@ func TestConvertVlessXHTTPNoneWithCDNTLSDefaults(t *testing.T) {
 	if proxy.Server != "cdn.example.com" || proxy.Port != 443 {
 		t.Fatalf("default endpoint wrong: %+v", proxy)
 	}
-	if proxy.Servername != "cdn.example.com" || proxy.XHTTPOpts.Host != "cdn.example.com" {
+	if proxy.Servername != "cdn.example.com" || proxy.XHTTPOpts.Host != "" {
 		t.Fatalf("default sni/host wrong: servername=%q opts=%+v", proxy.Servername, proxy.XHTTPOpts)
 	}
 	if len(proxy.ALPN) != 1 || proxy.ALPN[0] != "h2" {
 		t.Fatalf("default alpn = %#v, want h2", proxy.ALPN)
+	}
+}
+
+func TestConvertVlessXHTTPTLS(t *testing.T) {
+	in := vlessInbound("xhttp tls", "", 6666, xhttpTLSStream())
+	cl := client("uuid-1", "alice@x", "xtls-rprx-vision")
+
+	proxy, err := convertForTest(in, cl, "panel.example.com")
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	if proxy.Server != "panel.example.com" || proxy.Port != 6666 {
+		t.Fatalf("native TLS endpoint wrong: %+v", proxy)
+	}
+	if !proxy.TLS || proxy.Servername != "cdn.example.com" || proxy.ClientFingerprint != "firefox" {
+		t.Fatalf("tls fields wrong: %+v", proxy)
+	}
+	if len(proxy.ALPN) != 2 || proxy.ALPN[0] != "h2" || proxy.ALPN[1] != "http/1.1" {
+		t.Fatalf("alpn = %#v, want h2,http/1.1", proxy.ALPN)
+	}
+	if proxy.RealityOpts != nil {
+		t.Fatalf("reality-opts should be omitted for native TLS: %+v", proxy.RealityOpts)
+	}
+	if proxy.Flow != "" {
+		t.Fatalf("flow should be omitted for xhttp tls, got %q", proxy.Flow)
+	}
+	if proxy.Network != "xhttp" || proxy.XHTTPOpts == nil {
+		t.Fatalf("xhttp fields missing: %+v", proxy)
+	}
+	if proxy.XHTTPOpts.Path != "/tls-path" || proxy.XHTTPOpts.Host != "cdn.example.com" || proxy.XHTTPOpts.Mode != "auto" {
+		t.Fatalf("xhttp-opts wrong: %+v", proxy.XHTTPOpts)
+	}
+	if proxy.XHTTPOpts.XPaddingBytes != "100-1000" {
+		t.Fatalf("x-padding-bytes = %q, want 100-1000", proxy.XHTTPOpts.XPaddingBytes)
+	}
+}
+
+func TestConvertVlessXHTTPTLSWithCDNTLS(t *testing.T) {
+	in := vlessInbound("xhttp tls", "", 6666, xhttpTLSStream())
+	cl := client("uuid-1", "alice@x", "xtls-rprx-vision")
+
+	proxy, err := ConvertInboundToProxy(in, cl, "panel.example.com", ProxyOptions{
+		CDNTLS: &CDNTLSOptions{
+			Enabled:    true,
+			Server:     "203.0.113.20",
+			Port:       443,
+			Servername: "edge.example.com",
+		},
+	})
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	if proxy.Server != "203.0.113.20" || proxy.Port != 443 {
+		t.Fatalf("cdn endpoint wrong: %+v", proxy)
+	}
+	if !proxy.TLS || proxy.Servername != "edge.example.com" || proxy.ClientFingerprint != "chrome" {
+		t.Fatalf("tls fields wrong: %+v", proxy)
+	}
+	if len(proxy.ALPN) != 1 || proxy.ALPN[0] != "h2" {
+		t.Fatalf("alpn = %#v, want h2", proxy.ALPN)
+	}
+	if proxy.RealityOpts != nil {
+		t.Fatalf("reality-opts should be omitted for CDN TLS: %+v", proxy.RealityOpts)
+	}
+	if proxy.Flow != "" {
+		t.Fatalf("flow should be omitted for xhttp tls, got %q", proxy.Flow)
+	}
+	if proxy.Network != "xhttp" || proxy.XHTTPOpts == nil {
+		t.Fatalf("xhttp fields missing: %+v", proxy)
+	}
+	if proxy.XHTTPOpts.Path != "/tls-path" || proxy.XHTTPOpts.Host != "cdn.example.com" || proxy.XHTTPOpts.Mode != "auto" {
+		t.Fatalf("xhttp-opts wrong: %+v", proxy.XHTTPOpts)
+	}
+	if proxy.XHTTPOpts.XPaddingBytes != "100-1000" {
+		t.Fatalf("x-padding-bytes = %q, want 100-1000", proxy.XHTTPOpts.XPaddingBytes)
 	}
 }
 
@@ -352,12 +447,28 @@ func TestConvertVlessXHTTPRealityIgnoresCDNTLSOverlay(t *testing.T) {
 	}
 }
 
-func TestConvertVlessXHTTPNoneRejectedWithoutCDNTLS(t *testing.T) {
+func TestConvertVlessXHTTPNoneWithoutCDNTLS(t *testing.T) {
 	in := vlessInbound("cdn", "", 80, xhttpNoneStream())
 	cl := client("uuid-1", "alice@x", "")
 
-	if _, err := convertForTest(in, cl, "panel.example.com"); err != ErrUnsupportedInbound {
-		t.Fatalf("err = %v, want ErrUnsupportedInbound", err)
+	proxy, err := convertForTest(in, cl, "panel.example.com")
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	if proxy.Server != "panel.example.com" || proxy.Port != 80 {
+		t.Fatalf("endpoint wrong: %+v", proxy)
+	}
+	if proxy.TLS || proxy.Servername != "" || proxy.ClientFingerprint != "" || len(proxy.ALPN) != 0 {
+		t.Fatalf("plain xhttp should not emit TLS fields: %+v", proxy)
+	}
+	if proxy.RealityOpts != nil {
+		t.Fatalf("reality-opts should be omitted for plain xhttp: %+v", proxy.RealityOpts)
+	}
+	if proxy.Network != "xhttp" || proxy.XHTTPOpts == nil {
+		t.Fatalf("xhttp fields missing: %+v", proxy)
+	}
+	if proxy.XHTTPOpts.Path != "/cdn-path" || proxy.XHTTPOpts.Host != "" || proxy.XHTTPOpts.Mode != "auto" {
+		t.Fatalf("xhttp-opts wrong: %+v", proxy.XHTTPOpts)
 	}
 }
 

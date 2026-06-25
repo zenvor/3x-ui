@@ -920,7 +920,9 @@
       "statusValues": {
         "online": "Çevrimiçi",
         "offline": "Çevrimdışı",
-        "unknown": "Bilinmiyor"
+        "unknown": "Bilinmiyor",
+        "xrayError": "Xray hatası",
+        "xrayStopped": "Durduruldu"
       },
       "toasts": {
         "list": "Düğümler yüklenemedi",
@@ -1608,16 +1610,13 @@
       "commonClientRequired": "Seçili gelenler ortak bir etkin istemci paylaşmıyor",
       "trafficStats": "Trafik İstatistikleri",
       "trafficStatsHint": "Açıldığında yalnızca aynı istemciyi paylaşan gelenler seçilebilir ve bu kota abonelik yanıtında gösterilir.",
-      "cdnTlsOverrides": "Taşıma katmanı güvenliği",
-      "cdnTlsOverride": "Taşıma katmanı güvenliği",
+      "cdnTlsOverride": "CDN geçersiz kılma",
       "cdnServer": "Sunucu",
       "cdnServerPlaceholder": "Proxy sunucu adresi",
       "cdnServerRequired": "Lütfen sunucu girin",
       "cdnPort": "Port",
       "cdnServerName": "SNI",
       "cdnServerNamePlaceholder": "Boşsa varsayılan olarak sunucu kullanılır",
-      "cdnXhttpHost": "Ana makine",
-      "cdnXhttpHostPlaceholder": "Varsayılan olarak SNI kullanılır",
       "maxIps": "IP sınırı",
       "maxIpsHint": "Yeni IP’lerden gelen istekler sayı bu değeri aştığında reddedilir. (0 = sınırsız)",
       "confirmDelete": "Bu abonelik dönüştürücü silinsin mi? Bağlı IP’ler ve gelen bağlantıları da kaldırılır.",

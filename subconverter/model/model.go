@@ -42,7 +42,6 @@ type SubscriptionInbound struct {
 	CdnServer      string    `json:"cdnServer" gorm:"column:cdn_server;size:255"`
 	CdnPort        int       `json:"cdnPort" gorm:"column:cdn_port;default:443"`
 	CdnServerName  string    `json:"cdnServerName" gorm:"column:cdn_server_name;size:255"`
-	CdnXHTTPHost   string    `json:"cdnXhttpHost" gorm:"column:cdn_xhttp_host;size:255"`
 	CdnClientFp    string    `json:"cdnClientFingerprint" gorm:"column:cdn_client_fingerprint;size:64"`
 	CreatedAt      time.Time `json:"createdAt"`
 }

@@ -90,7 +90,6 @@ func proxyOptionsFromRef(ref submodel.SubscriptionInbound) ProxyOptions {
 		Server:     ref.CdnServer,
 		Port:       ref.CdnPort,
 		Servername: ref.CdnServerName,
-		XHTTPHost:  ref.CdnXHTTPHost,
 		ClientFp:   ref.CdnClientFp,
 	}}
 }
