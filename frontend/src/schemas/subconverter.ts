@@ -50,6 +50,7 @@ export const SubscriptionRecordSchema = z.looseObject({
   remark: z.string(),
   limitIp: z.number(),
   enable: z.boolean(),
+  trafficStats: z.boolean().optional().default(false),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   inbounds: z.array(SubscriptionInboundSchema).optional(),
@@ -71,6 +72,15 @@ export const InboundOptionSchema = z.looseObject({
   tlsFlowCapable: z.boolean().optional(),
   cdnTlsCapable: z.boolean().optional(),
   subconverterCapable: z.boolean().optional(),
+  clients: z.array(z.looseObject({
+    email: z.string(),
+    enable: z.boolean().optional(),
+    hasId: z.boolean().optional(),
+    totalGB: z.number().optional(),
+    expiryTime: z.number().optional(),
+    up: z.number().optional(),
+    down: z.number().optional(),
+  })).nullable().optional().transform((v) => v ?? []),
 });
 
 export const DefaultsPayloadSchema = z.looseObject({
@@ -103,7 +113,9 @@ export const FormValuesSchema = z.object({
   remark: z.string(),
   limitIp: z.number(),
   enable: z.boolean(),
+  trafficStats: z.boolean(),
   inboundIds: z.array(z.number()),
+  clientEmail: z.string().optional(),
   inbounds: z.array(SubscriptionInboundInputSchema).optional(),
   cdnTls: z.record(z.string(), CdnTLSOverrideSchema).optional(),
 });

@@ -50,6 +50,7 @@ import type {
 import {
   canConfigureCdnTls,
   fallbackCopy,
+  getCommonClientEmails,
   INBOUND_TAG_COLOR,
   isSupportedInbound,
   normalizeUAKeywords,
@@ -199,7 +200,15 @@ export default function SubconverterPage() {
   const openCreate = useCallback(() => {
     setEditingId(null);
     form.resetFields();
-    form.setFieldsValue({ remark: '', limitIp: 0, enable: true, inboundIds: [], cdnTls: {} });
+    form.setFieldsValue({
+      remark: '',
+      limitIp: 0,
+      enable: true,
+      trafficStats: false,
+      inboundIds: [],
+      clientEmail: undefined,
+      cdnTls: {},
+    });
     setFormOpen(true);
   }, [form]);
 
@@ -240,6 +249,8 @@ export default function SubconverterPage() {
       remark: record.remark,
       limitIp: record.limitIp,
       enable: record.enable,
+      trafficStats: !!record.trafficStats,
+      clientEmail: (record.inbounds || []).find((item) => item.clientEmail)?.clientEmail || undefined,
       cdnTls,
       inboundIds: (record.inbounds || [])
         .map((item) => item.inboundId)
@@ -255,11 +266,26 @@ export default function SubconverterPage() {
   const save = useCallback(async () => {
     const values = await form.validateFields();
     const inboundIds = values.inboundIds || [];
+    const trafficStats = !!values.trafficStats;
+    let selectedClientEmail = '';
+    if (trafficStats) {
+      const commonClientEmails = getCommonClientEmails(inboundIds, inboundById);
+      selectedClientEmail = String(values.clientEmail || '').trim() || (commonClientEmails.length === 1 ? commonClientEmails[0] : '');
+      if (inboundIds.length > 0 && commonClientEmails.length === 0) {
+        messageApi.error(t('pages.subconverter.commonClientRequired'));
+        return;
+      }
+      if (!selectedClientEmail || !commonClientEmails.includes(selectedClientEmail)) {
+        messageApi.error(t('pages.subconverter.clientRequired'));
+        return;
+      }
+    }
     const inbounds = inboundIds.map((id) => {
       const cdn = values.cdnTls?.[String(id)];
       const cdnEnabled = canConfigureInboundCdnTls(id) && (inboundRequiresCdnTls(id) || !!cdn?.enabled);
       return {
         inboundId: id,
+        clientEmail: trafficStats ? selectedClientEmail : '',
         cdnTls: cdnEnabled,
         cdnServer: cdnEnabled ? cdn?.server?.trim() || '' : '',
         cdnPort: cdnEnabled ? Number(cdn?.port) || 443 : 0,
@@ -270,7 +296,9 @@ export default function SubconverterPage() {
       remark: values.remark,
       limitIp: Number(values.limitIp) || 0,
       enable: !!values.enable,
+      trafficStats,
       inboundIds,
+      clientEmail: trafficStats ? selectedClientEmail : undefined,
       cdnTls: values.cdnTls || {},
       inbounds,
     };
@@ -282,7 +310,7 @@ export default function SubconverterPage() {
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : t('pages.subconverter.saveFailed'));
     }
-  }, [canConfigureInboundCdnTls, editingId, form, inboundRequiresCdnTls, messageApi, subconverter, t]);
+  }, [canConfigureInboundCdnTls, editingId, form, inboundById, inboundRequiresCdnTls, messageApi, subconverter, t]);
 
   const saveSettings = useCallback(async () => {
     const values = await settingsForm.validateFields();
@@ -380,14 +408,29 @@ export default function SubconverterPage() {
 
   const toggleEnabled = useCallback(async (record: SubscriptionRecord, checked: boolean) => {
     setTogglingId(record.id);
+    const inboundIds = (record.inbounds || []).map((item) => item.inboundId);
+    let clientEmail = (record.inbounds || []).find((item) => item.clientEmail)?.clientEmail || '';
+    const trafficStats = !!record.trafficStats;
+    if (trafficStats && !clientEmail) {
+      const commonClientEmails = getCommonClientEmails(inboundIds, inboundById);
+      if (commonClientEmails.length === 1) {
+        clientEmail = commonClientEmails[0];
+      } else {
+        messageApi.error(t('pages.subconverter.clientRequired'));
+        setTogglingId(null);
+        return;
+      }
+    }
     const payload: FormValues = {
       remark: record.remark,
       limitIp: record.limitIp,
       enable: checked,
-      inboundIds: (record.inbounds || []).map((item) => item.inboundId),
+      trafficStats,
+      inboundIds,
+      clientEmail: trafficStats ? clientEmail || undefined : undefined,
       inbounds: (record.inbounds || []).map((item) => ({
         inboundId: item.inboundId,
-        clientEmail: item.clientEmail || '',
+        clientEmail: trafficStats ? item.clientEmail || clientEmail : '',
         cdnTls: !!item.cdnTls,
         cdnServer: item.cdnServer || '',
         cdnPort: item.cdnPort || 443,
@@ -403,7 +446,7 @@ export default function SubconverterPage() {
     } finally {
       setTogglingId(null);
     }
-  }, [messageApi, subconverter, t]);
+  }, [inboundById, messageApi, subconverter, t]);
 
   const infoTitle = infoRecord || infoTarget;
   return (

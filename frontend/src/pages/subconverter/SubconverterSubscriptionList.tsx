@@ -7,18 +7,23 @@ import {
   EditOutlined,
   FilterOutlined,
   InfoCircleOutlined,
-  KeyOutlined,
+  RetweetOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
-import { Button, Input, Radio, Select, Space, Switch, Table, Tag, Tooltip } from 'antd';
+import { Button, Input, Popover, Radio, Select, Space, Switch, Table, Tag, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { ColorUtils, SizeFormatter } from '@/utils';
+import { InfinityIcon } from '@/components/ui';
 import type { InboundOption, SubscriptionRecord } from './types';
 import {
   buildFeedUrl,
+  clientTrafficTotal,
+  clientTrafficUsed,
   filterSubscriptions,
   formatIpLimitUsage,
+  getCommonClientDetails,
   getSubscriptionProtocolOptions,
   ipLimitSortValue,
   ipLimitTagColor,
@@ -78,20 +83,70 @@ export default function SubconverterSubscriptionList({
     });
   }, [filterBy, filterMode, inboundById, inboundFilter, protocolFilter, rows, searchKey]);
 
+  const resolveSubscriptionClient = useCallback((record: SubscriptionRecord) => {
+    if (!record.trafficStats) return undefined;
+    const inbounds = record.inbounds || [];
+    const inboundIds = inbounds.map((item) => item.inboundId).filter((id) => inboundById.has(id));
+    if (inboundIds.length === 0) return undefined;
+
+    const clientDetails = getCommonClientDetails(inboundIds, inboundById);
+    const clientEmail = String(inbounds.find((item) => item.clientEmail)?.clientEmail || '').trim();
+    if (clientEmail) {
+      return clientDetails.find((client) => client.email === clientEmail);
+    }
+    return clientDetails.length === 1 ? clientDetails[0] : undefined;
+  }, [inboundById]);
+
+  const renderClient = useCallback((record: SubscriptionRecord) => {
+    const client = resolveSubscriptionClient(record);
+    if (!client) return <span className="subconverter-muted">-</span>;
+    return (
+      <Tooltip title={client.email}>
+        <Tag color="green">{client.email}</Tag>
+      </Tooltip>
+    );
+  }, [resolveSubscriptionClient]);
+
+  const renderTraffic = useCallback((record: SubscriptionRecord) => {
+    const client = resolveSubscriptionClient(record);
+    if (!client) return <span className="subconverter-muted">-</span>;
+
+    const used = clientTrafficUsed(client);
+    const total = clientTrafficTotal(client);
+    return (
+      <Popover
+        content={(
+          <table cellPadding={2}>
+            <tbody>
+              <tr>
+                <td>↑ {SizeFormatter.sizeFormat(client.up || 0)}</td>
+                <td>↓ {SizeFormatter.sizeFormat(client.down || 0)}</td>
+              </tr>
+              {total > 0 && used < total && (
+                <tr>
+                  <td>{t('remained')}</td>
+                  <td>{SizeFormatter.sizeFormat(total - used)}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
+      >
+        <Tag color={ColorUtils.usageColor(used, 0, total)}>
+          {SizeFormatter.sizeFormat(used)} /
+          {' '}
+          {total > 0 ? SizeFormatter.sizeFormat(total) : <InfinityIcon />}
+        </Tag>
+      </Popover>
+    );
+  }, [resolveSubscriptionClient, t]);
+
   const columns = useMemo<ColumnsType<SubscriptionRecord>>(() => [
     {
-      title: 'ID',
-      dataIndex: 'id',
-      width: 72,
-      align: 'right',
-      sorter: (a, b) => a.id - b.id,
-      showSorterTooltip: false,
-    },
-    {
-      title: t('pages.inbounds.operate'),
+      title: t('pages.clients.actions'),
       key: 'actions',
       width: 184,
-      align: 'center',
+      align: 'left',
       render: (_, record) => (
         <Space size={4}>
           <Tooltip title={t('info')}>
@@ -104,7 +159,7 @@ export default function SubconverterSubscriptionList({
             <Button size="small" type="text" icon={<CopyOutlined />} aria-label={t('pages.subconverter.copyFeedUrl')} onClick={() => onCopy(buildFeedUrl(record.token))} />
           </Tooltip>
           <Tooltip title={t('pages.subconverter.resetToken')}>
-            <Button size="small" type="text" danger icon={<KeyOutlined />} aria-label={t('pages.subconverter.resetToken')} onClick={() => onResetToken(record)} />
+            <Button size="small" type="text" icon={<RetweetOutlined />} aria-label={t('pages.subconverter.resetToken')} onClick={() => onResetToken(record)} />
           </Tooltip>
           <Tooltip title={t('delete')}>
             <Button size="small" type="text" danger icon={<DeleteOutlined />} aria-label={t('delete')} onClick={() => onRemove(record)} />
@@ -138,6 +193,19 @@ export default function SubconverterSubscriptionList({
       render: (_, record) => renderInboundTags(record),
     },
     {
+      title: t('pages.subconverter.client'),
+      key: 'client',
+      width: 180,
+      render: (_, record) => renderClient(record),
+    },
+    {
+      title: t('pages.inbounds.traffic'),
+      key: 'traffic',
+      width: 120,
+      align: 'center',
+      render: (_, record) => renderTraffic(record),
+    },
+    {
       title: t('pages.subconverter.completedSubscriptions'),
       dataIndex: ['stats', 'completedCount'],
       width: 112,
@@ -161,7 +229,7 @@ export default function SubconverterSubscriptionList({
         <Tag color={ipLimitTagColor(record)}>{formatIpLimitUsage(record)}</Tag>
       ),
     },
-  ], [onCopy, onEdit, onInfo, onRemove, onResetToken, onToggleEnabled, renderInboundTags, t, togglingId]);
+  ], [onCopy, onEdit, onInfo, onRemove, onResetToken, onToggleEnabled, renderClient, renderInboundTags, renderTraffic, t, togglingId]);
 
   const handleProtocolChange = useCallback((value?: string) => {
     setProtocolFilter(value);
@@ -252,7 +320,7 @@ export default function SubconverterSubscriptionList({
           size="small"
           columns={columns}
           dataSource={filteredRows}
-          scroll={{ x: 1000 }}
+          scroll={{ x: 1300 }}
           pagination={filteredRows.length > pageSize ? {
             pageSize,
             showSizeChanger: true,

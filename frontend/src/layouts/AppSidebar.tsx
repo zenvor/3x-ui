@@ -20,6 +20,7 @@ import {
   MessageOutlined,
   MoonFilled,
   MoonOutlined,
+  NodeIndexOutlined,
   SafetyOutlined,
   SettingOutlined,
   SunOutlined,
@@ -40,7 +41,7 @@ const DONATE_URL = 'https://donate.sanaei.dev/';
 const REPO_URL = 'https://github.com/zenvor/3x-ui';
 const LOGOUT_KEY = '__logout__';
 
-type IconName = 'dashboard' | 'inbound' | 'team' | 'groups' | 'setting' | 'tool' | 'cluster' | 'swap' | 'logout' | 'apidocs' | 'outbound';
+type IconName = 'dashboard' | 'inbound' | 'team' | 'groups' | 'setting' | 'tool' | 'cluster' | 'swap' | 'logout' | 'apidocs' | 'outbound' | 'subconverter';
 
 const iconByName: Record<IconName, ComponentType> = {
   dashboard: DashboardOutlined,
@@ -54,6 +55,7 @@ const iconByName: Record<IconName, ComponentType> = {
   logout: LogoutOutlined,
   apidocs: ApiOutlined,
   outbound: UploadOutlined,
+  subconverter: NodeIndexOutlined,
 };
 
 function readCollapsed(): boolean {
@@ -140,7 +142,7 @@ export default function AppSidebar() {
     { key: '/groups', icon: 'groups', title: t('menu.groups') },
     { key: '/nodes', icon: 'cluster', title: t('menu.nodes') },
     { key: '/xray#outbound', icon: 'outbound', title: t('pages.xray.Outbounds') },
-    { key: '/subconverter', icon: 'swap', title: t('menu.subconverter') },
+    { key: '/subconverter', icon: 'subconverter', title: t('menu.subconverter') },
     { key: '/settings', icon: 'setting', title: t('menu.settings') },
     { key: '/xray', icon: 'tool', title: t('menu.xray') },
     { key: '/api-docs', icon: 'apidocs', title: t('menu.apiDocs') },

@@ -6,10 +6,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"gorm.io/gorm"
 
+	xmodel "github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	xservice "github.com/mhsanaei/3x-ui/v3/internal/web/service"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/database"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/model"
 )
@@ -22,10 +25,13 @@ const ipCountBatchSize = 500
 
 // Service-layer errors. Controllers translate these into user-facing messages.
 var (
-	ErrSubscriptionNotFound = errors.New("subscription not found")
-	ErrInboundsRequired     = errors.New("at least one inbound is required")
-	ErrTokenGeneration      = errors.New("token generation failed")
-	ErrCDNServerRequired    = errors.New("cdn server is required when CDN TLS override is enabled")
+	ErrSubscriptionNotFound  = errors.New("subscription not found")
+	ErrInboundsRequired      = errors.New("at least one inbound is required")
+	ErrTokenGeneration       = errors.New("token generation failed")
+	ErrCDNServerRequired     = errors.New("cdn server is required when CDN TLS override is enabled")
+	ErrCommonClientRequired  = errors.New("selected inbounds do not share an enabled exportable client")
+	ErrCommonClientAmbiguous = errors.New("multiple common clients found; select one client")
+	ErrSelectedClientInvalid = errors.New("selected client is not available on every inbound")
 )
 
 // SubscriptionService provides CRUD over subscriptions and their inbound
@@ -42,10 +48,11 @@ func NewSubscriptionService() *SubscriptionService {
 // Enabled is a pointer so update can distinguish "not set" (keep current) from
 // "set to false" (disable). Create treats nil as true (enabled by default).
 type SubscriptionInput struct {
-	Remark   string         `json:"remark"`
-	MaxIps   int            `json:"maxIps"`
-	Enabled  *bool          `json:"enabled,omitempty"`
-	Inbounds []InboundInput `json:"inbounds"`
+	Remark       string         `json:"remark"`
+	MaxIps       int            `json:"maxIps"`
+	Enabled      *bool          `json:"enabled,omitempty"`
+	TrafficStats bool           `json:"trafficStats"`
+	Inbounds     []InboundInput `json:"inbounds"`
 }
 
 // SubscriptionDetail is the admin detail projection returned by /get/:id. The
@@ -75,16 +82,15 @@ type InboundInput struct {
 // SubscriptionFormInput is the admin API wire shape. Newer callers send the
 // richer JSON `inbounds` list; `inboundIds` remains for older flat payloads.
 type SubscriptionFormInput struct {
-	Remark     string         `json:"remark" form:"remark"`
-	MaxIps     int            `json:"limitIp" form:"limitIp"`
-	Enabled    *bool          `json:"enable" form:"enable"`
-	InboundIds []int          `json:"inboundIds" form:"inboundIds"`
-	Inbounds   []InboundInput `json:"inbounds" form:"inbounds"`
+	Remark       string         `json:"remark" form:"remark"`
+	MaxIps       int            `json:"limitIp" form:"limitIp"`
+	Enabled      *bool          `json:"enable" form:"enable"`
+	TrafficStats bool           `json:"trafficStats" form:"trafficStats"`
+	InboundIds   []int          `json:"inboundIds" form:"inboundIds"`
+	Inbounds     []InboundInput `json:"inbounds" form:"inbounds"`
 }
 
-// ToInput widens the flat form into the richer service input shape. Every
-// inbound reference is created with an empty ClientEmail (current UI exposes
-// inbound-level selection only).
+// ToInput widens the flat form into the richer service input shape.
 func (f SubscriptionFormInput) ToInput() SubscriptionInput {
 	inbounds := f.Inbounds
 	if len(inbounds) == 0 {
@@ -94,10 +100,11 @@ func (f SubscriptionFormInput) ToInput() SubscriptionInput {
 		}
 	}
 	return SubscriptionInput{
-		Remark:   f.Remark,
-		MaxIps:   f.MaxIps,
-		Enabled:  f.Enabled,
-		Inbounds: inbounds,
+		Remark:       f.Remark,
+		MaxIps:       f.MaxIps,
+		Enabled:      f.Enabled,
+		TrafficStats: f.TrafficStats,
+		Inbounds:     inbounds,
 	}
 }
 
@@ -176,6 +183,16 @@ func (s *SubscriptionService) Create(input SubscriptionInput) (*model.Subscripti
 	if len(input.Inbounds) == 0 {
 		return nil, ErrInboundsRequired
 	}
+	if err := prepareInboundInputs(input.Inbounds); err != nil {
+		return nil, err
+	}
+	if input.TrafficStats {
+		if err := s.bindCommonClient(&input); err != nil {
+			return nil, err
+		}
+	} else {
+		clearInboundClientEmails(input.Inbounds)
+	}
 
 	enabled := true
 	if input.Enabled != nil {
@@ -183,9 +200,10 @@ func (s *SubscriptionService) Create(input SubscriptionInput) (*model.Subscripti
 	}
 
 	sub := &model.Subscription{
-		Remark:  input.Remark,
-		MaxIps:  input.MaxIps,
-		Enabled: enabled,
+		Remark:       input.Remark,
+		MaxIps:       input.MaxIps,
+		Enabled:      enabled,
+		TrafficStats: input.TrafficStats,
 	}
 
 	err := database.GetDB().Transaction(func(tx *gorm.DB) error {
@@ -215,6 +233,16 @@ func (s *SubscriptionService) Update(id int, input SubscriptionInput) (*model.Su
 	if len(input.Inbounds) == 0 {
 		return nil, ErrInboundsRequired
 	}
+	if err := prepareInboundInputs(input.Inbounds); err != nil {
+		return nil, err
+	}
+	if input.TrafficStats {
+		if err := s.bindCommonClient(&input); err != nil {
+			return nil, err
+		}
+	} else {
+		clearInboundClientEmails(input.Inbounds)
+	}
 
 	var sub model.Subscription
 	err := database.GetDB().Transaction(func(tx *gorm.DB) error {
@@ -227,6 +255,7 @@ func (s *SubscriptionService) Update(id int, input SubscriptionInput) (*model.Su
 
 		sub.Remark = input.Remark
 		sub.MaxIps = input.MaxIps
+		sub.TrafficStats = input.TrafficStats
 		if input.Enabled != nil {
 			sub.Enabled = *input.Enabled
 		}
@@ -332,7 +361,6 @@ func (s *SubscriptionService) ResetToken(id int) (*model.Subscription, error) {
 
 func insertInbounds(tx *gorm.DB, subID int, items []InboundInput) error {
 	for i := range items {
-		normalizeInboundInput(&items[i])
 		in := items[i]
 		if in.CdnTLS && in.CdnServer == "" {
 			return ErrCDNServerRequired
@@ -382,6 +410,145 @@ func normalizeInboundInput(in *InboundInput) {
 	if in.CdnClientFp == "" {
 		in.CdnClientFp = "chrome"
 	}
+}
+
+func prepareInboundInputs(items []InboundInput) error {
+	for i := range items {
+		normalizeInboundInput(&items[i])
+		if items[i].CdnTLS && items[i].CdnServer == "" {
+			return ErrCDNServerRequired
+		}
+	}
+	return nil
+}
+
+func clearInboundClientEmails(items []InboundInput) {
+	for i := range items {
+		items[i].ClientEmail = ""
+	}
+}
+
+func (s *SubscriptionService) bindCommonClient(input *SubscriptionInput) error {
+	for i := range input.Inbounds {
+		normalizeInboundInput(&input.Inbounds[i])
+	}
+	email, err := resolveCommonClientEmail(input.Inbounds, &xservice.InboundService{})
+	if err != nil {
+		return err
+	}
+	for i := range input.Inbounds {
+		input.Inbounds[i].ClientEmail = email
+	}
+	return nil
+}
+
+func resolveCommonClientEmail(items []InboundInput, inboundSvc *xservice.InboundService) (string, error) {
+	if len(items) == 0 {
+		return "", ErrInboundsRequired
+	}
+
+	explicitEmail := ""
+	for _, item := range items {
+		if item.ClientEmail == "" {
+			continue
+		}
+		if explicitEmail == "" {
+			explicitEmail = item.ClientEmail
+			continue
+		}
+		if item.ClientEmail != explicitEmail {
+			return "", ErrSelectedClientInvalid
+		}
+	}
+
+	var common []string
+	for i, item := range items {
+		inbound, err := inboundSvc.GetInbound(item.InboundId)
+		if err != nil || inbound == nil {
+			return "", ErrCommonClientRequired
+		}
+		if !IsVlessSupportedInbound(inbound, proxyOptionsFromInput(item)) {
+			return "", ErrCommonClientRequired
+		}
+		clients, err := inboundSvc.GetClients(inbound)
+		if err != nil {
+			return "", err
+		}
+		emails := exportableClientEmails(clients)
+		if len(emails) == 0 {
+			return "", ErrCommonClientRequired
+		}
+		if explicitEmail != "" {
+			if !slices.Contains(emails, explicitEmail) {
+				return "", ErrSelectedClientInvalid
+			}
+			continue
+		}
+		if i == 0 {
+			common = emails
+			continue
+		}
+		common = intersectEmails(common, emails)
+		if len(common) == 0 {
+			return "", ErrCommonClientRequired
+		}
+	}
+
+	if explicitEmail != "" {
+		return explicitEmail, nil
+	}
+	if len(common) == 1 {
+		return common[0], nil
+	}
+	return "", ErrCommonClientAmbiguous
+}
+
+func exportableClientEmails(clients []xmodel.Client) []string {
+	emails := make([]string, 0, len(clients))
+	seen := make(map[string]struct{}, len(clients))
+	for _, client := range clients {
+		if !isExportableClient(client) {
+			continue
+		}
+		email := strings.TrimSpace(client.Email)
+		if email == "" {
+			continue
+		}
+		if _, ok := seen[email]; ok {
+			continue
+		}
+		seen[email] = struct{}{}
+		emails = append(emails, email)
+	}
+	return emails
+}
+
+func intersectEmails(left, right []string) []string {
+	rightSet := make(map[string]struct{}, len(right))
+	for _, email := range right {
+		rightSet[email] = struct{}{}
+	}
+	out := make([]string, 0, min(len(left), len(right)))
+	for _, email := range left {
+		if _, ok := rightSet[email]; ok {
+			out = append(out, email)
+		}
+	}
+	return out
+}
+
+func proxyOptionsFromInput(in InboundInput) ProxyOptions {
+	if !in.CdnTLS {
+		return ProxyOptions{}
+	}
+	return ProxyOptions{CDNTLS: &CDNTLSOptions{
+		Enabled:    in.CdnTLS,
+		Server:     in.CdnServer,
+		Port:       in.CdnPort,
+		Servername: in.CdnServerName,
+		XHTTPHost:  in.CdnXHTTPHost,
+		ClientFp:   in.CdnClientFp,
+	}}
 }
 
 func attachBoundIPCounts(tx *gorm.DB, subs []model.Subscription) error {

@@ -123,6 +123,38 @@
   width: 100%;
 }
 
+.subconverter-traffic-tag {
+  margin: 0;
+}
+
+.subconverter-traffic-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.subconverter-traffic-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.subconverter-traffic-label {
+  min-width: 36px;
+  color: var(--ant-color-text-secondary);
+}
+
+.subconverter-traffic-client-select {
+  min-width: 220px;
+}
+
+.subconverter-traffic-hint {
+  color: var(--ant-color-text-tertiary);
+}
+
 .subconverter-cdn-override {
   border: 1px solid var(--ant-color-border-secondary);
   border-radius: 8px;
