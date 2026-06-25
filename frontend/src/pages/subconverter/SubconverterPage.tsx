@@ -411,7 +411,7 @@ export default function SubconverterPage() {
     const inboundIds = (record.inbounds || []).map((item) => item.inboundId);
     let clientEmail = (record.inbounds || []).find((item) => item.clientEmail)?.clientEmail || '';
     const trafficStats = !!record.trafficStats;
-    if (trafficStats && !clientEmail) {
+    if (checked && trafficStats && !clientEmail) {
       const commonClientEmails = getCommonClientEmails(inboundIds, inboundById);
       if (commonClientEmails.length === 1) {
         clientEmail = commonClientEmails[0];
@@ -427,10 +427,10 @@ export default function SubconverterPage() {
       enable: checked,
       trafficStats,
       inboundIds,
-      clientEmail: trafficStats ? clientEmail || undefined : undefined,
+      clientEmail: checked && trafficStats ? clientEmail || undefined : undefined,
       inbounds: (record.inbounds || []).map((item) => ({
         inboundId: item.inboundId,
-        clientEmail: trafficStats ? item.clientEmail || clientEmail : '',
+        clientEmail: checked && trafficStats ? item.clientEmail || clientEmail : item.clientEmail || '',
         cdnTls: !!item.cdnTls,
         cdnServer: item.cdnServer || '',
         cdnPort: item.cdnPort || 443,

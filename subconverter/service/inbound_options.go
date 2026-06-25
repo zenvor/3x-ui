@@ -88,21 +88,18 @@ func optionClients(inbound *xmodel.Inbound, inboundSvc *xservice.InboundService)
 			TotalGB:    client.TotalGB,
 			ExpiryTime: client.ExpiryTime,
 		}
-		if record, ok := recordByEmail[email]; ok {
-			if row.TotalGB == 0 {
-				row.TotalGB = record.TotalGB
-			}
-			if row.ExpiryTime == 0 {
-				row.ExpiryTime = record.ExpiryTime
-			}
+		record, hasRecord := recordByEmail[email]
+		if hasRecord {
+			row.TotalGB = record.TotalGB
+			row.ExpiryTime = record.ExpiryTime
 		}
 		if traffic, ok := trafficByEmail[email]; ok {
 			row.Up = traffic.Up
 			row.Down = traffic.Down
-			if row.TotalGB == 0 {
+			if !hasRecord && row.TotalGB == 0 {
 				row.TotalGB = traffic.Total
 			}
-			if row.ExpiryTime == 0 {
+			if !hasRecord && row.ExpiryTime == 0 {
 				row.ExpiryTime = traffic.ExpiryTime
 			}
 		}

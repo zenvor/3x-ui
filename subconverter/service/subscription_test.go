@@ -466,6 +466,60 @@ func TestSubscriptionAllowsMixedClientsWhenTrafficStatsDisabled(t *testing.T) {
 	}
 }
 
+func TestSubscriptionAllowsDisablingInvalidTrafficStatsSelection(t *testing.T) {
+	setupTestDB(t)
+	seedSubscriptionTestInbounds(t, map[int][]xmodel.Client{
+		28: {testClient("uuid-28", "alice@x")},
+		29: {testClient("uuid-29", "bob@x")},
+	})
+	svc := NewSubscriptionService()
+
+	created, err := svc.Create(SubscriptionInput{
+		Remark: "mixed-disabled-later",
+		Inbounds: []InboundInput{
+			{InboundId: 28},
+			{InboundId: 29},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	disabled := false
+	updated, err := svc.Update(created.Id, SubscriptionInput{
+		Remark:       "mixed-disabled-later",
+		Enabled:      &disabled,
+		TrafficStats: true,
+		Inbounds: []InboundInput{
+			{InboundId: 28},
+			{InboundId: 29},
+		},
+	})
+	if err != nil {
+		t.Fatalf("disable update: %v", err)
+	}
+	if updated.Enabled {
+		t.Fatal("updated.Enabled = true, want false")
+	}
+	if !updated.TrafficStats {
+		t.Fatal("updated.TrafficStats = false, want true")
+	}
+
+	enabled := true
+	_, err = svc.Update(created.Id, SubscriptionInput{
+		Remark:       "mixed-enabled",
+		Enabled:      &enabled,
+		TrafficStats: true,
+		Inbounds: []InboundInput{
+			{InboundId: 28},
+			{InboundId: 29},
+		},
+	})
+	if err != ErrCommonClientRequired {
+		t.Fatalf("enable err = %v, want ErrCommonClientRequired", err)
+	}
+}
+
 func TestResetTokenClearsBindingsStatsAndLogs(t *testing.T) {
 	setupTestDB(t)
 	svc := NewSubscriptionService()

@@ -236,12 +236,14 @@ func (s *SubscriptionService) Update(id int, input SubscriptionInput) (*model.Su
 	if err := prepareInboundInputs(input.Inbounds); err != nil {
 		return nil, err
 	}
-	if input.TrafficStats {
+	if input.TrafficStats && shouldBindTrafficStats(input) {
 		if err := s.bindCommonClient(&input); err != nil {
 			return nil, err
 		}
 	} else {
-		clearInboundClientEmails(input.Inbounds)
+		if !input.TrafficStats {
+			clearInboundClientEmails(input.Inbounds)
+		}
 	}
 
 	var sub model.Subscription
@@ -426,6 +428,10 @@ func clearInboundClientEmails(items []InboundInput) {
 	for i := range items {
 		items[i].ClientEmail = ""
 	}
+}
+
+func shouldBindTrafficStats(input SubscriptionInput) bool {
+	return input.Enabled == nil || *input.Enabled
 }
 
 func (s *SubscriptionService) bindCommonClient(input *SubscriptionInput) error {

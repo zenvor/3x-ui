@@ -307,6 +307,8 @@ export default function SubconverterSubscriptionList({
           rows={filteredRows}
           togglingId={togglingId}
           renderInboundTags={renderInboundTags}
+          renderClient={renderClient}
+          renderTraffic={renderTraffic}
           onInfo={onInfo}
           onEdit={onEdit}
           onCopy={onCopy}
