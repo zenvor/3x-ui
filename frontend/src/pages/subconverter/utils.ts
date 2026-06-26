@@ -107,6 +107,32 @@ export function getCommonClientDetails(
   return common ? [...common.values()] : [];
 }
 
+export function getSubscriptionInboundIds(
+  record: SubscriptionRecord,
+  inboundById: Map<number, InboundOption>,
+): number[] {
+  return (record.inbounds || [])
+    .map((item) => item.inboundId)
+    .filter((id) => inboundById.has(id));
+}
+
+export function resolveSubscriptionClient(
+  record: SubscriptionRecord,
+  inboundById: Map<number, InboundOption>,
+): InboundOptionClient | undefined {
+  if (!record.trafficStats) return undefined;
+
+  const inboundIds = getSubscriptionInboundIds(record, inboundById);
+  if (inboundIds.length === 0) return undefined;
+
+  const clientDetails = getCommonClientDetails(inboundIds, inboundById);
+  const clientEmail = String((record.inbounds || []).find((item) => item.clientEmail)?.clientEmail || '').trim();
+  if (clientEmail) {
+    return clientDetails.find((client) => client.email === clientEmail);
+  }
+  return clientDetails.length === 1 ? clientDetails[0] : undefined;
+}
+
 export function isExportableInboundClient(client: InboundOptionClient): boolean {
   return client.enable !== false && client.hasId !== false;
 }

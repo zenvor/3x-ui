@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CopyOutlined,
@@ -7,6 +6,7 @@ import {
   EditOutlined,
   FilterOutlined,
   InfoCircleOutlined,
+  QrcodeOutlined,
   RetweetOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
@@ -14,8 +14,9 @@ import { Button, Input, Popover, Radio, Select, Space, Switch, Table, Tag, Toolt
 import type { ColumnsType } from 'antd/es/table';
 
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { ColorUtils, SizeFormatter } from '@/utils';
+import { SizeFormatter } from '@/utils';
 import { InfinityIcon } from '@/components/ui';
+import { QrPanel } from '@/pages/inbounds/qr';
 import type { InboundOption, SubscriptionRecord } from './types';
 import {
   buildFeedUrl,
@@ -23,12 +24,17 @@ import {
   clientTrafficUsed,
   filterSubscriptions,
   formatIpLimitUsage,
-  getCommonClientDetails,
   getSubscriptionProtocolOptions,
+  INBOUND_TAG_COLOR,
   ipLimitSortValue,
   ipLimitTagColor,
+  resolveSubscriptionClient,
 } from './utils';
 import SubconverterMobileList from './SubconverterMobileList';
+
+const ACTION_ICON_STYLE = { fontSize: 18 };
+const INBOUND_CHIP_LIMIT = 1;
+const TABLE_SCROLL_X = 974;
 
 interface SubconverterSubscriptionListProps {
   rows: SubscriptionRecord[];
@@ -36,7 +42,6 @@ interface SubconverterSubscriptionListProps {
   inboundById: Map<number, InboundOption>;
   supportedInbounds: InboundOption[];
   inboundTagLabel: (id: number) => string;
-  renderInboundTags: (record: SubscriptionRecord) => ReactNode;
   togglingId: number | null;
   onInfo: (record: SubscriptionRecord) => void;
   onEdit: (record: SubscriptionRecord) => void;
@@ -52,7 +57,6 @@ export default function SubconverterSubscriptionList({
   inboundById,
   supportedInbounds,
   inboundTagLabel,
-  renderInboundTags,
   togglingId,
   onInfo,
   onEdit,
@@ -83,32 +87,8 @@ export default function SubconverterSubscriptionList({
     });
   }, [filterBy, filterMode, inboundById, inboundFilter, protocolFilter, rows, searchKey]);
 
-  const resolveSubscriptionClient = useCallback((record: SubscriptionRecord) => {
-    if (!record.trafficStats) return undefined;
-    const inbounds = record.inbounds || [];
-    const inboundIds = inbounds.map((item) => item.inboundId).filter((id) => inboundById.has(id));
-    if (inboundIds.length === 0) return undefined;
-
-    const clientDetails = getCommonClientDetails(inboundIds, inboundById);
-    const clientEmail = String(inbounds.find((item) => item.clientEmail)?.clientEmail || '').trim();
-    if (clientEmail) {
-      return clientDetails.find((client) => client.email === clientEmail);
-    }
-    return clientDetails.length === 1 ? clientDetails[0] : undefined;
-  }, [inboundById]);
-
-  const renderClient = useCallback((record: SubscriptionRecord) => {
-    const client = resolveSubscriptionClient(record);
-    if (!client) return <span className="subconverter-muted">-</span>;
-    return (
-      <Tooltip title={client.email}>
-        <Tag color="green">{client.email}</Tag>
-      </Tooltip>
-    );
-  }, [resolveSubscriptionClient]);
-
   const renderTraffic = useCallback((record: SubscriptionRecord) => {
-    const client = resolveSubscriptionClient(record);
+    const client = resolveSubscriptionClient(record, inboundById);
     if (!client) return <span className="subconverter-muted">-</span>;
 
     const used = clientTrafficUsed(client);
@@ -132,37 +112,88 @@ export default function SubconverterSubscriptionList({
           </table>
         )}
       >
-        <Tag color={ColorUtils.usageColor(used, 0, total)}>
+        <Tag color="purple">
           {SizeFormatter.sizeFormat(used)} /
           {' '}
           {total > 0 ? SizeFormatter.sizeFormat(total) : <InfinityIcon />}
         </Tag>
       </Popover>
     );
-  }, [resolveSubscriptionClient, t]);
+  }, [inboundById, t]);
+
+  const renderTableInboundTags = useCallback((record: SubscriptionRecord) => {
+    const inboundIds = (record.inbounds || [])
+      .filter((item) => inboundById.has(item.inboundId))
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      .map((item) => item.inboundId);
+    if (inboundIds.length === 0) return <span className="subconverter-muted">—</span>;
+
+    const visible = inboundIds.slice(0, INBOUND_CHIP_LIMIT);
+    const overflow = inboundIds.slice(INBOUND_CHIP_LIMIT);
+    const chip = (id: number) => {
+      const label = inboundTagLabel(id);
+      return (
+        <Tooltip key={id} title={label}>
+          <Tag color={INBOUND_TAG_COLOR} style={{ margin: 2 }}>
+            {label}
+          </Tag>
+        </Tooltip>
+      );
+    };
+
+    return (
+      <>
+        {visible.map((id) => chip(id))}
+        {overflow.length > 0 && (
+          <Popover
+            trigger="click"
+            placement="bottomRight"
+            content={
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 280, maxHeight: 280, overflowY: 'auto' }}>
+                {overflow.map((id) => chip(id))}
+              </div>
+            }
+          >
+            <Tag color="default" style={{ margin: 2, cursor: 'pointer' }}>
+              +{overflow.length}
+            </Tag>
+          </Popover>
+        )}
+      </>
+    );
+  }, [inboundById, inboundTagLabel]);
 
   const columns = useMemo<ColumnsType<SubscriptionRecord>>(() => [
     {
       title: t('pages.clients.actions'),
       key: 'actions',
-      width: 184,
-      align: 'left',
+      width: 200,
       render: (_, record) => (
         <Space size={4}>
+          <Popover
+            trigger="click"
+            placement="bottom"
+            destroyOnHidden
+            content={<QrPanel value={buildFeedUrl(record.token)} remark={record.remark || record.token} size={220} />}
+          >
+            <Tooltip title={t('pages.clients.qrCode')}>
+              <Button size="small" type="text" style={ACTION_ICON_STYLE} icon={<QrcodeOutlined />} aria-label={t('pages.clients.qrCode')} />
+            </Tooltip>
+          </Popover>
+          <Tooltip title={t('copy')}>
+            <Button size="small" type="text" style={ACTION_ICON_STYLE} icon={<CopyOutlined />} aria-label={t('pages.subconverter.copyFeedUrl')} onClick={() => onCopy(buildFeedUrl(record.token))} />
+          </Tooltip>
           <Tooltip title={t('info')}>
-            <Button size="small" type="text" icon={<InfoCircleOutlined />} aria-label={t('info')} onClick={() => onInfo(record)} />
-          </Tooltip>
-          <Tooltip title={t('edit')}>
-            <Button size="small" type="text" icon={<EditOutlined />} aria-label={t('edit')} onClick={() => onEdit(record)} />
-          </Tooltip>
-          <Tooltip title={t('pages.subconverter.copyFeedUrl')}>
-            <Button size="small" type="text" icon={<CopyOutlined />} aria-label={t('pages.subconverter.copyFeedUrl')} onClick={() => onCopy(buildFeedUrl(record.token))} />
+            <Button size="small" type="text" style={ACTION_ICON_STYLE} icon={<InfoCircleOutlined />} aria-label={t('info')} onClick={() => onInfo(record)} />
           </Tooltip>
           <Tooltip title={t('pages.subconverter.resetToken')}>
-            <Button size="small" type="text" icon={<RetweetOutlined />} aria-label={t('pages.subconverter.resetToken')} onClick={() => onResetToken(record)} />
+            <Button size="small" type="text" style={ACTION_ICON_STYLE} icon={<RetweetOutlined />} aria-label={t('pages.subconverter.resetToken')} onClick={() => onResetToken(record)} />
+          </Tooltip>
+          <Tooltip title={t('edit')}>
+            <Button size="small" type="text" style={ACTION_ICON_STYLE} icon={<EditOutlined />} aria-label={t('edit')} onClick={() => onEdit(record)} />
           </Tooltip>
           <Tooltip title={t('delete')}>
-            <Button size="small" type="text" danger icon={<DeleteOutlined />} aria-label={t('delete')} onClick={() => onRemove(record)} />
+            <Button size="small" type="text" danger style={ACTION_ICON_STYLE} icon={<DeleteOutlined />} aria-label={t('delete')} onClick={() => onRemove(record)} />
           </Tooltip>
         </Space>
       ),
@@ -175,6 +206,7 @@ export default function SubconverterSubscriptionList({
       render: (_, record) => (
         <Switch
           checked={record.enable}
+          size="small"
           loading={togglingId === record.id}
           onChange={(checked) => onToggleEnabled(record, checked)}
         />
@@ -189,14 +221,8 @@ export default function SubconverterSubscriptionList({
     {
       title: t('pages.subconverter.inbounds'),
       dataIndex: 'inbounds',
-      width: 320,
-      render: (_, record) => renderInboundTags(record),
-    },
-    {
-      title: t('pages.subconverter.client'),
-      key: 'client',
-      width: 180,
-      render: (_, record) => renderClient(record),
+      width: 170,
+      render: (_, record) => renderTableInboundTags(record),
     },
     {
       title: t('pages.inbounds.traffic'),
@@ -229,7 +255,7 @@ export default function SubconverterSubscriptionList({
         <Tag color={ipLimitTagColor(record)}>{formatIpLimitUsage(record)}</Tag>
       ),
     },
-  ], [onCopy, onEdit, onInfo, onRemove, onResetToken, onToggleEnabled, renderClient, renderInboundTags, renderTraffic, t, togglingId]);
+  ], [onCopy, onEdit, onInfo, onRemove, onResetToken, onToggleEnabled, renderTableInboundTags, renderTraffic, t, togglingId]);
 
   const handleProtocolChange = useCallback((value?: string) => {
     setProtocolFilter(value);
@@ -306,8 +332,7 @@ export default function SubconverterSubscriptionList({
         <SubconverterMobileList
           rows={filteredRows}
           togglingId={togglingId}
-          renderInboundTags={renderInboundTags}
-          renderClient={renderClient}
+          renderInboundTags={renderTableInboundTags}
           renderTraffic={renderTraffic}
           onInfo={onInfo}
           onEdit={onEdit}
@@ -322,7 +347,7 @@ export default function SubconverterSubscriptionList({
           size="small"
           columns={columns}
           dataSource={filteredRows}
-          scroll={{ x: 1300 }}
+          scroll={{ x: TABLE_SCROLL_X }}
           pagination={filteredRows.length > pageSize ? {
             pageSize,
             showSizeChanger: true,

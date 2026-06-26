@@ -6,10 +6,12 @@ import {
   DeleteOutlined,
   EditOutlined,
   InfoCircleOutlined,
+  QrcodeOutlined,
   RetweetOutlined,
 } from '@ant-design/icons';
-import { Button, Switch, Tag, Tooltip } from 'antd';
+import { Button, Popover, Switch, Tag, Tooltip } from 'antd';
 
+import { QrPanel } from '@/pages/inbounds/qr';
 import type { SubscriptionRecord } from './types';
 import { buildFeedUrl, formatIpLimitUsage, ipLimitTagColor } from './utils';
 
@@ -17,7 +19,6 @@ interface SubconverterMobileListProps {
   rows: SubscriptionRecord[];
   togglingId: number | null;
   renderInboundTags: (record: SubscriptionRecord) => ReactNode;
-  renderClient: (record: SubscriptionRecord) => ReactNode;
   renderTraffic: (record: SubscriptionRecord) => ReactNode;
   onInfo: (record: SubscriptionRecord) => void;
   onEdit: (record: SubscriptionRecord) => void;
@@ -31,7 +32,6 @@ export default function SubconverterMobileList({
   rows,
   togglingId,
   renderInboundTags,
-  renderClient,
   renderTraffic,
   onInfo,
   onEdit,
@@ -56,9 +56,34 @@ export default function SubconverterMobileList({
       {rows.map((record) => (
         <div key={record.id} className="subconverter-card">
           <div className="subconverter-card-head">
-            <span className="subconverter-card-id">#{record.id}</span>
             <span className="subconverter-card-title">{record.remark || '—'}</span>
             <div className="subconverter-card-actions">
+              <Popover
+                trigger="click"
+                placement="bottom"
+                destroyOnHidden
+                content={<QrPanel value={buildFeedUrl(record.token)} remark={record.remark || record.token} size={220} />}
+              >
+                <Tooltip title={t('pages.clients.qrCode')}>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<QrcodeOutlined />}
+                    className="row-action-trigger"
+                    aria-label={t('pages.clients.qrCode')}
+                  />
+                </Tooltip>
+              </Popover>
+              <Tooltip title={t('copy')}>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<CopyOutlined />}
+                  className="row-action-trigger"
+                  aria-label={t('pages.subconverter.copyFeedUrl')}
+                  onClick={() => onCopy(buildFeedUrl(record.token))}
+                />
+              </Tooltip>
               <Tooltip title={t('info')}>
                 <Button
                   type="text"
@@ -69,26 +94,6 @@ export default function SubconverterMobileList({
                   onClick={() => onInfo(record)}
                 />
               </Tooltip>
-              <Tooltip title={t('edit')}>
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<EditOutlined />}
-                  className="row-action-trigger"
-                  aria-label={t('edit')}
-                  onClick={() => onEdit(record)}
-                />
-              </Tooltip>
-              <Tooltip title={t('pages.subconverter.copyFeedUrl')}>
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<CopyOutlined />}
-                  className="row-action-trigger"
-                  aria-label={t('pages.subconverter.copyFeedUrl')}
-                  onClick={() => onCopy(buildFeedUrl(record.token))}
-                />
-              </Tooltip>
               <Tooltip title={t('pages.subconverter.resetToken')}>
                 <Button
                   type="text"
@@ -97,6 +102,16 @@ export default function SubconverterMobileList({
                   className="row-action-trigger"
                   aria-label={t('pages.subconverter.resetToken')}
                   onClick={() => onResetToken(record)}
+                />
+              </Tooltip>
+              <Tooltip title={t('edit')}>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EditOutlined />}
+                  className="row-action-trigger"
+                  aria-label={t('edit')}
+                  onClick={() => onEdit(record)}
                 />
               </Tooltip>
               <Switch
@@ -125,16 +140,12 @@ export default function SubconverterMobileList({
               <div>{renderInboundTags(record)}</div>
             </div>
             <div className="subconverter-card-row">
-              <span>{t('pages.subconverter.client')}</span>
-              <div>{renderClient(record)}</div>
-            </div>
-            <div className="subconverter-card-row">
               <span>{t('pages.inbounds.traffic')}</span>
               <div>{renderTraffic(record)}</div>
             </div>
             <div className="subconverter-card-row">
               <span>{t('pages.subconverter.completedSubscriptions')}</span>
-              <Tag color="cyan">{record.stats?.completedCount || 0}</Tag>
+              <div>{record.stats?.completedCount || 0}</div>
             </div>
             <div className="subconverter-card-row">
               <span>{t('pages.subconverter.maxIps')}</span>
