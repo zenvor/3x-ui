@@ -12,15 +12,19 @@ import {
   CodeOutlined,
   DashboardOutlined,
   DatabaseOutlined,
+  ExportOutlined,
   GithubOutlined,
+  GlobalOutlined,
   HeartOutlined,
   ImportOutlined,
   LogoutOutlined,
+  MailOutlined,
   MenuOutlined,
   MessageOutlined,
   MoonFilled,
   MoonOutlined,
   NodeIndexOutlined,
+  ReadOutlined,
   SafetyOutlined,
   SettingOutlined,
   SunOutlined,
@@ -28,20 +32,21 @@ import {
   TagsOutlined,
   TeamOutlined,
   ToolOutlined,
-  UploadOutlined,
 } from '@ant-design/icons';
 
 import { HttpUtil } from '@/utils';
+import { formatPanelVersion } from '@/lib/panel-version';
 import { pauseAnimationsUntilLeave, useTheme } from '@/hooks/useTheme';
 import { useAllSettings } from '@/api/queries/useAllSettings';
 import './AppSidebar.css';
 
 const SIDEBAR_COLLAPSED_KEY = 'isSidebarCollapsed';
 const DONATE_URL = 'https://donate.sanaei.dev/';
+const DOCS_URL = 'https://docs.sanaei.dev/';
 const REPO_URL = 'https://github.com/zenvor/3x-ui';
 const LOGOUT_KEY = '__logout__';
 
-type IconName = 'dashboard' | 'inbound' | 'team' | 'groups' | 'setting' | 'tool' | 'cluster' | 'swap' | 'logout' | 'apidocs' | 'outbound' | 'subconverter';
+type IconName = 'dashboard' | 'inbound' | 'team' | 'groups' | 'setting' | 'tool' | 'cluster' | 'hosts' | 'logout' | 'apidocs' | 'outbound' | 'routing' | 'subconverter';
 
 const iconByName: Record<IconName, ComponentType> = {
   dashboard: DashboardOutlined,
@@ -51,10 +56,11 @@ const iconByName: Record<IconName, ComponentType> = {
   setting: SettingOutlined,
   tool: ToolOutlined,
   cluster: ClusterOutlined,
-  swap: SwapOutlined,
+  hosts: GlobalOutlined,
   logout: LogoutOutlined,
   apidocs: ApiOutlined,
-  outbound: UploadOutlined,
+  outbound: ExportOutlined,
+  routing: SwapOutlined,
   subconverter: NodeIndexOutlined,
 };
 
@@ -81,9 +87,24 @@ function DonateButton({ ariaLabel }: { ariaLabel: string }) {
   );
 }
 
+function DocsButton({ ariaLabel }: { ariaLabel: string }) {
+  return (
+    <a
+      href={DOCS_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="sidebar-docs"
+      aria-label={ariaLabel}
+      title={ariaLabel}
+    >
+      <ReadOutlined />
+    </a>
+  );
+}
+
 function VersionBadge({ version, collapsed }: { version: string; collapsed?: boolean }) {
   if (!version) return null;
-  const label = `v${version}`;
+  const label = formatPanelVersion(version);
   return (
     <a
       href={REPO_URL}
@@ -141,7 +162,9 @@ export default function AppSidebar() {
     { key: '/clients', icon: 'team', title: t('menu.clients') },
     { key: '/groups', icon: 'groups', title: t('menu.groups') },
     { key: '/nodes', icon: 'cluster', title: t('menu.nodes') },
-    { key: '/xray#outbound', icon: 'outbound', title: t('pages.xray.Outbounds') },
+    { key: '/hosts', icon: 'hosts', title: t('menu.hosts') },
+    { key: '/outbound', icon: 'outbound', title: t('menu.outbounds') },
+    { key: '/routing', icon: 'routing', title: t('menu.routing') },
     { key: '/subconverter', icon: 'subconverter', title: t('menu.subconverter') },
     { key: '/settings', icon: 'setting', title: t('menu.settings') },
     { key: '/xray', icon: 'tool', title: t('menu.xray') },
@@ -157,6 +180,7 @@ export default function AppSidebar() {
       { key: '/settings#general', icon: <SettingOutlined />, label: t('pages.settings.panelSettings') },
       { key: '/settings#security', icon: <SafetyOutlined />, label: t('pages.settings.securitySettings') },
       { key: '/settings#telegram', icon: <MessageOutlined />, label: t('pages.settings.TGBotSettings') },
+      { key: '/settings#email', icon: <MailOutlined />, label: t('pages.settings.emailSettings') },
       { key: '/settings#subscription', icon: <CloudServerOutlined />, label: t('pages.settings.subSettings') },
     ];
     if (showSubFormats) {
@@ -167,7 +191,6 @@ export default function AppSidebar() {
 
   const xrayChildren = useMemo<NonNullable<MenuProps['items']>>(() => [
     { key: '/xray#basic', icon: <SettingOutlined />, label: t('pages.xray.basicTemplate') },
-    { key: '/xray#routing', icon: <SwapOutlined />, label: t('pages.xray.Routings') },
     { key: '/xray#balancer', icon: <ClusterOutlined />, label: t('pages.xray.Balancers') },
     { key: '/xray#dns', icon: <DatabaseOutlined />, label: 'DNS' },
     { key: '/xray#advanced', icon: <CodeOutlined />, label: t('pages.xray.advancedTemplate') },
@@ -181,9 +204,7 @@ export default function AppSidebar() {
       ? `/xray${hash || '#basic'}`
       : (pathname === '' ? '/' : pathname);
 
-  // The Outbounds top-level item lives on /xray#outbound, so don't auto-open the
-  // Xray Configs submenu for it.
-  const openSubmenu = settingsActive ? '/settings' : xrayActive && hash !== '#outbound' ? '/xray' : null;
+  const openSubmenu = settingsActive ? '/settings' : xrayActive ? '/xray' : null;
   const [openKeys, setOpenKeys] = useState<string[]>(() => (openSubmenu ? [openSubmenu] : []));
   useEffect(() => {
     if (openSubmenu) {
@@ -253,6 +274,7 @@ export default function AppSidebar() {
           </div>
           {!collapsed && (
             <div className="brand-actions">
+              <DocsButton ariaLabel={t('menu.docs') || 'Documentation'} />
               <DonateButton ariaLabel={t('menu.donate') || 'Donate'} />
               <ThemeCycleButton
                 id="theme-cycle"
@@ -305,6 +327,7 @@ export default function AppSidebar() {
             <span className="drawer-brand">3X-UI</span>
           </div>
           <div className="drawer-header-actions">
+            <DocsButton ariaLabel={t('menu.docs') || 'Documentation'} />
             <DonateButton ariaLabel={t('menu.donate') || 'Donate'} />
             <ThemeCycleButton
               id="theme-cycle-drawer"

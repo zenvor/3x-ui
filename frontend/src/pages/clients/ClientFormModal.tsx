@@ -16,16 +16,19 @@ import {
   Tabs,
   Tag,
   Tooltip,
+  Typography,
   message,
 } from 'antd';
-import { EyeOutlined, ReloadOutlined, RetweetOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EyeOutlined, PlusOutlined, ReloadOutlined, RetweetOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { HttpUtil, RandomUtil } from '@/utils';
 import { formatInboundLabel } from '@/lib/inbounds/label';
+import { normalizeClientIps, type ClientIpInfo } from '@/lib/clients/ip-log';
 import { DateTimePicker, SelectAllClearButtons } from '@/components/form';
 import { TLS_FLOW_CONTROL } from '@/schemas/primitives';
-import type { ClientRecord, InboundOption } from '@/hooks/useClients';
+import type { ClientRecord, InboundOption, ExternalLink, ExternalLinkInput } from '@/hooks/useClients';
+import { useFail2banStatusQuery, getLimitIpNotice } from '@/api/queries/useFail2banStatusQuery';
 import { ClientFormSchema, ClientCreateFormSchema } from '@/schemas/client';
 
 const FLOW_OPTIONS = Object.values(TLS_FLOW_CONTROL);
@@ -37,6 +40,13 @@ const MULTI_CLIENT_PROTOCOLS = new Set([
 
 const CLIENT_FORM_MODAL_Z_INDEX = 1000;
 const CLIENT_IP_LOG_MODAL_Z_INDEX = CLIENT_FORM_MODAL_Z_INDEX + 1;
+
+// One editable row in the Links tab. `key` is a stable client-side id for React.
+interface ExternalLinkRow {
+  key: number;
+  kind: 'link' | 'subscription';
+  value: string;
+}
 
 interface ApiMsg<T = unknown> {
   success?: boolean;
@@ -51,10 +61,13 @@ interface SaveMetaEdit {
   email: string;
   attach: number[];
   detach: number[];
+  externalLinks: ExternalLinkInput[];
 }
 
 interface SaveMetaCreate {
   isEdit: false;
+  email: string;
+  externalLinks: ExternalLinkInput[];
 }
 
 interface SaveCreatePayload {
@@ -67,6 +80,7 @@ interface ClientFormModalProps {
   mode: Mode;
   client: ClientRecord | null;
   inbounds: InboundOption[];
+  attachedExternalLinks?: ExternalLink[];
   attachedIds?: number[];
   tgBotEnable?: boolean;
   groups?: string[];
@@ -98,6 +112,7 @@ interface FormState {
   comment: string;
   enable: boolean;
   inboundIds: number[];
+  externalLinks: ExternalLinkRow[];
 }
 
 function emptyForm(): FormState {
@@ -121,7 +136,17 @@ function emptyForm(): FormState {
     comment: '',
     enable: true,
     inboundIds: [],
+    externalLinks: [],
   };
+}
+
+let externalLinkRowSeq = 0;
+function toExternalLinkRows(links: ExternalLink[] | undefined): ExternalLinkRow[] {
+  return (links || []).map((l) => ({
+    key: (externalLinkRowSeq += 1),
+    kind: l.kind === 'subscription' ? 'subscription' : 'link',
+    value: l.value || '',
+  }));
 }
 
 function bytesToGB(bytes: number): number {
@@ -139,6 +164,7 @@ export default function ClientFormModal({
   mode,
   client,
   inbounds,
+  attachedExternalLinks = [],
   attachedIds = [],
   tgBotEnable = false,
   groups = [],
@@ -153,13 +179,37 @@ export default function ClientFormModal({
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [clientIps, setClientIps] = useState<string[]>([]);
+  const [clientIps, setClientIps] = useState<ClientIpInfo[]>([]);
   const [ipsLoading, setIpsLoading] = useState(false);
   const [ipsClearing, setIpsClearing] = useState(false);
   const [ipsModalOpen, setIpsModalOpen] = useState(false);
+  const fail2ban = useFail2banStatusQuery();
+  const limitIpDisabled = !fail2ban.usable;
+  const limitIpNotice = getLimitIpNotice(fail2ban, t);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function addExternalLinkRow(kind: 'link' | 'subscription') {
+    setForm((prev) => ({
+      ...prev,
+      externalLinks: [...prev.externalLinks, { key: (externalLinkRowSeq += 1), kind, value: '' }],
+    }));
+  }
+
+  function updateExternalLinkRow(key: number, value: string) {
+    setForm((prev) => ({
+      ...prev,
+      externalLinks: prev.externalLinks.map((r) => (r.key === key ? { ...r, value } : r)),
+    }));
+  }
+
+  function removeExternalLinkRow(key: number) {
+    setForm((prev) => ({
+      ...prev,
+      externalLinks: prev.externalLinks.filter((r) => r.key !== key),
+    }));
   }
 
   useEffect(() => {
@@ -186,6 +236,7 @@ export default function ClientFormModal({
         comment: client.comment || '',
         enable: !!client.enable,
         inboundIds: Array.isArray(attachedIds) ? [...attachedIds] : [],
+        externalLinks: toExternalLinkRows(attachedExternalLinks),
       };
       if (et < 0) {
         next.delayedStart = true;
@@ -300,14 +351,16 @@ export default function ClientFormModal({
     [inbounds],
   );
 
+  const linkRows = useMemo(() => form.externalLinks.filter((r) => r.kind === 'link'), [form.externalLinks]);
+  const subscriptionRows = useMemo(() => form.externalLinks.filter((r) => r.kind === 'subscription'), [form.externalLinks]);
+
   async function loadIps() {
     if (!isEdit || !client?.email) return;
     setIpsLoading(true);
     try {
       const msg = await HttpUtil.post(`/panel/api/clients/ips/${encodeURIComponent(client.email)}`) as ApiMsg<unknown[]>;
       if (!msg?.success) { setClientIps([]); return; }
-      const arr = Array.isArray(msg.obj) ? msg.obj : [];
-      setClientIps(arr.filter((x): x is string => typeof x === 'string' && x.length > 0));
+      setClientIps(normalizeClientIps(msg.obj));
     } finally {
       setIpsLoading(false);
     }
@@ -400,6 +453,10 @@ export default function ClientFormModal({
       clientPayload.reverse = { tag: reverseTag };
     }
 
+    const externalLinks: ExternalLinkInput[] = form.externalLinks
+      .map((r) => ({ kind: r.kind, value: r.value.trim(), remark: '' }))
+      .filter((r) => r.value !== '');
+
     setSubmitting(true);
     try {
       let msg;
@@ -413,11 +470,12 @@ export default function ClientFormModal({
           email: client.email,
           attach: toAttach,
           detach: toDetach,
+          externalLinks,
         });
       } else {
         msg = await save(
           { client: clientPayload, inboundIds: form.inboundIds },
-          { isEdit: false },
+          { isEdit: false, email: clientPayload.email as string, externalLinks },
         );
       }
       if (msg?.success) close();
@@ -496,17 +554,22 @@ export default function ClientFormModal({
                       </Col>
                       <Col xs={24} md={6}>
                         <Form.Item label={t('pages.clients.limitIp')} tooltip={t('pages.clients.limitIpDesc')}>
-                          <Space.Compact style={{ display: 'flex' }}>
-                            <InputNumber value={form.limitIp} min={0} style={{ flex: 1 }}
-                              onChange={(v) => update('limitIp', Number(v) || 0)} />
-                            {isEdit && (
-                              <Tooltip title={t('pages.clients.ipLog')}>
-                                <Button icon={<EyeOutlined />} loading={ipsLoading} onClick={openIpsModal}>
-                                  {clientIps.length > 0 ? clientIps.length : ''}
-                                </Button>
-                              </Tooltip>
-                            )}
-                          </Space.Compact>
+                          <Tooltip title={limitIpNotice || undefined}>
+                            <span style={{ display: 'flex', width: '100%' }}>
+                              <Space.Compact style={{ display: 'flex', flex: 1 }}>
+                                <InputNumber value={form.limitIp} min={0} disabled={limitIpDisabled}
+                                  style={{ flex: 1, ...(limitIpDisabled ? { pointerEvents: 'none' } : null) }}
+                                  onChange={(v) => update('limitIp', Number(v) || 0)} />
+                                {isEdit && (
+                                  <Tooltip title={t('pages.clients.ipLog')}>
+                                    <Button icon={<EyeOutlined />} loading={ipsLoading} onClick={openIpsModal}>
+                                      {clientIps.length > 0 ? clientIps.length : ''}
+                                    </Button>
+                                  </Tooltip>
+                                )}
+                              </Space.Compact>
+                            </span>
+                          </Tooltip>
                         </Form.Item>
                       </Col>
                     </Row>
@@ -624,71 +687,106 @@ export default function ClientFormModal({
                 label: t('pages.clients.tabCredentials'),
                 children: (
                   <>
-                    <Row gutter={16}>
-                      <Col xs={24} md={12}>
-                        <Form.Item label={t('pages.clients.uuid')}>
-                          <Space.Compact style={{ display: 'flex' }}>
-                            <Input value={form.uuid} style={{ flex: 1 }} onChange={(e) => update('uuid', e.target.value)} />
-                            <Button icon={<ReloadOutlined />} onClick={() => update('uuid', RandomUtil.randomUUID())} />
-                          </Space.Compact>
-                        </Form.Item>
-                      </Col>
-                      <Col xs={24} md={12}>
-                        <Form.Item label={t('pages.clients.password')}>
-                          <Space.Compact style={{ display: 'flex' }}>
-                            <Input value={form.password} style={{ flex: 1 }} onChange={(e) => update('password', e.target.value)} />
-                            <Button icon={<ReloadOutlined />} onClick={regeneratePassword} />
-                          </Space.Compact>
-                        </Form.Item>
-                      </Col>
-                    </Row>
+                    <Form.Item label={t('pages.clients.uuid')}>
+                      <Space.Compact style={{ display: 'flex' }}>
+                        <Input value={form.uuid} style={{ flex: 1 }} onChange={(e) => update('uuid', e.target.value)} />
+                        <Button icon={<ReloadOutlined />} onClick={() => update('uuid', RandomUtil.randomUUID())} />
+                      </Space.Compact>
+                    </Form.Item>
 
-                    <Row gutter={16}>
-                      <Col xs={24} md={12}>
-                        <Form.Item label={t('pages.clients.subId')}>
-                          <Space.Compact style={{ display: 'flex' }}>
-                            <Input value={form.subId} style={{ flex: 1 }} onChange={(e) => update('subId', e.target.value)} />
-                            <Button icon={<ReloadOutlined />} onClick={() => update('subId', RandomUtil.randomLowerAndNum(16))} />
-                          </Space.Compact>
-                        </Form.Item>
-                      </Col>
-                      <Col xs={24} md={12}>
-                        <Form.Item label={t('pages.clients.hysteriaAuth')}>
-                          <Space.Compact style={{ display: 'flex' }}>
-                            <Input value={form.auth} style={{ flex: 1 }} onChange={(e) => update('auth', e.target.value)} />
-                            <Button icon={<ReloadOutlined />} onClick={() => update('auth', RandomUtil.randomLowerAndNum(16))} />
-                          </Space.Compact>
-                        </Form.Item>
-                      </Col>
-                    </Row>
+                    <Form.Item label={t('pages.clients.password')}>
+                      <Space.Compact style={{ display: 'flex' }}>
+                        <Input value={form.password} style={{ flex: 1 }} onChange={(e) => update('password', e.target.value)} />
+                        <Button icon={<ReloadOutlined />} onClick={regeneratePassword} />
+                      </Space.Compact>
+                    </Form.Item>
 
-                    <Row gutter={16}>
-                      {showFlow && (
-                        <Col xs={24} md={12}>
-                          <Form.Item label={t('pages.clients.flow')}>
-                            <Select
-                              value={form.flow}
-                              onChange={(v) => update('flow', v)}
-                              options={[
-                                { value: '', label: t('none') },
-                                ...FLOW_OPTIONS.map((k) => ({ value: k, label: k })),
-                              ]}
-                            />
-                          </Form.Item>
-                        </Col>
-                      )}
-                      {showSecurity && (
-                        <Col xs={24} md={12}>
-                          <Form.Item label={t('pages.clients.vmessSecurity')}>
-                            <Select
-                              value={form.security}
-                              onChange={(v) => update('security', v)}
-                              options={VMESS_SECURITY_OPTIONS.map((k) => ({ value: k, label: k }))}
-                            />
-                          </Form.Item>
-                        </Col>
-                      )}
-                    </Row>
+                    <Form.Item label={t('pages.clients.subId')}>
+                      <Space.Compact style={{ display: 'flex' }}>
+                        <Input value={form.subId} style={{ flex: 1 }} onChange={(e) => update('subId', e.target.value)} />
+                        <Button icon={<ReloadOutlined />} onClick={() => update('subId', RandomUtil.randomLowerAndNum(16))} />
+                      </Space.Compact>
+                    </Form.Item>
+
+                    <Form.Item label={t('pages.clients.hysteriaAuth')}>
+                      <Space.Compact style={{ display: 'flex' }}>
+                        <Input value={form.auth} style={{ flex: 1 }} onChange={(e) => update('auth', e.target.value)} />
+                        <Button icon={<ReloadOutlined />} onClick={() => update('auth', RandomUtil.randomLowerAndNum(16))} />
+                      </Space.Compact>
+                    </Form.Item>
+
+                    {showFlow && (
+                      <Form.Item label={t('pages.clients.flow')}>
+                        <Select
+                          value={form.flow}
+                          onChange={(v) => update('flow', v)}
+                          options={[
+                            { value: '', label: t('none') },
+                            ...FLOW_OPTIONS.map((k) => ({ value: k, label: k })),
+                          ]}
+                        />
+                      </Form.Item>
+                    )}
+                    {showSecurity && (
+                      <Form.Item label={t('pages.clients.vmessSecurity')}>
+                        <Select
+                          value={form.security}
+                          onChange={(v) => update('security', v)}
+                          options={VMESS_SECURITY_OPTIONS.map((k) => ({ value: k, label: k }))}
+                        />
+                      </Form.Item>
+                    )}
+                  </>
+                ),
+              },
+              {
+                key: 'links',
+                label: t('pages.clients.tabLinks'),
+                children: (
+                  <>
+                    <Typography.Paragraph type="secondary" style={{ marginTop: 4 }}>
+                      {t('pages.clients.linksHint')}
+                    </Typography.Paragraph>
+
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => addExternalLinkRow('link')}>
+                      {t('pages.clients.addExternalLink')}
+                    </Button>
+                    <div style={{ marginTop: 12, marginBottom: 24 }}>
+                      {linkRows.length === 0 ? (
+                        <Typography.Text type="secondary">{t('pages.clients.noExternalLinks')}</Typography.Text>
+                      ) : linkRows.map((row) => (
+                        <div key={row.key} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                          <Input
+                            value={row.value}
+                            onChange={(e) => updateExternalLinkRow(row.key, e.target.value)}
+                            placeholder="vless:// · vmess:// · trojan:// · ss:// · hysteria2:// · wireguard://"
+                          />
+                          <Tooltip title={t('delete')}>
+                            <Button danger icon={<DeleteOutlined />} onClick={() => removeExternalLinkRow(row.key)} />
+                          </Tooltip>
+                        </div>
+                      ))}
+                    </div>
+
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => addExternalLinkRow('subscription')}>
+                      {t('pages.clients.addExternalSubscription')}
+                    </Button>
+                    <div style={{ marginTop: 12 }}>
+                      {subscriptionRows.length === 0 ? (
+                        <Typography.Text type="secondary">{t('pages.clients.noExternalSubscriptions')}</Typography.Text>
+                      ) : subscriptionRows.map((row) => (
+                        <div key={row.key} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                          <Input
+                            value={row.value}
+                            onChange={(e) => updateExternalLinkRow(row.key, e.target.value)}
+                            placeholder="https://provider.example/sub/…"
+                          />
+                          <Tooltip title={t('delete')}>
+                            <Button danger icon={<DeleteOutlined />} onClick={() => removeExternalLinkRow(row.key)} />
+                          </Tooltip>
+                        </div>
+                      ))}
+                    </div>
                   </>
                 ),
               },
@@ -717,7 +815,7 @@ export default function ClientFormModal({
       >
         {clientIps.length > 0 ? (
           <div style={{ maxHeight: 360, overflowY: 'auto' }}>
-            {clientIps.map((ip, idx) => (
+            {clientIps.map((entry, idx) => (
               <Tag
                 key={idx}
                 color="blue"
@@ -730,7 +828,10 @@ export default function ClientFormModal({
                   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
                 }}
               >
-                {ip}
+                {entry.ip}{entry.time ? ` (${entry.time})` : ''}
+                {entry.node ? (
+                  <span style={{ marginInlineStart: 6, opacity: 0.85, fontWeight: 600 }}>@ {entry.node}</span>
+                ) : null}
               </Tag>
             ))}
           </div>

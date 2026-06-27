@@ -1,10 +1,17 @@
 export const keys = {
   server: {
     status: () => ['server', 'status'] as const,
+    fail2banStatus: () => ['server', 'fail2banStatus'] as const,
   },
   nodes: {
     root: () => ['nodes'] as const,
     list: () => ['nodes', 'list'] as const,
+  },
+  hosts: {
+    root: () => ['hosts'] as const,
+    list: () => ['hosts', 'list'] as const,
+    byInbound: (inboundId: number) => ['hosts', 'byInbound', inboundId] as const,
+    tags: () => ['hosts', 'tags'] as const,
   },
   settings: {
     root: () => ['settings'] as const,

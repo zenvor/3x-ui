@@ -41,39 +41,39 @@ func (s *XraySettingService) CheckXrayConfig(XrayTemplateConfig string) error {
 	return nil
 }
 
-func (s *XraySettingService) UpdateWarpXraySetting(warpData map[string]string, warpConfig map[string]interface{}) error {
+func (s *XraySettingService) UpdateWarpXraySetting(warpData map[string]string, warpConfig map[string]any) error {
 	template, err := s.GetXrayConfigTemplate()
 	if err != nil {
 		return err
 	}
 
-	var cfg map[string]interface{}
+	var cfg map[string]any
 	if err := json.Unmarshal([]byte(template), &cfg); err != nil {
 		return err
 	}
 
-	outbounds, ok := cfg["outbounds"].([]interface{})
+	outbounds, ok := cfg["outbounds"].([]any)
 	if !ok {
 		return nil
 	}
 
 	updated := false
 	for _, outIface := range outbounds {
-		out, ok := outIface.(map[string]interface{})
+		out, ok := outIface.(map[string]any)
 		if !ok {
 			continue
 		}
 		if tag, ok := out["tag"].(string); ok && tag == "warp" {
-			settings, ok := out["settings"].(map[string]interface{})
+			settings, ok := out["settings"].(map[string]any)
 			if !ok {
 				continue
 			}
 
 			settings["secretKey"] = warpData["private_key"]
 
-			if conf, ok := warpConfig["config"].(map[string]interface{}); ok {
-				if iface, ok := conf["interface"].(map[string]interface{}); ok {
-					if addrs, ok := iface["addresses"].(map[string]interface{}); ok {
+			if conf, ok := warpConfig["config"].(map[string]any); ok {
+				if iface, ok := conf["interface"].(map[string]any); ok {
+					if addrs, ok := iface["addresses"].(map[string]any); ok {
 						var addrList []string
 						if v4, ok := addrs["v4"].(string); ok && v4 != "" {
 							addrList = append(addrList, v4+"/32")
@@ -100,12 +100,12 @@ func (s *XraySettingService) UpdateWarpXraySetting(warpData map[string]string, w
 					settings["reserved"] = res
 				}
 
-				if peers, ok := conf["peers"].([]interface{}); ok && len(peers) > 0 {
-					if peer, ok := peers[0].(map[string]interface{}); ok {
-						if pSettings, ok := settings["peers"].([]interface{}); ok && len(pSettings) > 0 {
-							if pSet, ok := pSettings[0].(map[string]interface{}); ok {
+				if peers, ok := conf["peers"].([]any); ok && len(peers) > 0 {
+					if peer, ok := peers[0].(map[string]any); ok {
+						if pSettings, ok := settings["peers"].([]any); ok && len(pSettings) > 0 {
+							if pSet, ok := pSettings[0].(map[string]any); ok {
 								pSet["publicKey"] = peer["public_key"]
-								if endpoint, ok := peer["endpoint"].(map[string]interface{}); ok {
+								if endpoint, ok := peer["endpoint"].(map[string]any); ok {
 									pSet["endpoint"] = endpoint["host"]
 								}
 							}
@@ -237,6 +237,7 @@ func EnsureStatsRouting(raw string) (string, error) {
 			"outboundTag": "api",
 		}
 	}
+	delete(apiRule, "enabled")
 	rules = append([]map[string]any{apiRule}, rules...)
 
 	rulesJSON, err := json.Marshal(rules)
@@ -258,35 +259,43 @@ func EnsureStatsRouting(raw string) (string, error) {
 	return string(out), nil
 }
 
+// isApiRule reports whether a routing rule targets the internal api inbound
+// (inboundTag contains "api" and outboundTag is "api").
+func isApiRule(rule map[string]any) bool {
+	if outTag, _ := rule["outboundTag"].(string); outTag != "api" {
+		return false
+	}
+	raw, ok := rule["inboundTag"]
+	if !ok {
+		return false
+	}
+	// inboundTag is usually []string but can come as []any from a
+	// roundtrip through map[string]any. Accept both shapes.
+	switch tags := raw.(type) {
+	case []any:
+		for _, t := range tags {
+			if s, ok := t.(string); ok && s == "api" {
+				return true
+			}
+		}
+	case []string:
+		if slices.Contains(tags, "api") {
+			return true
+		}
+	case string:
+		if tags == "api" {
+			return true
+		}
+	}
+	return false
+}
+
 // findApiRule returns the index of the routing rule that targets the
-// internal api inbound (inboundTag contains "api" and outboundTag is
-// "api"), or -1 if no such rule exists.
+// internal api inbound, or -1 if no such rule exists.
 func findApiRule(rules []map[string]any) int {
 	for i, rule := range rules {
-		if outTag, _ := rule["outboundTag"].(string); outTag != "api" {
-			continue
-		}
-		raw, ok := rule["inboundTag"]
-		if !ok {
-			continue
-		}
-		// inboundTag is usually []string but can come as []any from a
-		// roundtrip through map[string]any. Accept both shapes.
-		switch tags := raw.(type) {
-		case []any:
-			for _, t := range tags {
-				if s, ok := t.(string); ok && s == "api" {
-					return i
-				}
-			}
-		case []string:
-			if slices.Contains(tags, "api") {
-				return i
-			}
-		case string:
-			if tags == "api" {
-				return i
-			}
+		if isApiRule(rule) {
+			return i
 		}
 	}
 	return -1

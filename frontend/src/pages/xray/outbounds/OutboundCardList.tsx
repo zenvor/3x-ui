@@ -8,6 +8,7 @@ import {
   VerticalAlignTopOutlined,
   ThunderboltOutlined,
   LoadingOutlined,
+  ExportOutlined,
 } from '@ant-design/icons';
 
 import { SizeFormatter } from '@/utils';
@@ -50,7 +51,12 @@ export default function OutboundCardList({
 }: OutboundCardListProps) {
   const { t } = useTranslation();
   if (rows.length === 0) {
-    return <div className="card-empty">—</div>;
+    return (
+      <div className="card-empty">
+        <ExportOutlined style={{ fontSize: 32, marginBottom: 8 }} />
+        <div>{t('noData')}</div>
+      </div>
+    );
   }
   return (
     <>
@@ -110,7 +116,7 @@ export default function OutboundCardList({
                 shape="circle"
                 size="small"
                 loading={isTesting(outboundTestStates, index)}
-                disabled={isUntestable(record, testMode) || isTesting(outboundTestStates, index)}
+                disabled={isUntestable(record) || isTesting(outboundTestStates, index)}
                 icon={<ThunderboltOutlined />}
                 onClick={() => onTest(index, testMode)}
               />

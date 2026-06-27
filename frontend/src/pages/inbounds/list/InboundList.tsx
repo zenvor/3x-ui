@@ -36,6 +36,7 @@ export default function InboundList({
   dbInbounds,
   clientCount,
   lastOnlineMap: _lastOnlineMap,
+  inboundSpeed,
   expireDiff,
   trafficDiff,
   pageSize,
@@ -124,12 +125,18 @@ export default function InboundList({
     hasActiveNode,
     nodesById,
     clientCount,
+    inboundSpeed,
     subEnable,
     expireDiff,
     trafficDiff,
     onRowAction,
     onSwitchEnable,
   });
+
+  const tableScrollX = useMemo(
+    () => columns.reduce((sum, c) => sum + (typeof c.width === 'number' ? c.width : 0), 0),
+    [columns],
+  );
 
   const paginationFor = (rows: DBInboundRecord[]) => {
     const size = pageSize > 0 ? pageSize : rows.length || 1;
@@ -250,7 +257,7 @@ export default function InboundList({
               onChange: (keys: Key[]) => setSelectedRowKeys(keys as number[]),
             }}
             pagination={paginationFor(visibleInbounds)}
-            scroll={{ x: 1000 }}
+            scroll={{ x: tableScrollX }}
             style={{ marginTop: 10 }}
             size="small"
             locale={{
@@ -271,6 +278,7 @@ export default function InboundList({
         hasActiveNode={hasActiveNode}
         nodesById={nodesById}
         clientCount={clientCount}
+        inboundSpeed={inboundSpeed}
         trafficDiff={trafficDiff}
         expireDiff={expireDiff}
         onClose={() => setStatsRecord(null)}

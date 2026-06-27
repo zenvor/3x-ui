@@ -225,6 +225,49 @@ func jsonStringFieldFromRaw(r json.RawMessage) string {
 	return string(trimmed)
 }
 
+// StripInboundXhttpClientFields removes xHTTP knobs that belong on the
+// client dialer and subscription share-link extras only. xray-core's XHTTP
+// inbound listener does not consume them; the panel still stores them on
+// the inbound row so buildXhttpExtra can push defaults to clients.
+func StripInboundXhttpClientFields(streamSettings string) (string, bool) {
+	if streamSettings == "" {
+		return streamSettings, false
+	}
+	var stream map[string]any
+	if err := json.Unmarshal([]byte(streamSettings), &stream); err != nil {
+		return streamSettings, false
+	}
+	if stream["network"] != "xhttp" {
+		return streamSettings, false
+	}
+	xhttp, ok := stream["xhttpSettings"].(map[string]any)
+	if !ok || len(xhttp) == 0 {
+		return streamSettings, false
+	}
+	clientOnly := []string{
+		"xmux",
+		"downloadSettings",
+		"scMinPostsIntervalMs",
+		"uplinkChunkSize",
+		"noGRPCHeader",
+	}
+	changed := false
+	for _, key := range clientOnly {
+		if _, has := xhttp[key]; has {
+			delete(xhttp, key)
+			changed = true
+		}
+	}
+	if !changed {
+		return streamSettings, false
+	}
+	out, err := json.MarshalIndent(stream, "", "  ")
+	if err != nil {
+		return streamSettings, false
+	}
+	return string(out), true
+}
+
 // GenXrayInboundConfig generates an Xray inbound configuration from the Inbound model.
 func (i *Inbound) GenXrayInboundConfig() *xray.InboundConfig {
 	listen := i.Listen
@@ -248,12 +291,16 @@ func (i *Inbound) GenXrayInboundConfig() *xray.InboundConfig {
 			settings = stripped
 		}
 	}
+	streamSettings := i.StreamSettings
+	if stripped, ok := StripInboundXhttpClientFields(streamSettings); ok {
+		streamSettings = stripped
+	}
 	return &xray.InboundConfig{
 		Listen:         json_util.RawMessage(listen),
 		Port:           i.Port,
 		Protocol:       protocol,
 		Settings:       json_util.RawMessage(settings),
-		StreamSettings: json_util.RawMessage(i.StreamSettings),
+		StreamSettings: json_util.RawMessage(streamSettings),
 		Tag:            i.Tag,
 		Sniffing:       json_util.RawMessage(i.Sniffing),
 	}
@@ -439,7 +486,7 @@ func HealMtprotoSecret(settings string) (string, bool) {
 // Setting stores key-value configuration settings for the 3x-ui panel.
 type Setting struct {
 	Id    int    `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
-	Key   string `json:"key" form:"key"`
+	Key   string `json:"key" form:"key" gorm:"index:idx_settings_key"`
 	Value string `json:"value" form:"value"`
 }
 
@@ -455,13 +502,14 @@ type Node struct {
 	Address             string   `json:"address" form:"address" validate:"required" example:"node1.example.com"`
 	Port                int      `json:"port" form:"port" validate:"gte=1,lte=65535" example:"2053"`
 	BasePath            string   `json:"basePath" form:"basePath" example:"/"`
-	ApiToken            string   `json:"apiToken" form:"apiToken" validate:"required" example:"abcdef0123456789"`
+	ApiToken            string   `json:"apiToken" form:"apiToken" validate:"required_unless=TlsVerifyMode mtls" example:"abcdef0123456789"`
 	Enable              bool     `json:"enable" form:"enable" gorm:"default:true" example:"true"`
 	AllowPrivateAddress bool     `json:"allowPrivateAddress" form:"allowPrivateAddress" gorm:"default:false"`
-	TlsVerifyMode       string   `json:"tlsVerifyMode" form:"tlsVerifyMode" gorm:"column:tls_verify_mode;default:verify" validate:"omitempty,oneof=verify skip pin"`
+	TlsVerifyMode       string   `json:"tlsVerifyMode" form:"tlsVerifyMode" gorm:"column:tls_verify_mode;default:verify" validate:"omitempty,oneof=verify skip pin mtls"`
 	PinnedCertSha256    string   `json:"pinnedCertSha256" form:"pinnedCertSha256" gorm:"column:pinned_cert_sha256"`
 	InboundSyncMode     string   `json:"inboundSyncMode" form:"inboundSyncMode" gorm:"column:inbound_sync_mode;default:all" validate:"omitempty,oneof=all selected"`
 	InboundTags         []string `json:"inboundTags" form:"inboundTags" gorm:"serializer:json;column:inbound_tags"`
+	OutboundTag         string   `json:"outboundTag" form:"outboundTag" gorm:"column:outbound_tag"`
 
 	// Guid is the remote panel's stable self-identifier (its panelGuid),
 	// learned from each heartbeat. It is the globally stable node identity used
@@ -481,6 +529,8 @@ type Node struct {
 	CpuPct        float64 `json:"cpuPct" example:"23.5"`
 	MemPct        float64 `json:"memPct" example:"45.1"`
 	UptimeSecs    uint64  `json:"uptimeSecs" example:"86400"`
+	NetUp         uint64  `json:"netUp" gorm:"column:net_up" example:"1048576"`
+	NetDown       uint64  `json:"netDown" gorm:"column:net_down" example:"2097152"`
 	LastError     string  `json:"lastError"`
 
 	// XrayState and XrayError are captured from the remote node's /panel/api/server/status
@@ -495,6 +545,8 @@ type Node struct {
 	InboundCount  int `json:"inboundCount" gorm:"-" example:"5"`
 	ClientCount   int `json:"clientCount" gorm:"-" example:"27"`
 	OnlineCount   int `json:"onlineCount" gorm:"-" example:"3"`
+	ActiveCount   int `json:"activeCount" gorm:"-" example:"23"`
+	DisabledCount int `json:"disabledCount" gorm:"-" example:"3"`
 	DepletedCount int `json:"depletedCount" gorm:"-" example:"1"`
 
 	// ParentGuid + Transitive are set only when a node is surfaced as part of a
@@ -571,7 +623,7 @@ type ClientRecord struct {
 	ExpiryTime int64  `json:"expiryTime" gorm:"column:expiry_time"`
 	Enable     bool   `json:"enable" gorm:"default:true"`
 	TgID       int64  `json:"tgId" gorm:"column:tg_id"`
-	Group      string `json:"group" gorm:"column:group_name;default:''"`
+	Group      string `json:"group" gorm:"column:group_name;default:'';index:idx_client_record_group"`
 	Comment    string `json:"comment"`
 	Reset      int    `json:"reset" gorm:"default:0"`
 	CreatedAt  int64  `json:"createdAt" gorm:"autoCreateTime:milli"`
@@ -629,6 +681,31 @@ type ClientInbound struct {
 
 func (ClientInbound) TableName() string { return "client_inbounds" }
 
+// ClientExternalLink is a per-client entry surfaced in the client's
+// subscription. Two kinds:
+//   - "link": a single third-party share link (vless://, vmess://, trojan://,
+//     ss://, hysteria2://, wireguard://). Emitted verbatim in raw subs; parsed
+//     into an outbound/proxy for JSON and Clash.
+//   - "subscription": a remote subscription URL. The panel fetches it (cached),
+//     decodes its links, and merges them into the client's subscription.
+type ClientExternalLink struct {
+	Id        int    `json:"id" gorm:"primaryKey;autoIncrement"`
+	ClientId  int    `json:"clientId" gorm:"index;column:client_id"`
+	Kind      string `json:"kind" gorm:"column:kind"`
+	Value     string `json:"value" gorm:"column:value"`
+	Remark    string `json:"remark" gorm:"column:remark"`
+	SortIndex int    `json:"sortIndex" gorm:"column:sort_index"`
+	CreatedAt int64  `json:"createdAt" gorm:"autoCreateTime:milli"`
+}
+
+func (ClientExternalLink) TableName() string { return "client_external_links" }
+
+// External link kinds.
+const (
+	ExternalLinkKindLink         = "link"
+	ExternalLinkKindSubscription = "subscription"
+)
+
 type InboundFallback struct {
 	Id        int    `json:"id" gorm:"primaryKey;autoIncrement"`
 	MasterId  int    `json:"masterId" gorm:"index;not null;column:master_id"`
@@ -642,6 +719,60 @@ type InboundFallback struct {
 }
 
 func (InboundFallback) TableName() string { return "inbound_fallbacks" }
+
+// Host is an override endpoint attached to an inbound: at subscription time each
+// enabled host renders one share link/proxy with its own address/port/TLS/etc.,
+// superseding the legacy externalProxy array. Free-JSON fields are stored as
+// text and parsed in the sub layer; slice fields use the json serializer.
+type Host struct {
+	Id                int      `json:"id" form:"id" gorm:"primaryKey;autoIncrement" example:"1"`
+	InboundId         int      `json:"inboundId" form:"inboundId" gorm:"index;not null;column:inbound_id" validate:"required" example:"1"`
+	SortOrder         int      `json:"sortOrder" form:"sortOrder" gorm:"default:0;column:sort_order"`
+	Remark            string   `json:"remark" form:"remark" validate:"required,max=256" example:"cdn-front"`
+	ServerDescription string   `json:"serverDescription" form:"serverDescription" gorm:"column:server_description" validate:"omitempty,max=64"`
+	IsDisabled        bool     `json:"isDisabled" form:"isDisabled" gorm:"default:false;column:is_disabled"`
+	IsHidden          bool     `json:"isHidden" form:"isHidden" gorm:"default:false;column:is_hidden"`
+	Tags              []string `json:"tags" form:"tags" gorm:"serializer:json"`
+
+	Address string `json:"address" form:"address" example:"cdn.example.com"`
+	Port    int    `json:"port" form:"port" gorm:"default:0" validate:"gte=0,lte=65535" example:"8443"`
+
+	Security               string   `json:"security" form:"security" gorm:"default:same" validate:"omitempty,oneof=same tls none reality" example:"same"`
+	Sni                    string   `json:"sni" form:"sni"`
+	HostHeader             string   `json:"hostHeader" form:"hostHeader" gorm:"column:host_header"`
+	Path                   string   `json:"path" form:"path"`
+	Alpn                   []string `json:"alpn" form:"alpn" gorm:"serializer:json"`
+	Fingerprint            string   `json:"fingerprint" form:"fingerprint"`
+	OverrideSniFromAddress bool     `json:"overrideSniFromAddress" form:"overrideSniFromAddress" gorm:"column:override_sni_from_address"`
+	KeepSniBlank           bool     `json:"keepSniBlank" form:"keepSniBlank" gorm:"column:keep_sni_blank"`
+	PinnedPeerCertSha256   []string `json:"pinnedPeerCertSha256" form:"pinnedPeerCertSha256" gorm:"serializer:json;column:pinned_peer_cert_sha256"`
+	VerifyPeerCertByName   string   `json:"verifyPeerCertByName" form:"verifyPeerCertByName" gorm:"column:verify_peer_cert_by_name"`
+	AllowInsecure          bool     `json:"allowInsecure" form:"allowInsecure" gorm:"column:allow_insecure"`
+	EchConfigList          string   `json:"echConfigList" form:"echConfigList" gorm:"column:ech_config_list"`
+
+	MuxParams     string `json:"muxParams" form:"muxParams" gorm:"type:text;column:mux_params"`
+	SockoptParams string `json:"sockoptParams" form:"sockoptParams" gorm:"type:text;column:sockopt_params"`
+	// FinalMask is a JSON object of xray finalmask masks (tcp/udp/quicParams),
+	// merged into this host's JSON-subscription stream. Empty = no override.
+	FinalMask string `json:"finalMask" form:"finalMask" gorm:"type:text;column:final_mask"`
+
+	// VlessRoute is a free-form port/range routing spec (e.g. "53,443,1000-2000");
+	// stored verbatim, format-validated on the frontend.
+	VlessRoute string `json:"vlessRoute" form:"vlessRoute" gorm:"column:vless_route"`
+
+	ExcludeFromSubTypes []string `json:"excludeFromSubTypes" form:"excludeFromSubTypes" gorm:"serializer:json;column:exclude_from_sub_types"`
+
+	MihomoIpVersion string `json:"mihomoIpVersion" form:"mihomoIpVersion" gorm:"column:mihomo_ip_version" validate:"omitempty,oneof=dual ipv4 ipv6 ipv4-prefer ipv6-prefer"`
+	MihomoX25519    bool   `json:"mihomoX25519" form:"mihomoX25519" gorm:"column:mihomo_x25519"`
+	ShuffleHost     bool   `json:"shuffleHost" form:"shuffleHost" gorm:"column:shuffle_host"`
+
+	NodeGuids []string `json:"nodeGuids,omitempty" form:"nodeGuids" gorm:"serializer:json;column:node_guids"`
+
+	CreatedAt int64 `json:"createdAt" gorm:"autoCreateTime:milli"`
+	UpdatedAt int64 `json:"updatedAt" gorm:"autoUpdateTime:milli"`
+}
+
+func (Host) TableName() string { return "hosts" }
 
 func (c *Client) ToRecord() *ClientRecord {
 	rec := &ClientRecord{

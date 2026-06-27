@@ -8,11 +8,17 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 )
 
+type NodeEgressResolver interface {
+	NodeEgressProxyURL(nodeID int) string
+}
+
 type Manager struct {
 	local Runtime
 
-	mu      sync.RWMutex
-	remotes map[int]*Remote
+	mu             sync.RWMutex
+	remotes        map[int]*Remote
+	overrides      map[int]Runtime // test-only: forces RuntimeFor to return a stub
+	egressResolver NodeEgressResolver
 }
 
 func NewManager(localDeps LocalDeps) *Manager {
@@ -22,11 +28,46 @@ func NewManager(localDeps LocalDeps) *Manager {
 	}
 }
 
+// SetRuntimeOverride makes RuntimeFor(nodeID) return rt instead of building a
+// real Remote. Test seam for exercising node-dispatch paths without a network
+// node; pass nil rt to clear.
+func (m *Manager) SetRuntimeOverride(nodeID int, rt Runtime) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if rt == nil {
+		delete(m.overrides, nodeID)
+		return
+	}
+	if m.overrides == nil {
+		m.overrides = make(map[int]Runtime)
+	}
+	m.overrides[nodeID] = rt
+}
+
+func (m *Manager) SetNodeEgressResolver(r NodeEgressResolver) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.egressResolver = r
+}
+
+func (m *Manager) NodeEgressProxyURL(nodeID int) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.egressResolver == nil {
+		return ""
+	}
+	return m.egressResolver.NodeEgressProxyURL(nodeID)
+}
+
 func (m *Manager) RuntimeFor(nodeID *int) (Runtime, error) {
 	if nodeID == nil {
 		return m.local, nil
 	}
 	m.mu.RLock()
+	if rt, ok := m.overrides[*nodeID]; ok {
+		m.mu.RUnlock()
+		return rt, nil
+	}
 	if rt, ok := m.remotes[*nodeID]; ok {
 		m.mu.RUnlock()
 		return rt, nil
@@ -45,7 +86,7 @@ func (m *Manager) RuntimeFor(nodeID *int) (Runtime, error) {
 	if !n.Enable {
 		return nil, errors.New("node " + n.Name + " is disabled")
 	}
-	rt := NewRemote(n)
+	rt := NewRemote(n, m.egressResolver)
 	m.remotes[*nodeID] = rt
 	return rt, nil
 }
@@ -68,7 +109,7 @@ func (m *Manager) RemoteFor(node *model.Node) (*Remote, error) {
 	if rt, ok := m.remotes[node.Id]; ok {
 		return rt, nil
 	}
-	rt := NewRemote(node)
+	rt := NewRemote(node, m.egressResolver)
 	m.remotes[node.Id] = rt
 	return rt, nil
 }
