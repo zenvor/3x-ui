@@ -27,8 +27,11 @@ import {
 } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import {
+  CheckCircleOutlined,
   ClockCircleOutlined,
   DeleteOutlined,
+  DisconnectOutlined,
+  DownloadOutlined,
   EditOutlined,
   FilterOutlined,
   InfoCircleOutlined,
@@ -40,8 +43,10 @@ import {
   RetweetOutlined,
   SearchOutlined,
   SortAscendingOutlined,
+  StopOutlined,
   TagsOutlined,
   TeamOutlined,
+  UploadOutlined,
   UsergroupAddOutlined,
   UsergroupDeleteOutlined,
 } from '@ant-design/icons';
@@ -53,7 +58,7 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { useClients } from '@/hooks/useClients';
 import { useNodesQuery } from '@/api/queries/useNodesQuery';
 import { useDatepicker } from '@/hooks/useDatepicker';
-import type { ClientRecord, InboundOption } from '@/hooks/useClients';
+import type { ClientRecord, InboundOption, ExternalLink, ExternalLinkInput } from '@/hooks/useClients';
 import ClientTrafficCell from '@/components/clients/ClientTrafficCell';
 import AppSidebar from '@/layouts/AppSidebar';
 import { IntlUtil, SizeFormatter } from '@/utils';
@@ -69,6 +74,8 @@ const SubLinksModal = lazy(() => import('./SubLinksModal'));
 const BulkAddToGroupModal = lazy(() => import('./BulkAddToGroupModal'));
 const BulkAttachInboundsModal = lazy(() => import('./BulkAttachInboundsModal'));
 const BulkDetachInboundsModal = lazy(() => import('./BulkDetachInboundsModal'));
+const TextModal = lazy(() => import('@/components/feedback/TextModal'));
+const PromptModal = lazy(() => import('@/components/feedback/PromptModal'));
 import { emptyFilters, activeFilterCount } from './filters';
 import type { ClientFilters } from './filters';
 import './ClientsPage.css';
@@ -197,10 +204,10 @@ export default function ClientsPage() {
     summary: serverSummary,
     allGroups,
     setQuery,
-    inbounds, onlines, loading, fetched, fetchError, subSettings,
+    inbounds, onlines, loading, transitioning, fetched, fetchError, subSettings,
     tgBotEnable, expireDiff, trafficDiff, pageSize,
-    create, update, remove, bulkDelete, bulkAdjust, bulkAddToGroup, bulkRemoveFromGroup, attach, bulkAttach, detach, bulkDetach,
-    resetTraffic, resetAllTraffics, delDepleted, setEnable,
+    create, update, remove, bulkDelete, bulkAdjust, bulkEnable, bulkDisable, bulkAddToGroup, bulkRemoveFromGroup, attach, setExternalLinks, bulkAttach, detach, bulkDetach,
+    resetTraffic, resetAllTraffics, delDepleted, delOrphans, exportClients, importClients, setEnable,
     applyTrafficEvent, applyClientStatsEvent,
     refresh,
     hydrate,
@@ -220,6 +227,7 @@ export default function ClientsPage() {
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add');
   const [editingClient, setEditingClient] = useState<ClientRecord | null>(null);
   const [editingAttachedIds, setEditingAttachedIds] = useState<number[]>([]);
+  const [editingExternalLinks, setEditingExternalLinks] = useState<ExternalLink[]>([]);
   const [infoOpen, setInfoOpen] = useState(false);
   const [infoClient, setInfoClient] = useState<ClientRecord | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
@@ -231,6 +239,17 @@ export default function ClientsPage() {
   const [bulkAttachOpen, setBulkAttachOpen] = useState(false);
   const [bulkDetachOpen, setBulkDetachOpen] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+
+  const [textOpen, setTextOpen] = useState(false);
+  const [textTitle, setTextTitle] = useState('');
+  const [textContent, setTextContent] = useState('');
+  const [textFileName, setTextFileName] = useState('');
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [promptTitle, setPromptTitle] = useState('');
+  const [promptOkText, setPromptOkText] = useState('');
+  const [promptInitial, setPromptInitial] = useState('');
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptHandler, setPromptHandler] = useState<((value: string) => Promise<boolean | void> | boolean | void) | null>(null);
 
   const initial = readFilterState();
   const [searchKey, setSearchKey] = useState(initial.searchKey);
@@ -429,6 +448,7 @@ export default function ClientsPage() {
     setFormMode('add');
     setEditingClient(null);
     setEditingAttachedIds([]);
+    setEditingExternalLinks([]);
     setFormOpen(true);
   }
 
@@ -441,6 +461,7 @@ export default function ClientsPage() {
     setEditingClient(merged);
     const ids = full?.inboundIds ?? (Array.isArray(row.inboundIds) ? row.inboundIds : []);
     setEditingAttachedIds([...ids]);
+    setEditingExternalLinks(Array.isArray(full?.externalLinks) ? [...full.externalLinks] : []);
     setFormOpen(true);
   }
 
@@ -487,6 +508,40 @@ export default function ClientsPage() {
     setQrOpen(true);
   }
 
+  const openText = useCallback((opts: { title: string; content: string; fileName?: string }) => {
+    setTextTitle(opts.title);
+    setTextContent(opts.content);
+    setTextFileName(opts.fileName || '');
+    setTextOpen(true);
+  }, []);
+
+  const openPrompt = useCallback((opts: {
+    title: string;
+    okText?: string;
+    value?: string;
+    confirm: (value: string) => Promise<boolean | void> | boolean | void;
+  }) => {
+    setPromptTitle(opts.title);
+    setPromptOkText(opts.okText || t('confirm'));
+    setPromptInitial(opts.value || '');
+    setPromptHandler(() => opts.confirm);
+    setPromptOpen(true);
+  }, [t]);
+
+  const onPromptConfirm = useCallback(async (value: string) => {
+    if (!promptHandler) {
+      setPromptOpen(false);
+      return;
+    }
+    setPromptLoading(true);
+    try {
+      const ok = await promptHandler(value);
+      if (ok !== false) setPromptOpen(false);
+    } finally {
+      setPromptLoading(false);
+    }
+  }, [promptHandler]);
+
   function onResetAllTraffics() {
     modal.confirm({
       title: t('pages.clients.resetAllTrafficsTitle'),
@@ -518,6 +573,56 @@ export default function ClientsPage() {
     });
   }
 
+  function onDeleteOrphans() {
+    modal.confirm({
+      title: t('pages.clients.delOrphansConfirmTitle'),
+      content: t('pages.clients.delOrphansConfirmContent'),
+      okText: t('delete'),
+      okType: 'danger',
+      cancelText: t('cancel'),
+      onOk: async () => {
+        const msg = await delOrphans();
+        if (msg?.success) {
+          const deleted = msg.obj?.deleted ?? 0;
+          messageApi.success(t('pages.clients.toasts.delOrphans', { count: deleted }));
+        }
+      },
+    });
+  }
+
+  async function onExportClients() {
+    const items = await exportClients();
+    if (!items) return;
+    openText({
+      title: t('pages.clients.exportClients'),
+      content: JSON.stringify(items, null, 2),
+      fileName: 'clients-export.json',
+    });
+  }
+
+  function onImportClients() {
+    openPrompt({
+      title: t('pages.clients.importClients'),
+      okText: t('pages.clients.import'),
+      value: '',
+      confirm: async (value) => {
+        const msg = await importClients(value);
+        if (!msg?.success) return false;
+        const created = msg.obj?.created ?? 0;
+        const skipped = msg.obj?.skipped ?? [];
+        if (skipped.length === 0) {
+          messageApi.success(t('pages.clients.toasts.imported', { count: created }));
+        } else {
+          const firstError = skipped[0]?.reason ?? '';
+          messageApi.warning(firstError
+            ? `${t('pages.clients.toasts.importedMixed', { ok: created, failed: skipped.length })} — ${firstError}`
+            : t('pages.clients.toasts.importedMixed', { ok: created, failed: skipped.length }));
+        }
+        return true;
+      },
+    });
+  }
+
   function onBulkUngroup() {
     const emails = [...selectedRowKeys];
     if (emails.length === 0) return;
@@ -533,6 +638,35 @@ export default function ClientsPage() {
           setSelectedRowKeys([]);
           const affected = (msg.obj as { affected?: number } | undefined)?.affected ?? emails.length;
           messageApi.success(t('pages.clients.ungroupSuccessToast', { count: affected }));
+        }
+      },
+    });
+  }
+
+  function onBulkSetEnable(enable: boolean) {
+    const emails = [...selectedRowKeys];
+    if (emails.length === 0) return;
+    modal.confirm({
+      title: t(enable ? 'pages.clients.bulkEnableConfirmTitle' : 'pages.clients.bulkDisableConfirmTitle', { count: emails.length }),
+      content: t(enable ? 'pages.clients.bulkEnableConfirmContent' : 'pages.clients.bulkDisableConfirmContent'),
+      okText: t('confirm'),
+      okType: enable ? 'primary' : 'danger',
+      cancelText: t('cancel'),
+      onOk: async () => {
+        const msg = enable ? await bulkEnable(emails) : await bulkDisable(emails);
+        setSelectedRowKeys([]);
+        const changed = msg?.obj?.changed ?? 0;
+        const skipped = msg?.obj?.skipped ?? [];
+        const failed = skipped.length;
+        const firstError = skipped[0]?.reason ?? msg?.msg ?? '';
+        const okKey = enable ? 'pages.clients.toasts.bulkEnabled' : 'pages.clients.toasts.bulkDisabled';
+        const mixedKey = enable ? 'pages.clients.toasts.bulkEnabledMixed' : 'pages.clients.toasts.bulkDisabledMixed';
+        if (failed === 0 && msg?.success) {
+          messageApi.success(t(okKey, { count: changed }));
+        } else {
+          messageApi.warning(firstError
+            ? `${t(mixedKey, { ok: changed, failed })} — ${firstError}`
+            : t(mixedKey, { ok: changed, failed }));
         }
       },
     });
@@ -567,23 +701,36 @@ export default function ClientsPage() {
 
   const onSave = useCallback(async (
     payload: Record<string, unknown> | { client: Record<string, unknown>; inboundIds: number[] },
-    meta: { isEdit: false } | { isEdit: true; email: string; attach: number[]; detach: number[] },
+    meta:
+      | { isEdit: false; email: string; externalLinks: ExternalLinkInput[] }
+      | { isEdit: true; email: string; attach: number[]; detach: number[]; externalLinks: ExternalLinkInput[] },
   ) => {
     if (!meta.isEdit) {
-      return create(payload);
+      const createMsg = await create(payload);
+      if (!createMsg?.success) return createMsg;
+      if (meta.email && meta.externalLinks.length > 0) {
+        const r = await setExternalLinks(meta.email, meta.externalLinks);
+        if (!r?.success) return r;
+      }
+      return createMsg;
     }
     const updateMsg = await update(meta.email, payload);
     if (!updateMsg?.success) return updateMsg;
+    const rawEmail = (payload as { email?: unknown }).email;
+    const emailKey = typeof rawEmail === 'string' && rawEmail.trim() ? rawEmail.trim() : meta.email;
     if (Array.isArray(meta.attach) && meta.attach.length > 0) {
-      const r = await attach(meta.email, meta.attach);
+      const r = await attach(emailKey, meta.attach);
       if (!r?.success) return r;
     }
     if (Array.isArray(meta.detach) && meta.detach.length > 0) {
-      const r = await detach(meta.email, meta.detach);
+      const r = await detach(emailKey, meta.detach);
       if (!r?.success) return r;
     }
+    // Always replace the client's external links (an empty set clears them).
+    const r = await setExternalLinks(emailKey, meta.externalLinks);
+    if (!r?.success) return r;
     return updateMsg;
-  }, [create, update, attach, detach]);
+  }, [create, update, attach, detach, setExternalLinks]);
 
   const pageClass = useMemo(() => {
     const classes = ['clients-page'];
@@ -605,19 +752,19 @@ export default function ClientsPage() {
       render: (_v, record) => (
         <Space size={4}>
           <Tooltip title={t('pages.clients.qrCode')}>
-            <Button size="small" type="text" style={{ fontSize: 18 }} icon={<QrcodeOutlined />} onClick={() => onShowQr(record)} />
+            <Button size="small" type="text" style={{ fontSize: 16 }} icon={<QrcodeOutlined />} onClick={() => onShowQr(record)} />
           </Tooltip>
           <Tooltip title={t('pages.clients.clientInfo')}>
-            <Button size="small" type="text" style={{ fontSize: 18 }} icon={<InfoCircleOutlined />} onClick={() => onShowInfo(record)} />
+            <Button size="small" type="text" style={{ fontSize: 16 }} icon={<InfoCircleOutlined />} onClick={() => onShowInfo(record)} />
           </Tooltip>
           <Tooltip title={t('pages.inbounds.resetTraffic')}>
-            <Button size="small" type="text" style={{ fontSize: 18 }} icon={<RetweetOutlined />} onClick={() => onResetTraffic(record)} />
+            <Button size="small" type="text" style={{ fontSize: 16 }} icon={<RetweetOutlined />} onClick={() => onResetTraffic(record)} />
           </Tooltip>
           <Tooltip title={t('edit')}>
-            <Button size="small" type="text" style={{ fontSize: 18 }} icon={<EditOutlined />} onClick={() => onEdit(record)} />
+            <Button size="small" type="text" style={{ fontSize: 16 }} icon={<EditOutlined />} onClick={() => onEdit(record)} />
           </Tooltip>
           <Tooltip title={t('delete')}>
-            <Button size="small" type="text" danger style={{ fontSize: 18 }} icon={<DeleteOutlined />} onClick={() => onDelete(record)} />
+            <Button size="small" type="text" danger style={{ fontSize: 16 }} icon={<DeleteOutlined />} onClick={() => onDelete(record)} />
           </Tooltip>
         </Space>
       ),
@@ -649,7 +796,7 @@ export default function ClientsPage() {
           </Tooltip>
         );
         if (record.enable && isOnline(record.email)) return (
-          <Tag color="green"><span className="online-dot" />{t('pages.clients.online')}</Tag>
+          <Tag color="green" className="dot-tag"><span className="online-dot" />{t('pages.clients.online')}</Tag>
         );
         if (!record.enable) return <Tag>{t('disabled')}</Tag>;
         if (bucket === 'expiring') return <Tag color="orange">{t('depletingSoon')}</Tag>;
@@ -896,28 +1043,14 @@ export default function ClientsPage() {
                               {!isMobile && t('pages.clients.addClients')}
                             </Button>
                           ) : (
-                            <>
-                              <Tag
-                                color="blue"
-                                closable
-                                onClose={() => setSelectedRowKeys([])}
-                                style={{ marginInlineEnd: 0, padding: '4px 8px', fontSize: 13 }}
-                              >
-                                {t('pages.clients.selectedCount', { count: selectedRowKeys.length })}
-                              </Tag>
-                              <Button icon={<UsergroupAddOutlined />} onClick={() => setBulkAttachOpen(true)}>
-                                {!isMobile && t('pages.clients.attach')}
-                              </Button>
-                              <Button danger icon={<UsergroupDeleteOutlined />} onClick={() => setBulkDetachOpen(true)}>
-                                {!isMobile && t('pages.clients.detach')}
-                              </Button>
-                              <Button icon={<TagsOutlined />} onClick={() => setBulkGroupOpen(true)}>
-                                {!isMobile && t('pages.clients.addToGroup')}
-                              </Button>
-                              <Button danger icon={<UngroupIcon />} onClick={onBulkUngroup}>
-                                {!isMobile && t('pages.clients.ungroup')}
-                              </Button>
-                            </>
+                            <Tag
+                              color="blue"
+                              closable
+                              onClose={() => setSelectedRowKeys([])}
+                              style={{ marginInlineEnd: 0, padding: '4px 8px', fontSize: 13 }}
+                            >
+                              {t('pages.clients.selectedCount', { count: selectedRowKeys.length })}
+                            </Tag>
                           )}
                           <Dropdown
                             trigger={['click']}
@@ -925,6 +1058,46 @@ export default function ClientsPage() {
                             menu={{
                               items: selectedRowKeys.length > 0
                                 ? [
+                                  {
+                                    key: 'attach',
+                                    icon: <UsergroupAddOutlined />,
+                                    label: t('pages.clients.attach'),
+                                    onClick: () => setBulkAttachOpen(true),
+                                  },
+                                  {
+                                    key: 'detach',
+                                    icon: <UsergroupDeleteOutlined />,
+                                    label: t('pages.clients.detach'),
+                                    danger: true,
+                                    onClick: () => setBulkDetachOpen(true),
+                                  },
+                                  {
+                                    key: 'addToGroup',
+                                    icon: <TagsOutlined />,
+                                    label: t('pages.clients.addToGroup'),
+                                    onClick: () => setBulkGroupOpen(true),
+                                  },
+                                  {
+                                    key: 'ungroup',
+                                    icon: <UngroupIcon />,
+                                    label: t('pages.clients.ungroup'),
+                                    danger: true,
+                                    onClick: onBulkUngroup,
+                                  },
+                                  { type: 'divider' as const },
+                                  {
+                                    key: 'enable',
+                                    icon: <CheckCircleOutlined />,
+                                    label: t('pages.clients.enable'),
+                                    onClick: () => onBulkSetEnable(true),
+                                  },
+                                  {
+                                    key: 'disable',
+                                    icon: <StopOutlined />,
+                                    label: t('pages.clients.disable'),
+                                    danger: true,
+                                    onClick: () => onBulkSetEnable(false),
+                                  },
                                   {
                                     key: 'adjust',
                                     icon: <ClockCircleOutlined />,
@@ -946,17 +1119,37 @@ export default function ClientsPage() {
                                     onClick: () => setBulkAddOpen(true),
                                   },
                                   {
+                                    key: 'export',
+                                    icon: <DownloadOutlined />,
+                                    label: t('pages.clients.exportClients'),
+                                    onClick: onExportClients,
+                                  },
+                                  {
+                                    key: 'import',
+                                    icon: <UploadOutlined />,
+                                    label: t('pages.clients.importClients'),
+                                    onClick: onImportClients,
+                                  },
+                                  {
                                     key: 'resetAll',
                                     icon: <RetweetOutlined />,
                                     label: t('pages.clients.resetAllTraffics'),
                                     onClick: onResetAllTraffics,
                                   },
+                                  { type: 'divider' as const },
                                   {
                                     key: 'delDepleted',
                                     icon: <RestOutlined />,
                                     label: t('pages.clients.delDepleted'),
                                     danger: true,
                                     onClick: onDelDepleted,
+                                  },
+                                  {
+                                    key: 'delOrphans',
+                                    icon: <DisconnectOutlined />,
+                                    label: t('pages.clients.delOrphans'),
+                                    danger: true,
+                                    onClick: onDeleteOrphans,
                                   },
                                 ],
                             }}
@@ -1100,7 +1293,7 @@ export default function ClientsPage() {
                         <Table<ClientRecord>
                           columns={columns}
                           dataSource={sortedClients}
-                          loading={loading}
+                          loading={transitioning}
                           rowKey="email"
                           rowSelection={rowSelection}
                           pagination={tablePagination}
@@ -1117,7 +1310,7 @@ export default function ClientsPage() {
                           }}
                         />
                       ) : (
-                        <Spin spinning={loading}>
+                        <Spin spinning={transitioning}>
                           <div className="client-cards">
                             {filteredClients.length > 0 && (
                               <div className="card-bulk-bar">
@@ -1243,6 +1436,7 @@ export default function ClientsPage() {
             mode={formMode}
             client={editingClient}
             attachedIds={editingAttachedIds}
+            attachedExternalLinks={editingExternalLinks}
             inbounds={inbounds}
             tgBotEnable={tgBotEnable}
             groups={allGroups}
@@ -1283,8 +1477,8 @@ export default function ClientsPage() {
             open={bulkAdjustOpen}
             count={selectedRowKeys.length}
             onOpenChange={setBulkAdjustOpen}
-            onSubmit={async (addDays, addBytes) => {
-              const msg = await bulkAdjust([...selectedRowKeys], addDays, addBytes);
+            onSubmit={async (addDays, addBytes, flow) => {
+              const msg = await bulkAdjust([...selectedRowKeys], addDays, addBytes, flow);
               if (msg?.success) {
                 setSelectedRowKeys([]);
                 return msg.obj ?? { adjusted: 0 };
@@ -1360,6 +1554,28 @@ export default function ClientsPage() {
             protocols={protocolOptions}
             groups={groupOptions}
             nodes={nodes}
+          />
+        </LazyMount>
+        <LazyMount when={textOpen}>
+          <TextModal
+            open={textOpen}
+            onClose={() => setTextOpen(false)}
+            title={textTitle}
+            content={textContent}
+            fileName={textFileName}
+            json
+          />
+        </LazyMount>
+        <LazyMount when={promptOpen}>
+          <PromptModal
+            open={promptOpen}
+            onClose={() => setPromptOpen(false)}
+            title={promptTitle}
+            okText={promptOkText}
+            initialValue={promptInitial}
+            loading={promptLoading}
+            json
+            onConfirm={onPromptConfirm}
           />
         </LazyMount>
       </Layout>

@@ -26,6 +26,20 @@ func TestSubscriptionExpiryFromClient(t *testing.T) {
 	}
 }
 
+// The name an admin gives a node is panel-internal and must not leak into
+// the remarks end users see in their client apps (#5231) — not even for
+// node-hosted inbounds, which briefly carried a node-name suffix (#5035).
+func TestGenRemarkOmitsNodeName(t *testing.T) {
+	nodeID := 7
+	s := &SubService{
+		nodesByID: map[int]*model.Node{7: {Id: 7, Name: "Berlin", Address: "node7.example.com"}},
+	}
+	ib := &model.Inbound{Remark: "vless-tcp", NodeID: &nodeID}
+	if got := s.genRemark(ib, "", "", ""); got != "vless-tcp" {
+		t.Fatalf("remark = %q, want %q (node name must not leak into client-visible remarks)", got, "vless-tcp")
+	}
+}
+
 func TestFindClientIndex(t *testing.T) {
 	clients := []model.Client{
 		{Email: "a@example.com"},
@@ -355,8 +369,10 @@ func TestBuildXhttpExtra_IncludesClientSideFieldsWhenPresent(t *testing.T) {
 			t.Fatalf("extra missing %q: %#v", key, extra)
 		}
 	}
-	if _, ok := extra["mode"]; ok {
-		t.Fatalf("mode should stay as a top-level query parameter, got extra %#v", extra)
+	// mode rides inside extra (in addition to the flat param) so clients
+	// that only read the extra JSON keep the xhttp mode (#5446).
+	if extra["mode"] != "packet-up" {
+		t.Fatalf("extra[mode] = %#v, want packet-up", extra["mode"])
 	}
 
 	headers, ok := extra["headers"].(map[string]any)
@@ -408,6 +424,25 @@ func TestCloneStringMap_Empty(t *testing.T) {
 	}
 	if len(dst) != 0 {
 		t.Fatalf("clone of empty map should be empty, got %v", dst)
+	}
+}
+
+func TestJoinHostPort(t *testing.T) {
+	cases := []struct {
+		host string
+		port int
+		want string
+	}{
+		{"example.com", 443, "example.com:443"},
+		{"1.2.3.4", 443, "1.2.3.4:443"},
+		{"2001:db8::1", 443, "[2001:db8::1]:443"},
+		{"[2001:db8::1]", 443, "[2001:db8::1]:443"},
+		{"2001:db8::1", 8080, "[2001:db8::1]:8080"},
+	}
+	for _, c := range cases {
+		if got := joinHostPort(c.host, c.port); got != c.want {
+			t.Fatalf("joinHostPort(%q, %d) = %q, want %q", c.host, c.port, got, c.want)
+		}
 	}
 }
 

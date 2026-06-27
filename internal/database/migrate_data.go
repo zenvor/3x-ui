@@ -47,8 +47,11 @@ func migrationModels() []any {
 		&model.InboundClientIps{},
 		&model.ClientRecord{},
 		&model.ClientInbound{},
+		&model.ClientExternalLink{},
 		&model.InboundFallback{},
+		&model.Host{},
 		&model.NodeClientTraffic{},
+		&model.NodeClientIp{},
 		&model.OutboundSubscription{},
 	}
 }
@@ -220,7 +223,7 @@ func copyTable(src, dst *gorm.DB, mdl any) (int, error) {
 		}
 
 		rows := make([]map[string]any, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			rv := reflect.Indirect(slice.Index(i))
 			row := make(map[string]any, len(columns))
 			for _, name := range columns {

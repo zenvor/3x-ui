@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
+	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 )
 
 func initSubDB(t *testing.T) {
@@ -60,6 +61,30 @@ func TestBuildURLs_UsesSubscriberDomain(t *testing.T) {
 	}
 }
 
+// A local wildcard inbound (no node, no custom share address, blank/0.0.0.0
+// listen) must not advertise the raw request host when it carries a client IP
+// that leaked in behind NAT/proxy. The admin's configured panel host wins for
+// this last-resort fallback; without a configured host the request host stands.
+func TestResolveInboundAddress_PrefersConfiguredHostOverClientIP(t *testing.T) {
+	initSubDB(t)
+	local := &model.Inbound{Listen: "", ShareAddrStrategy: "node"}
+
+	s := &SubService{}
+	s.PrepareForRequest("192.168.1.50") // a client LAN IP that reached the panel
+	if got := s.resolveInboundAddress(local); got != "192.168.1.50" {
+		t.Fatalf("with no configured host the request host stands, got %q", got)
+	}
+
+	if err := database.GetDB().Create(&model.Setting{Key: "subDomain", Value: "panel.example.com"}).Error; err != nil {
+		t.Fatalf("set subDomain: %v", err)
+	}
+	s2 := &SubService{}
+	s2.PrepareForRequest("192.168.1.50")
+	if got := s2.resolveInboundAddress(local); got != "panel.example.com" {
+		t.Fatalf("configured host must win over the leaked client IP, got %q", got)
+	}
+}
+
 func TestBuildURLs_EmptySubId(t *testing.T) {
 	initSubDB(t)
 	s := &SubService{}
@@ -67,6 +92,27 @@ func TestBuildURLs_EmptySubId(t *testing.T) {
 	a, b, c := s.BuildURLs("/sub/", "/json/", "/clash/", "")
 	if a != "" || b != "" || c != "" {
 		t.Fatalf("empty subId must yield empty URLs, got %q %q %q", a, b, c)
+	}
+}
+
+func TestForRequestDoesNotMutateSharedService(t *testing.T) {
+	initSubDB(t)
+	base := &SubService{}
+
+	first := base.ForRequest("first.example.com")
+	second := base.ForRequest("second.example.com")
+
+	if base.address != "" || base.nodesByID != nil {
+		t.Fatalf("ForRequest mutated the shared service: address=%q nodes=%v", base.address, base.nodesByID)
+	}
+
+	firstURL, _, _ := first.BuildURLs("/sub/", "/json/", "/clash/", "ABC")
+	secondURL, _, _ := second.BuildURLs("/sub/", "/json/", "/clash/", "ABC")
+	if !strings.Contains(firstURL, "first.example.com") {
+		t.Fatalf("first request URL = %q, want first.example.com", firstURL)
+	}
+	if !strings.Contains(secondURL, "second.example.com") {
+		t.Fatalf("second request URL = %q, want second.example.com", secondURL)
 	}
 }
 

@@ -437,6 +437,91 @@ describe('genShadowsocksLink', () => {
   }
 });
 
+describe('IPv6 bracket wrapping in share-link authority', () => {
+  it('genVlessLink brackets a bare IPv6 address', () => {
+    const [, raw] = fixturesForProtocol('vless')[0];
+    const typed = InboundSchema.parse(raw);
+    const clientId = (raw as { settings: { clients: Array<{ id: string }> } }).settings.clients[0].id;
+
+    const link = genVlessLink({
+      inbound: typed,
+      address: '2001:db8::1',
+      port: 443,
+      clientId,
+    });
+    expect(new URL(link).host).toBe('[2001:db8::1]:443');
+  });
+
+  it('genTrojanLink brackets a bare IPv6 address', () => {
+    const [, raw] = fixturesForProtocol('trojan')[0];
+    const typed = InboundSchema.parse(raw);
+    const clientPassword = (raw as { settings: { clients: Array<{ password: string }> } }).settings.clients[0].password;
+
+    const link = genTrojanLink({
+      inbound: typed,
+      address: '2001:db8::1',
+      port: 443,
+      clientPassword,
+    });
+    expect(new URL(link).host).toBe('[2001:db8::1]:443');
+  });
+
+  it('genShadowsocksLink brackets a bare IPv6 address', () => {
+    const [, raw] = fixturesForProtocol('shadowsocks')[0];
+    const typed = InboundSchema.parse(raw);
+    const clientPassword = (raw as { settings: { clients?: Array<{ password: string }> } }).settings.clients?.[0]?.password ?? '';
+
+    const link = genShadowsocksLink({
+      inbound: typed,
+      address: '2001:db8::1',
+      port: 443,
+      clientPassword,
+    });
+    expect(new URL(link).host).toBe('[2001:db8::1]:443');
+  });
+
+  it('genHysteriaLink brackets a bare IPv6 address', () => {
+    const [, raw] = fixturesForProtocol('hysteria')[0];
+    const typed = InboundSchema.parse(raw);
+    const clientAuth = (raw as { settings: { clients: Array<{ auth: string }> } }).settings.clients[0].auth;
+
+    const link = genHysteriaLink({
+      inbound: typed,
+      address: '2001:db8::1',
+      port: 443,
+      clientAuth,
+    });
+    expect(new URL(link).host).toBe('[2001:db8::1]:443');
+  });
+
+  it('genWireguardLink brackets a bare IPv6 address', () => {
+    const [, raw] = fixturesForProtocol('wireguard')[0];
+    const typed = InboundSchema.parse(raw);
+    if (typed.protocol !== 'wireguard') throw new Error('not a wireguard fixture');
+    const settings = typed.settings as WireguardInboundSettings;
+
+    const link = genWireguardLink({
+      settings,
+      address: '2001:db8::1',
+      port: 443,
+      peerIndex: 0,
+    });
+    expect(new URL(link).host).toBe('[2001:db8::1]:443');
+  });
+
+  it('does not bracket IPv4 addresses or hostnames', () => {
+    const [, raw] = fixturesForProtocol('vless')[0];
+    const typed = InboundSchema.parse(raw);
+    const clientId = (raw as { settings: { clients: Array<{ id: string }> } }).settings.clients[0].id;
+
+    const v4 = genVlessLink({ inbound: typed, address: '203.0.113.7', port: 443, clientId });
+    expect(new URL(v4).host).toBe('203.0.113.7:443');
+
+    const host = genVlessLink({ inbound: typed, address: 'example.test', port: 443, clientId });
+    expect(new URL(host).host).toBe('example.test:443');
+  });
+});
+
 describe('external proxy pinned cert (pcs)', () => {
   const [, raw] = fixturesForProtocol('vless').find(([name]) => name === 'vless-ws-tls')!;
   const typed = InboundSchema.parse(raw);
@@ -480,5 +565,96 @@ describe('external proxy pinned cert (pcs)', () => {
     });
 
     expect(new URL(link).searchParams.has('pcs')).toBe(false);
+  });
+});
+
+// #5322: the panel copy-link must carry XTLS Vision `flow` for VLESS+XHTTP
+// when VLESS encryption (vlessenc) is on, matching the form's flow display
+// and the backend subscription. Gating is via canEnableTlsFlow.
+describe('genVlessLink flow gating (#5322)', () => {
+  function vlessXhttp(encryption: string) {
+    return InboundSchema.parse({
+      id: 1,
+      up: 0,
+      down: 0,
+      total: 0,
+      remark: 'vlessenc',
+      enable: true,
+      expiryTime: 0,
+      listen: '',
+      port: 443,
+      tag: 'inbound-vless-xhttp',
+      sniffing: {
+        enabled: false,
+        destOverride: [],
+        metadataOnly: false,
+        routeOnly: false,
+        ipsExcluded: [],
+        domainsExcluded: [],
+      },
+      protocol: 'vless',
+      settings: {
+        clients: [
+          {
+            id: '11111111-2222-3333-4444-555555555555',
+            email: 'a@example.test',
+            flow: 'xtls-rprx-vision',
+            limitIp: 0,
+            totalGB: 0,
+            expiryTime: 0,
+            enable: true,
+            tgId: 0,
+            subId: 's1',
+            comment: '',
+            reset: 0,
+          },
+        ],
+        decryption: 'none',
+        encryption,
+        fallbacks: [],
+      },
+      streamSettings: {
+        network: 'xhttp',
+        xhttpSettings: {},
+        security: 'none',
+      },
+    });
+  }
+
+  const clientId = '11111111-2222-3333-4444-555555555555';
+
+  it('emits flow for VLESS+XHTTP when vless encryption is enabled', () => {
+    const link = genVlessLink({
+      inbound: vlessXhttp('mlkem768x25519plus.native.0rtt.SGVsbG8'),
+      address: 'example.test',
+      port: 443,
+      clientId,
+      flow: 'xtls-rprx-vision',
+    });
+    expect(new URL(link).searchParams.get('flow')).toBe('xtls-rprx-vision');
+  });
+
+  it('omits flow for VLESS+XHTTP without vless encryption', () => {
+    const link = genVlessLink({
+      inbound: vlessXhttp('none'),
+      address: 'example.test',
+      port: 443,
+      clientId,
+      flow: 'xtls-rprx-vision',
+    });
+    expect(new URL(link).searchParams.has('flow')).toBe(false);
+  });
+
+  it('still emits flow for classic TCP+REALITY Vision', () => {
+    const [, raw] = fixturesForProtocol('vless').find(([name]) => name === 'vless-tcp-reality')!;
+    const typed = InboundSchema.parse(raw);
+    const link = genVlessLink({
+      inbound: typed,
+      address: 'example.test',
+      port: 443,
+      clientId: (raw as { settings: { clients: Array<{ id: string }> } }).settings.clients[0].id,
+      flow: 'xtls-rprx-vision',
+    });
+    expect(new URL(link).searchParams.get('flow')).toBe('xtls-rprx-vision');
   });
 });

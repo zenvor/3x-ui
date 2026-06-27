@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -18,6 +19,15 @@ var version string
 
 //go:embed name
 var name string
+
+// buildCommit and buildDate are injected at build time via `-ldflags -X` for
+// CI per-commit (dev channel) builds; see .github/workflows/release.yml. They
+// stay empty for a plain `go build` and for stable tagged releases, which is how
+// IsDevBuild tells a rolling dev build apart from a stable/local one.
+var (
+	buildCommit string
+	buildDate   string
+)
 
 // LogLevel represents the logging level for the application.
 type LogLevel string
@@ -31,14 +41,50 @@ const (
 	Error   LogLevel = "error"
 )
 
-// GetVersion returns the version string of the 3x-ui application.
-func GetVersion() string {
+// GetBaseVersion returns the raw embedded release version of the 3x-ui panel
+// (e.g. "3.4.0"). This is the panel's own version, not the Xray version. For the
+// version a panel advertises/displays (which adds a "dev+<sha>" label on dev
+// builds), use GetPanelVersion.
+func GetBaseVersion() string {
 	return strings.TrimSpace(version)
 }
 
 // GetName returns the name of the 3x-ui application.
 func GetName() string {
 	return strings.TrimSpace(name)
+}
+
+// GetBuildCommit returns the short git commit this binary was built from, or an
+// empty string for a plain/local build or a stable tagged release.
+func GetBuildCommit() string {
+	return strings.TrimSpace(buildCommit)
+}
+
+// GetBuildDate returns the UTC build timestamp injected at build time, or empty.
+func GetBuildDate() string {
+	return strings.TrimSpace(buildDate)
+}
+
+// IsDevBuild reports whether this binary is a CI per-commit (dev channel) build,
+// detected by the injected commit. Stable releases and local builds return false.
+func IsDevBuild() bool {
+	return GetBuildCommit() != ""
+}
+
+// GetPanelVersion returns the version a panel advertises to a managing master
+// node and displays in the UI: the plain version for stable builds, or
+// "dev+<short commit>" for dev builds. The dev form mirrors the master's
+// getPanelUpdateInfo latestVersion so a node on the current dev commit compares
+// as up to date instead of always showing "update available".
+func GetPanelVersion() string {
+	if !IsDevBuild() {
+		return GetBaseVersion()
+	}
+	commit := GetBuildCommit()
+	if len(commit) > 8 {
+		commit = commit[:8]
+	}
+	return "dev+" + commit
 }
 
 // GetLogLevel returns the current logging level based on environment variables or defaults to Info.
@@ -61,6 +107,23 @@ func IsDebug() bool {
 // IsSkipHSTS returns true if skipping HSTS mode is enabled via the XUI_SKIP_HSTS environment variable.
 func IsSkipHSTS() bool {
 	return os.Getenv("XUI_SKIP_HSTS") == "true"
+}
+
+func GetPortOverride() (port int, configured bool, err error) {
+	value, ok := os.LookupEnv("XUI_PORT")
+	if !ok || strings.TrimSpace(value) == "" {
+		return 0, false, nil
+	}
+
+	port, err = strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return 0, true, fmt.Errorf("parse XUI_PORT: %w", err)
+	}
+	if port < 1 || port > 65535 {
+		return 0, true, fmt.Errorf("XUI_PORT must be between 1 and 65535")
+	}
+
+	return port, true, nil
 }
 
 // GetBinFolderPath returns the path to the binary folder, defaulting to "bin" if not set via XUI_BIN_FOLDER.

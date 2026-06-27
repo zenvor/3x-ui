@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -31,6 +32,7 @@ var (
 type XrayService struct {
 	inboundService InboundService
 	settingService SettingService
+	nodeService    NodeService
 	xrayAPI        xray.XrayAPI
 }
 
@@ -94,7 +96,7 @@ func (s *XrayService) GetXrayVersion() string {
 	if p == nil {
 		return "Unknown"
 	}
-	return p.GetVersion()
+	return p.GetXrayVersion()
 }
 
 // RemoveIndex removes an element at the specified index from a slice.
@@ -118,6 +120,11 @@ func (s *XrayService) GetXrayConfig() (*xray.Config, error) {
 	xrayConfig.LogConfig = resolveXrayLogPaths(xrayConfig.LogConfig)
 	xrayConfig.API = ensureAPIServices(xrayConfig.API)
 	xrayConfig.Policy = ensureStatsPolicy(xrayConfig.Policy)
+	xrayConfig.RouterConfig = stripDisabledRules(xrayConfig.RouterConfig)
+	// Template outbounds authored before the xray-core #6258 XHTTP rename may
+	// still carry sessionPlacement/sessionKey; lift them too (same reason as
+	// the per-inbound lift below).
+	xrayConfig.OutboundConfigs = liftOutboundsXhttpSessionIDKeys(xrayConfig.OutboundConfigs)
 
 	_, _, _ = s.inboundService.AddTraffic(nil, nil)
 
@@ -248,6 +255,12 @@ func (s *XrayService) GetXrayConfig() (*xray.Config, error) {
 
 			delete(stream, "externalProxy")
 
+			// xray-core v26.6.22 (#6258) renamed the XHTTP session keys and
+			// kept no fallback. Lift legacy sessionPlacement/sessionKey onto the
+			// new names here so inbounds stored before the rename keep working
+			// without the admin re-saving them.
+			liftXhttpSessionIDKeys(stream)
+
 			newStream, err := json.MarshalIndent(stream, "", "  ")
 			if err != nil {
 				return nil, err
@@ -294,6 +307,13 @@ func (s *XrayService) GetXrayConfig() (*xray.Config, error) {
 		logger.Warning("read panelOutbound setting failed:", err)
 	} else if egressTag != "" {
 		injectPanelEgress(xrayConfig, egressTag)
+	}
+
+	nodes, err := s.nodeService.GetAll()
+	if err != nil {
+		logger.Warning("read nodes for egress injection failed:", err)
+	} else {
+		injectNodeEgresses(xrayConfig, nodes)
 	}
 
 	return xrayConfig, nil
@@ -370,6 +390,88 @@ func injectPanelEgress(cfg *xray.Config, outboundTag string) {
 		Settings: json_util.RawMessage(`{"auth":"noauth","udp":false}`),
 		Tag:      PanelEgressInboundTag,
 	})
+}
+
+// NodeEgressInboundTag returns the loopback SOCKS inbound tag for a given node.
+func NodeEgressInboundTag(nodeID int) string {
+	return fmt.Sprintf("node-egress-%d", nodeID)
+}
+
+// nodeEgressBasePort is the first port tried for node egress bridges.
+const nodeEgressBasePort = 62800
+
+// injectNodeEgresses appends a loopback SOCKS inbound per enabled node that has
+// an OutboundTag, and prepends a routing rule sending that inbound's traffic to
+// the selected outbound tag. These bridges are hot-appliable.
+func injectNodeEgresses(cfg *xray.Config, nodes []*model.Node) {
+	routing := map[string]any{}
+	if len(cfg.RouterConfig) > 0 {
+		if err := json.Unmarshal(cfg.RouterConfig, &routing); err != nil {
+			logger.Warning("node egress: routing section is unparsable, skipping injection:", err)
+			return
+		}
+	}
+
+	used := make(map[int]struct{}, len(cfg.InboundConfigs))
+	usedTags := make(map[string]struct{}, len(cfg.InboundConfigs))
+	for i := range cfg.InboundConfigs {
+		used[cfg.InboundConfigs[i].Port] = struct{}{}
+		usedTags[cfg.InboundConfigs[i].Tag] = struct{}{}
+	}
+
+	rules, _ := routing["rules"].([]any)
+	newRules := make([]any, 0)
+
+	for _, n := range nodes {
+		if !n.Enable || n.OutboundTag == "" {
+			continue
+		}
+		tag := NodeEgressInboundTag(n.Id)
+		if _, exists := usedTags[tag]; exists {
+			logger.Warning("node egress: inbound tag [", tag, "] already exists, skipping")
+			continue
+		}
+		usedTags[tag] = struct{}{}
+
+		rule := map[string]any{
+			"type":       "field",
+			"inboundTag": []any{tag},
+		}
+		if routingTagIsBalancer(routing, n.OutboundTag) {
+			rule["balancerTag"] = n.OutboundTag
+		} else {
+			rule["outboundTag"] = n.OutboundTag
+		}
+		newRules = append(newRules, rule)
+
+		port := nodeEgressBasePort + n.Id
+		for {
+			if _, taken := used[port]; !taken {
+				break
+			}
+			port++
+		}
+		used[port] = struct{}{}
+
+		cfg.InboundConfigs = append(cfg.InboundConfigs, xray.InboundConfig{
+			Listen:   json_util.RawMessage(`"127.0.0.1"`),
+			Port:     port,
+			Protocol: "socks",
+			Settings: json_util.RawMessage(`{"auth":"noauth","udp":false}`),
+			Tag:      tag,
+		})
+	}
+
+	if len(newRules) == 0 {
+		return
+	}
+	routing["rules"] = append(newRules, rules...)
+	newRouting, err := json.Marshal(routing)
+	if err != nil {
+		logger.Warning("node egress: failed to rebuild routing section, skipping injection:", err)
+		return
+	}
+	cfg.RouterConfig = json_util.RawMessage(newRouting)
 }
 
 // routingTagIsBalancer reports whether tag names a balancer in the parsed
@@ -484,7 +586,7 @@ func mergeSubscriptionOutbounds(cfg *xray.Config, prepend, appendList []any) {
 			return
 		}
 	}
-	merged := make([]any, 0, len(prepend)+len(templateOutbounds)+len(appendList))
+	var merged []any
 	merged = append(merged, prepend...)
 	merged = append(merged, templateOutbounds...)
 	merged = append(merged, appendList...)
@@ -616,6 +718,59 @@ func resolveXrayLogPaths(logCfg json_util.RawMessage) json_util.RawMessage {
 	out, err := json.Marshal(parsed)
 	if err != nil {
 		return logCfg
+	}
+	return out
+}
+
+// stripDisabledRules removes routing rules marked `enabled: false` from the
+// generated runtime config and strips the panel-only `enabled` key from the
+// rest, since xray-core has no such field. The internal api rule is always
+// kept (see isApiRule) so traffic stats can't be toggled off. The stored
+// template is untouched — only the generated config is filtered.
+func stripDisabledRules(routerCfg json_util.RawMessage) json_util.RawMessage {
+	if len(routerCfg) == 0 {
+		return routerCfg
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(routerCfg, &parsed); err != nil {
+		return routerCfg
+	}
+	rules, ok := parsed["rules"].([]any)
+	if !ok || len(rules) == 0 {
+		return routerCfg
+	}
+
+	var activeRules []any
+	changed := false
+	for _, rawRule := range rules {
+		rule, ok := rawRule.(map[string]any)
+		if !ok {
+			activeRules = append(activeRules, rawRule)
+			continue
+		}
+
+		if enabledRaw, exists := rule["enabled"]; exists {
+			// The internal api rule carries traffic stats and must never be
+			// dropped, even if it was somehow marked disabled.
+			enabled, ok := enabledRaw.(bool)
+			if ok && !enabled && !isApiRule(rule) {
+				changed = true
+				continue
+			}
+			delete(rule, "enabled")
+			changed = true
+		}
+		activeRules = append(activeRules, rule)
+	}
+
+	if !changed {
+		return routerCfg
+	}
+
+	parsed["rules"] = activeRules
+	out, err := json.Marshal(parsed)
+	if err != nil {
+		return routerCfg
 	}
 	return out
 }
@@ -932,4 +1087,61 @@ func (s *XrayService) IsNeedRestartAndSetFalse() bool {
 // DidXrayCrash checks if Xray crashed by verifying it's not running and wasn't manually stopped.
 func (s *XrayService) DidXrayCrash() bool {
 	return !s.IsXrayRunning() && !isManuallyStopped.Load()
+}
+
+// liftXhttpSessionIDKeys renames the legacy XHTTP session keys
+// (sessionPlacement/sessionKey) to the v26.6.22 #6258 names
+// (sessionIDPlacement/sessionIDKey) inside a streamSettings map. xray-core kept
+// no fallback for the old names, so a config stored before the rename would be
+// silently ignored by the engine. Returns true if it changed anything.
+func liftXhttpSessionIDKeys(stream map[string]any) bool {
+	xhttp, ok := stream["xhttpSettings"].(map[string]any)
+	if !ok {
+		return false
+	}
+	changed := false
+	for legacy, renamed := range map[string]string{
+		"sessionPlacement": "sessionIDPlacement",
+		"sessionKey":       "sessionIDKey",
+	} {
+		v, has := xhttp[legacy]
+		if !has {
+			continue
+		}
+		if _, exists := xhttp[renamed]; !exists {
+			xhttp[renamed] = v
+		}
+		delete(xhttp, legacy)
+		changed = true
+	}
+	return changed
+}
+
+// liftOutboundsXhttpSessionIDKeys applies liftXhttpSessionIDKeys to every
+// outbound's streamSettings in the raw outbounds array. The original bytes are
+// returned untouched when nothing needs lifting, so an unchanged config never
+// looks modified to the hot-reload diff.
+func liftOutboundsXhttpSessionIDKeys(raw json_util.RawMessage) json_util.RawMessage {
+	if len(raw) == 0 {
+		return raw
+	}
+	var outbounds []map[string]any
+	if err := json.Unmarshal(raw, &outbounds); err != nil {
+		return raw
+	}
+	changed := false
+	for _, ob := range outbounds {
+		if stream, ok := ob["streamSettings"].(map[string]any); ok {
+			if liftXhttpSessionIDKeys(stream) {
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		return raw
+	}
+	if rewritten, err := json.Marshal(outbounds); err == nil {
+		return rewritten
+	}
+	return raw
 }

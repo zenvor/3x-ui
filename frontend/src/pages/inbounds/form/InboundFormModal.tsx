@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { QuestionCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
   Alert,
@@ -16,6 +17,7 @@ import {
 } from 'antd';
 
 import { HttpUtil, NumberFormatter, RandomUtil, SizeFormatter, Wireguard } from '@/utils';
+import type { RealityScanResult } from '@/generated/types';
 import {
   rawInboundToFormValues,
   formValuesToWirePayload,
@@ -64,7 +66,6 @@ import {
   WireguardFields,
 } from './protocols';
 import {
-  ExternalProxyForm,
   GrpcForm,
   HttpUpgradeForm,
   KcpForm,
@@ -82,6 +83,16 @@ import SniffingTab from './SniffingTab';
 import type { DBInbound } from '@/models/dbinbound';
 import type { NodeRecord } from '@/api/queries/useNodesQuery';
 
+
+// Render a field label with a hover tooltip icon instead of an `extra` help line below.
+const labelWithHint = (label: string, hint: string) => (
+  <span>
+    {label}
+    <Tooltip title={hint}>
+      <QuestionCircleOutlined style={{ marginInlineStart: 4, color: 'rgba(128,128,128,0.65)' }} />
+    </Tooltip>
+  </span>
+);
 
 const PROTOCOL_OPTIONS = Object.values(Protocols).map((p) => ({ value: p, label: p }));
 const TRAFFIC_RESETS = ['never', 'hourly', 'daily', 'weekly', 'monthly'] as const;
@@ -128,6 +139,7 @@ interface InboundFormModalProps {
   dbInbound: DBInbound | null;
   dbInbounds: DBInbound[];
   availableNodes?: NodeRecord[];
+  availableNodesFetched?: boolean;
 }
 
 function buildAddModeValues(): InboundFormValues {
@@ -157,11 +169,14 @@ export default function InboundFormModal({
   dbInbound,
   dbInbounds,
   availableNodes,
+  availableNodesFetched = true,
 }: InboundFormModalProps) {
   const { t } = useTranslation();
   const [messageApi, messageContextHolder] = message.useMessage();
   const [form] = Form.useForm<InboundFormValues>();
   const [saving, setSaving] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<RealityScanResult | null>(null);
   const {
     fallbacks,
     fallbackChildOptions,
@@ -181,7 +196,6 @@ export default function InboundFormModal({
   // actually live on a node — otherwise the node address it would resolve to is
   // always empty. Offer it only then; `listen`/`custom` work for local inbounds.
   const nodeShareOptionAvailable = selectableNodes.length > 0 && isNodeEligible;
-  const sniffingEnabled = Form.useWatch(['sniffing', 'enabled'], form) ?? false;
   const vlessEncryption = Form.useWatch(['settings', 'encryption'], form) ?? '';
   const ssMethod = Form.useWatch(['settings', 'method'], form);
   const isSSWith2022 = isSS2022({
@@ -230,33 +244,19 @@ export default function InboundFormModal({
     clearRealityKeypair,
     genMldsa65,
     clearMldsa65,
-    randomizeRealityTarget,
+    scanRealityTarget,
+    scanRealityCandidates,
+    applyRealityScanResult,
     randomizeShortIds,
     getNewEchCert,
     clearEchCert,
-    generateRandomPinHash,
+    pinFromCert,
+    pinFromRemote,
     setCertFromPanel,
     clearCertFiles,
     onSecurityChange,
-  } = useSecurityActions({ form, setSaving, messageApi, nodeId: typeof wNodeId === 'number' ? wNodeId : null });
+  } = useSecurityActions({ form, setSaving, messageApi, nodeId: typeof wNodeId === 'number' ? wNodeId : null, setScanResult, setScanning });
 
-  const toggleExternalProxy = (on: boolean) => {
-    if (on) {
-      const port = (form.getFieldValue('port') as number) ?? 443;
-      form.setFieldValue(['streamSettings', 'externalProxy'], [{
-        forceTls: 'same',
-        dest: typeof window !== 'undefined' ? window.location.hostname : '',
-        port,
-        remark: '',
-        sni: '',
-        fingerprint: '',
-        alpn: [],
-        pinnedPeerCertSha256: [],
-      }]);
-    } else {
-      form.setFieldValue(['streamSettings', 'externalProxy'], []);
-    }
-  };
 
   const toggleSockopt = (on: boolean) => {
     if (on) {
@@ -290,8 +290,12 @@ export default function InboundFormModal({
   ) => {
     if (block?.id === authId) return true;
     const label = (block?.label || '').toLowerCase().replace(/[-_\s]/g, '');
-    if (authId === 'mlkem768') return label.includes('mlkem768');
-    if (authId === 'x25519') return label.includes('x25519');
+    if (authId === 'mlkem768') return label.includes('mlkem768') && !label.includes('xorpub') && !label.includes('random');
+    if (authId === 'x25519') return label.includes('x25519') && !label.includes('xorpub') && !label.includes('random');
+    if (authId === 'mlkem768_xorpub') return label.includes('mlkem768') && label.includes('xorpub');
+    if (authId === 'mlkem768_random') return label.includes('mlkem768') && label.includes('random');
+    if (authId === 'x25519_xorpub') return label.includes('x25519') && label.includes('xorpub');
+    if (authId === 'x25519_random') return label.includes('x25519') && label.includes('random');
     return false;
   };
 
@@ -324,7 +328,19 @@ export default function InboundFormModal({
     const parts = enc.split('.').filter(Boolean);
     const authKey = parts[parts.length - 1] || '';
     if (!authKey) return t('pages.inbounds.vlessAuthCustom');
-    return authKey.length > 300
+    const mode = parts[1] || 'native';
+    const keyType = authKey.length > 300 ? 'mlkem768' : 'x25519';
+    if (mode === 'xorpub') {
+      return keyType === 'mlkem768'
+        ? t('pages.inbounds.vlessAuthMlkem768Xorpub')
+        : t('pages.inbounds.vlessAuthX25519Xorpub');
+    }
+    if (mode === 'random') {
+      return keyType === 'mlkem768'
+        ? t('pages.inbounds.vlessAuthMlkem768Random')
+        : t('pages.inbounds.vlessAuthX25519Random');
+    }
+    return keyType === 'mlkem768'
       ? t('pages.inbounds.vlessAuthMlkem768')
       : t('pages.inbounds.vlessAuthX25519');
   })();
@@ -336,6 +352,7 @@ export default function InboundFormModal({
       : buildAddModeValues();
     form.resetFields();
     form.setFieldsValue(initial);
+    setScanResult(null);
     const initialTag = (initial.tag ?? '') as string;
     autoTagRef.current = isAutoInboundTag(initialTag, {
       port: initial.port ?? 0,
@@ -379,14 +396,22 @@ export default function InboundFormModal({
   // offered (no node, or a protocol that can't deploy to one) fall back to
   // `listen`, which yields the same link for a local inbound. Mirrors how the
   // protocol reset drops a nodeId that no longer applies.
+  // Only downgrade once the inputs this decision depends on are settled, so a
+  // persisted `node` strategy is never clobbered by transient mount state (#5375):
+  //  - `availableNodesFetched`: an empty `availableNodes` during the async
+  //    /nodes/list fetch is a placeholder, not "no nodes".
+  //  - `protocol`: `Form.useWatch('protocol')` is briefly empty on the first
+  //    edit render before initialValues apply, which would momentarily make the
+  //    node option look unavailable.
   useEffect(() => {
     if (!open) return;
+    if (!availableNodesFetched || !protocol) return;
     const current = form.getFieldValue('shareAddrStrategy') as InboundFormValues['shareAddrStrategy'] | undefined;
     if (!nodeShareOptionAvailable && (current ?? 'node') === 'node') {
       form.setFieldValue('shareAddrStrategy', 'listen');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, nodeShareOptionAvailable, shareAddrStrategy]);
+  }, [open, availableNodesFetched, protocol, nodeShareOptionAvailable, shareAddrStrategy]);
 
   // Why: protocol picker reset cascades through the form — clearing the
   // settings DU branch and dropping a nodeId that no longer applies. The
@@ -538,16 +563,14 @@ export default function InboundFormModal({
 
       <Form.Item
         name="listen"
-        label={t('pages.inbounds.address')}
-        extra={t('pages.inbounds.form.listenHelp')}
+        label={labelWithHint(t('pages.inbounds.address'), t('pages.inbounds.form.listenHelp'))}
       >
         <Input placeholder={t('pages.inbounds.monitorDesc')} />
       </Form.Item>
 
       <Form.Item
         name="shareAddrStrategy"
-        label={t('pages.inbounds.form.shareAddrStrategy')}
-        extra={t('pages.inbounds.form.shareAddrStrategyHelp')}
+        label={labelWithHint(t('pages.inbounds.form.shareAddrStrategy'), t('pages.inbounds.form.shareAddrStrategyHelp'))}
       >
         <Select
           options={SHARE_ADDR_STRATEGIES
@@ -562,8 +585,7 @@ export default function InboundFormModal({
       {shareAddrStrategy === 'custom' && (
         <Form.Item
           name="shareAddr"
-          label={t('pages.inbounds.form.shareAddr')}
-          extra={t('pages.inbounds.form.shareAddrHelp')}
+          label={labelWithHint(t('pages.inbounds.form.shareAddr'), t('pages.inbounds.form.shareAddrHelp'))}
           rules={[{
             validator: (_, value) => (
               isValidShareAddrInput(String(value ?? ''))
@@ -578,8 +600,7 @@ export default function InboundFormModal({
 
       <Form.Item
         name="subSortIndex"
-        label={t('pages.inbounds.form.subSortIndex')}
-        extra={t('pages.inbounds.form.subSortIndexHelp')}
+        label={labelWithHint(t('pages.inbounds.form.subSortIndex'), t('pages.inbounds.form.subSortIndexHelp'))}
       >
         <InputNumber min={1} />
       </Form.Item>
@@ -696,7 +717,7 @@ export default function InboundFormModal({
             className="mt-12"
             type="info"
             showIcon
-            message={t('pages.inbounds.fallbacks.needsTls')}
+            title={t('pages.inbounds.fallbacks.needsTls')}
           />
         )}
     </>
@@ -709,7 +730,7 @@ export default function InboundFormModal({
   // etc., not empty strings).
   // Seed each network's settings blob with its Zod schema defaults so
   // every Form.Item inside the network sub-form has a defined starting
-  // value. XHTTP in particular has ~20 fields (sessionPlacement,
+  // value. XHTTP in particular has ~20 fields (sessionIDPlacement,
   // seqPlacement, xPaddingMethod, uplinkHTTPMethod, ...) whose value
   // is the literal "" sentinel meaning "let xray-core pick its
   // default". Without seeding "", the Form.Item reads `undefined` and
@@ -804,14 +825,11 @@ export default function InboundFormModal({
         </>
       )}
 
-      {/* externalProxy only feeds client share links. Wireguard's per-peer
-          .conf fanout resolves its host elsewhere, and tunnel (dokodemo-door)
-          has no clients at all — the section is dead weight on both. */}
-      {protocol !== Protocols.WIREGUARD && protocol !== Protocols.TUNNEL && (
-        <ExternalProxyForm toggleExternalProxy={toggleExternalProxy} />
-      )}
+      {/* The legacy externalProxy section is replaced by the Hosts page; the
+          field is still parsed/rendered for backward compatibility but is no
+          longer editable here. */}
 
-      <SockoptForm toggleSockopt={toggleSockopt} />
+      <SockoptForm toggleSockopt={toggleSockopt} network={network as string} />
 
       {/* Transport masks don't apply to tunnel (a transparent forwarder), so
           its stream tab is just sockopt + TProxy. */}
@@ -868,7 +886,8 @@ export default function InboundFormModal({
           saving={saving}
           setCertFromPanel={setCertFromPanel}
           clearCertFiles={clearCertFiles}
-          generateRandomPinHash={generateRandomPinHash}
+          pinFromCert={pinFromCert}
+          pinFromRemote={pinFromRemote}
           getNewEchCert={getNewEchCert}
           clearEchCert={clearEchCert}
         />
@@ -877,7 +896,11 @@ export default function InboundFormModal({
       {security === 'reality' && (
         <RealityForm
           saving={saving}
-          randomizeRealityTarget={randomizeRealityTarget}
+          scanning={scanning}
+          scanResult={scanResult}
+          scanRealityTarget={scanRealityTarget}
+          scanRealityCandidates={scanRealityCandidates}
+          applyRealityScanResult={applyRealityScanResult}
           randomizeShortIds={randomizeShortIds}
           genRealityKeypair={genRealityKeypair}
           clearRealityKeypair={clearRealityKeypair}
@@ -979,7 +1002,7 @@ export default function InboundFormModal({
     </div>
   );
 
-  const sniffingTab = <SniffingTab sniffingEnabled={sniffingEnabled} />;
+  const sniffingTab = <SniffingTab />;
 
   return (
     <>

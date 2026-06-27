@@ -16,6 +16,7 @@ exports[`inbound security forms > RealityForm field structure is stable 1`] = `
   "Private Key",
   "mldsa65 Seed",
   "mldsa65 Verify",
+  "Master Key Log",
 ]
 `;
 
@@ -26,19 +27,17 @@ exports[`inbound security forms > TlsForm field structure is stable 1`] = `
   "Min/Max Version",
   "uTLS",
   "ALPN",
+  "Curve Preferences",
   "Reject Unknown SNI",
   "Disable System Root",
   "Session Resumption",
   "Digital Certificate",
+  "Master Key Log",
+  "ECH Sockopt",
   "ECH key",
   "ECH config",
   "Pinned Peer Cert SHA-256",
-]
-`;
-
-exports[`inbound transport forms > ExternalProxyForm field structure is stable (one TLS entry) 1`] = `
-[
-  "External Proxy",
+  "Verify Peer Cert By Name",
 ]
 `;
 
@@ -77,9 +76,10 @@ exports[`inbound transport forms > RawForm field structure is stable 1`] = `
 ]
 `;
 
-exports[`inbound transport forms > SockoptForm field structure is stable (enabled + happy eyeballs) 1`] = `
+exports[`inbound transport forms > SockoptForm field structure is stable (server-side fields only) 1`] = `
 [
   "Sockopt",
+  "Real client IP",
   "Route Mark",
   "TCP Keep Alive Interval",
   "TCP Keep Alive Idle",
@@ -88,21 +88,11 @@ exports[`inbound transport forms > SockoptForm field structure is stable (enable
   "TCP Window Clamp",
   "Proxy Protocol",
   "TCP Fast Open",
-  "Multipath TCP",
   "Penetrate",
   "V6 Only",
-  "Domain Strategy",
   "TCP Congestion",
   "TProxy",
-  "Dialer Proxy",
-  "Interface name",
   "Trusted X-Forwarded-For",
-  "Address+port strategy",
-  "Happy Eyeballs",
-  "Try delay (ms)",
-  "Prioritize IPv6",
-  "Interleave",
-  "Max concurrent try",
   "Custom sockopt",
 ]
 `;
@@ -128,6 +118,7 @@ exports[`inbound transport forms > XhttpForm field structure is stable 1`] = `
   "Uplink HTTP Method",
   "Padding Obfs Mode",
   "Session Placement",
+  "Session ID Table",
   "Sequence Placement",
   "No SSE Header",
   "XMUX",

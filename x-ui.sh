@@ -155,6 +155,24 @@ update() {
     fi
 }
 
+update_dev() {
+    confirm "This will update x-ui to the latest DEV commit (the rolling 'dev-latest' build, not a stable release). Your data is preserved. Continue?" "y"
+    if [[ $? != 0 ]]; then
+        LOGE "Cancelled"
+        if [[ $# == 0 ]]; then
+            before_show_menu
+        fi
+        return 0
+    fi
+    # XUI_UPDATE_TAG tells update.sh to install the dev-latest pre-release
+    # instead of the latest stable tag.
+    XUI_UPDATE_TAG="dev-latest" bash <(curl -Ls https://raw.githubusercontent.com/MHSanaei/3x-ui/main/update.sh)
+    if [[ $? == 0 ]]; then
+        LOGI "Dev update is complete, Panel has automatically restarted "
+        before_show_menu
+    fi
+}
+
 update_menu() {
     echo -e "${yellow}Updating Menu${plain}"
     confirm "This function will update the menu to the latest changes." "y"
@@ -235,9 +253,20 @@ uninstall() {
         systemctl reset-failed
     fi
 
+    local panel_used_postgres="false"
+    local db_env_file
+    db_env_file="$(xui_env_file_path)"
+    if [[ -r "$db_env_file" ]] && grep -q '^XUI_DB_TYPE=postgres' "$db_env_file"; then
+        panel_used_postgres="true"
+    fi
+
     rm /etc/x-ui/ -rf
     rm ${xui_folder}/ -rf
-    rm -f "$(xui_env_file_path)"
+    rm -f "$db_env_file"
+
+    if [[ "$panel_used_postgres" == "true" ]] && postgresql_installed; then
+        purge_postgresql
+    fi
 
     echo ""
     echo -e "Uninstalled Successfully.\n"
@@ -1148,9 +1177,11 @@ delete_ports() {
 }
 
 update_all_geofiles() {
-    update_geofiles "main"
-    update_geofiles "IR"
-    update_geofiles "RU"
+    local failed=0
+    update_geofiles "main" || failed=1
+    update_geofiles "IR" || failed=1
+    update_geofiles "RU" || failed=1
+    return $failed
 }
 
 update_geofiles() {
@@ -1168,12 +1199,39 @@ update_geofiles() {
             dat_source="runetfreedom/russia-v2ray-rules-dat"
             ;;
     esac
+    local failed=0 http_code
     for dat in "${dat_files[@]}"; do
         # Remove suffix for remote filename (e.g., geoip_IR -> geoip)
         remote_file="${dat%%_*}"
-        curl -fLRo ${xui_folder}/bin/${dat}.dat -z ${xui_folder}/bin/${dat}.dat \
-            https://github.com/${dat_source}/releases/latest/download/${remote_file}.dat
+        # -z skips the download (server answers 304) when the local copy is already current
+        http_code=$(curl -sSfLRo ${xui_folder}/bin/${dat}.dat -z ${xui_folder}/bin/${dat}.dat -w '%{http_code}' \
+            https://github.com/${dat_source}/releases/latest/download/${remote_file}.dat)
+        if [[ $? -ne 0 ]]; then
+            echo -e "${red}${dat}.dat: download failed${plain}"
+            failed=1
+        elif [[ "$http_code" == "304" ]]; then
+            echo -e "${dat}.dat: already up to date"
+        else
+            echo -e "${green}${dat}.dat: updated${plain}"
+            geo_updated=1
+        fi
     done
+    return $failed
+}
+
+run_geo_update() {
+    local name="$1"
+    shift
+    geo_updated=0
+    "$@"
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Some ${name} could not be updated. Check the errors above.${plain}"
+    elif [[ $geo_updated -eq 1 ]]; then
+        echo -e "${green}${name} have been updated successfully!${plain}"
+        restart
+    else
+        echo -e "${green}${name} are already up to date, restart is not needed.${plain}"
+    fi
 }
 
 update_geo() {
@@ -1189,24 +1247,16 @@ update_geo() {
             show_menu
             ;;
         1)
-            update_geofiles "main"
-            echo -e "${green}Loyalsoldier datasets have been updated successfully!${plain}"
-            restart
+            run_geo_update "Loyalsoldier datasets" update_geofiles "main"
             ;;
         2)
-            update_geofiles "IR"
-            echo -e "${green}chocolate4u datasets have been updated successfully!${plain}"
-            restart
+            run_geo_update "chocolate4u datasets" update_geofiles "IR"
             ;;
         3)
-            update_geofiles "RU"
-            echo -e "${green}runetfreedom datasets have been updated successfully!${plain}"
-            restart
+            run_geo_update "runetfreedom datasets" update_geofiles "RU"
             ;;
         4)
-            update_all_geofiles
-            echo -e "${green}All geo files have been updated successfully!${plain}"
-            restart
+            run_geo_update "geo files" update_all_geofiles
             ;;
         *)
             echo -e "${red}Invalid option. Please select a valid number.${plain}\n"
@@ -2145,7 +2195,15 @@ iplimit_main() {
     esac
 }
 
-install_iplimit() {
+setup_fail2ban_iplimit() {
+    # Honor the same toggle the panel uses (isFail2BanEnabled): enabled when the
+    # var is unset or exactly "true"; any other explicit value means the operator
+    # opted out, so do nothing rather than install a fail2ban the panel ignores.
+    if [[ -n "${XUI_ENABLE_FAIL2BAN+x}" && "${XUI_ENABLE_FAIL2BAN}" != "true" ]]; then
+        echo -e "${yellow}XUI_ENABLE_FAIL2BAN=${XUI_ENABLE_FAIL2BAN}, skipping Fail2ban setup.${plain}\n"
+        return 0
+    fi
+
     if ! command -v fail2ban-client &> /dev/null; then
         echo -e "${green}Fail2ban is not installed. Installing now...!${plain}\n"
 
@@ -2195,13 +2253,13 @@ install_iplimit() {
                 ;;
             *)
                 echo -e "${red}Unsupported operating system. Please check the script and install the necessary packages manually.${plain}\n"
-                exit 1
+                return 1
                 ;;
         esac
 
         if ! command -v fail2ban-client &> /dev/null; then
             echo -e "${red}Fail2ban installation failed.${plain}\n"
-            exit 1
+            return 1
         fi
 
         echo -e "${green}Fail2ban installed successfully!${plain}\n"
@@ -2246,6 +2304,14 @@ install_iplimit() {
     fi
 
     echo -e "${green}IP Limit installed and configured successfully!${plain}\n"
+    return 0
+}
+
+# install_iplimit is the interactive (menu) entry point: it runs the shared
+# setup and then returns to the menu. The non-interactive installer path uses
+# setup_fail2ban_iplimit directly via `x-ui setup-fail2ban`.
+install_iplimit() {
+    setup_fail2ban_iplimit
     before_show_menu
 }
 
@@ -2388,8 +2454,8 @@ EOF
 
     # Ports to exempt from the ban so an over-limit proxy client can never lock
     # the administrator out of SSH or the panel. The ban still covers every other
-    # TCP port (including all Xray inbounds), so IP-limit keeps working for inbounds
-    # added later without regenerating these files.
+    # TCP and UDP port (including all Xray inbounds, e.g. UDP-based Hysteria2), so
+    # IP-limit keeps working for inbounds added later without regenerating these files.
     local ssh_ports
     ssh_ports=$(grep -oP '^[[:space:]]*Port[[:space:]]+\K[0-9]+' /etc/ssh/sshd_config 2>/dev/null | paste -sd, -)
     [[ -z "${ssh_ports}" ]] && ssh_ports="22"
@@ -2405,23 +2471,24 @@ before = iptables-allports.conf
 [Definition]
 actionstart = <iptables> -N f2b-<name>
               <iptables> -A f2b-<name> -j <returntype>
-              <iptables> -I <chain> -p <protocol> -j f2b-<name>
+              <iptables> -I <chain> -j f2b-<name>
 
-actionstop = <iptables> -D <chain> -p <protocol> -j f2b-<name>
+actionstop = <iptables> -D <chain> -j f2b-<name>
              <actionflush>
              <iptables> -X f2b-<name>
 
 actioncheck = <iptables> -n -L <chain> | grep -q 'f2b-<name>[ \t]'
 
-actionban = <iptables> -I f2b-<name> 1 -s <ip> -p <protocol> -m multiport ! --dports <exemptports> -j <blocktype>
+actionban = <iptables> -I f2b-<name> 1 -s <ip> -p tcp -m multiport ! --dports <exemptports> -j <blocktype>
+            <iptables> -I f2b-<name> 1 -s <ip> -p udp -m multiport ! --dports <exemptports> -j <blocktype>
             echo "\$(date +"%%Y/%%m/%%d %%H:%%M:%%S")   BAN   [Email] = <F-USER> [IP] = <ip> banned for <bantime> seconds." >> ${iplimit_banned_log_path}
 
-actionunban = <iptables> -D f2b-<name> -s <ip> -p <protocol> -m multiport ! --dports <exemptports> -j <blocktype>
+actionunban = <iptables> -D f2b-<name> -s <ip> -p tcp -m multiport ! --dports <exemptports> -j <blocktype>
+              <iptables> -D f2b-<name> -s <ip> -p udp -m multiport ! --dports <exemptports> -j <blocktype>
               echo "\$(date +"%%Y/%%m/%%d %%H:%%M:%%S")   UNBAN   [Email] = <F-USER> [IP] = <ip> unbanned." >> ${iplimit_banned_log_path}
 
 [Init]
 name = default
-protocol = tcp
 chain = INPUT
 exemptports = ${exempt_ports}
 EOF
@@ -2669,6 +2736,63 @@ pg_require_installed() {
         LOGE "PostgreSQL is not installed. Use option 1 (Install PostgreSQL) in this menu first."
         return 1
     fi
+}
+
+# Completely removes the PostgreSQL server and ALL of its databases from the system.
+# Gated behind an explicit confirmation because this is system-wide and irreversible:
+# any other application sharing this PostgreSQL instance loses its data too. Mirrors the
+# package names used by pg_install_local() so the right packages are removed per distro.
+purge_postgresql() {
+    echo ""
+    echo -e "${yellow}This panel was using PostgreSQL.${plain}"
+    echo -e "${red}WARNING:${plain} purging removes the PostgreSQL server and ${red}ALL${plain} of its databases on"
+    echo -e "this machine, including any used by other applications. This cannot be undone."
+    confirm "Also purge PostgreSQL and delete all of its data?" "n"
+    if [[ $? != 0 ]]; then
+        LOGI "Left PostgreSQL installed; its data was not removed."
+        return 0
+    fi
+
+    if [[ $release == "alpine" ]]; then
+        rc-service postgresql stop 2> /dev/null
+        rc-update del postgresql 2> /dev/null
+    else
+        systemctl stop "$(pg_systemd_unit)" 2> /dev/null
+        systemctl disable "$(pg_systemd_unit)" 2> /dev/null
+    fi
+
+    case "${release}" in
+        ubuntu | debian | armbian)
+            apt-get -y --purge remove 'postgresql*'
+            apt-get -y autoremove --purge
+            ;;
+        fedora | amzn | virtuozzo | rhel | almalinux | rocky | ol)
+            dnf remove -y postgresql postgresql-server postgresql-contrib
+            ;;
+        centos)
+            if [[ "${VERSION_ID}" =~ ^7 ]]; then
+                yum remove -y postgresql postgresql-server postgresql-contrib
+            else
+                dnf remove -y postgresql postgresql-server postgresql-contrib
+            fi
+            ;;
+        arch | manjaro | parch)
+            pacman -Rns --noconfirm postgresql
+            ;;
+        opensuse-tumbleweed | opensuse-leap)
+            zypper -q remove -y postgresql postgresql-server postgresql-contrib
+            ;;
+        alpine)
+            apk del postgresql postgresql-contrib postgresql-client
+            ;;
+        *)
+            LOGE "Unsupported distro for automatic PostgreSQL purge: ${release}. Remove it manually."
+            return 1
+            ;;
+    esac
+
+    rm -rf /var/lib/postgresql /var/lib/pgsql /var/lib/postgres /etc/postgresql
+    LOGI "PostgreSQL has been purged."
 }
 
 # Installs a local PostgreSQL server and creates a dedicated xui user/database.
@@ -3066,6 +3190,7 @@ show_usage() {
 │  ${blue}x-ui log${plain}                   - Check logs                       │
 │  ${blue}x-ui banlog${plain}                - Check Fail2ban ban logs          │
 │  ${blue}x-ui update${plain}                - Update                           │
+│  ${blue}x-ui update-dev${plain}            - Update to Dev channel (latest)   │
 │  ${blue}x-ui update-all-geofiles${plain}   - Update all geo files             │
 │  ${blue}x-ui migrateDB [file]${plain}      - Convert .db <-> .dump (SQLite)   │
 │  ${blue}x-ui legacy${plain}                - Legacy version                   │
@@ -3077,46 +3202,46 @@ show_usage() {
 show_menu() {
     echo -e "
 ╔────────────────────────────────────────────────╗
-│   ${green}3X-UI Panel Management Script${plain}                │
-│   ${green}0.${plain} Exit Script                               │
+│  ${green}3X-UI Panel Management Script${plain}                │
+│  ${green}0.${plain} Exit Script                               │
 │────────────────────────────────────────────────│
-│   ${green}1.${plain} Install                                   │
-│   ${green}2.${plain} Update                                    │
-│   ${green}3.${plain} Update Menu                               │
-│   ${green}4.${plain} Legacy Version                            │
-│   ${green}5.${plain} Uninstall                                 │
+│  ${green}1.${plain} Install                                   │
+│  ${green}2.${plain} Update                                    │
+│  ${green}3.${plain} Update to Dev Channel (latest commit)     │
+│  ${green}4.${plain} Update Menu                               │
+│  ${green}5.${plain} Legacy Version                            │
+│  ${green}6.${plain} Uninstall                                 │
 │────────────────────────────────────────────────│
-│   ${green}6.${plain} Reset Username & Password                 │
-│   ${green}7.${plain} Reset Web Base Path                       │
-│   ${green}8.${plain} Reset Settings                            │
-│   ${green}9.${plain} Change Port                               │
-│  ${green}10.${plain} View Current Settings                     │
+│  ${green}7.${plain} Reset Username & Password                 │
+│  ${green}8.${plain} Reset Web Base Path                       │
+│  ${green}9.${plain} Reset Settings                            │
+│  ${green}10.${plain} Change Port                              │
+│  ${green}11.${plain} View Current Settings                    │
 │────────────────────────────────────────────────│
-│  ${green}11.${plain} Start                                     │
-│  ${green}12.${plain} Stop                                      │
-│  ${green}13.${plain} Restart                                   │
-|  ${green}14.${plain} Restart Xray                              │
-│  ${green}15.${plain} Check Status                              │
-│  ${green}16.${plain} Logs Management                           │
+│  ${green}12.${plain} Start                                    │
+│  ${green}13.${plain} Stop                                     │
+│  ${green}14.${plain} Restart                                  │
+|  ${green}15.${plain} Restart Xray                             │
+│  ${green}16.${plain} Check Status                             │
+│  ${green}17.${plain} Logs Management                          │
 │────────────────────────────────────────────────│
-│  ${green}17.${plain} Enable Autostart                          │
-│  ${green}18.${plain} Disable Autostart                         │
+│  ${green}18.${plain} Enable Autostart                         │
+│  ${green}19.${plain} Disable Autostart                        │
 │────────────────────────────────────────────────│
-│  ${green}19.${plain} SSL Certificate Management                │
-│  ${green}20.${plain} Cloudflare SSL Certificate                │
-│  ${green}21.${plain} IP Limit Management                       │
-│  ${green}22.${plain} Firewall Management                       │
-│  ${green}23.${plain} SSH Port Forwarding Management            │
+│  ${green}20.${plain} SSL Certificate Management               │
+│  ${green}21.${plain} Cloudflare SSL Certificate               │
+│  ${green}22.${plain} IP Limit Management                      │
+│  ${green}23.${plain} Firewall Management                      │
+│  ${green}24.${plain} SSH Port Forwarding Management           │
+│  ${green}25.${plain} PostgreSQL Management                    │
 │────────────────────────────────────────────────│
-│  ${green}24.${plain} Enable BBR                                │
-│  ${green}25.${plain} Update Geo Files                          │
-│  ${green}26.${plain} Speedtest by Ookla                        │
-│────────────────────────────────────────────────│
-│  ${green}27.${plain} PostgreSQL Management                     │
+│  ${green}26.${plain} Enable BBR                               │
+│  ${green}27.${plain} Update Geo Files                         │
+│  ${green}28.${plain} Speedtest by Ookla                       │
 ╚────────────────────────────────────────────────╝
 "
     show_status
-    echo && read -rp "Please enter your selection [0-27]: " num
+    echo && read -rp "Please enter your selection [0-28]: " num
 
     case "${num}" in
         0)
@@ -3129,82 +3254,85 @@ show_menu() {
             check_install && update
             ;;
         3)
-            check_install && update_menu
+            check_install && update_dev
             ;;
         4)
-            check_install && legacy_version
+            check_install && update_menu
             ;;
         5)
-            check_install && uninstall
+            check_install && legacy_version
             ;;
         6)
-            check_install && reset_user
+            check_install && uninstall
             ;;
         7)
-            check_install && reset_webbasepath
+            check_install && reset_user
             ;;
         8)
-            check_install && reset_config
+            check_install && reset_webbasepath
             ;;
         9)
-            check_install && set_port
+            check_install && reset_config
             ;;
         10)
-            check_install && check_config
+            check_install && set_port
             ;;
         11)
-            check_install && start
+            check_install && check_config
             ;;
         12)
-            check_install && stop
+            check_install && start
             ;;
         13)
-            check_install && restart
+            check_install && stop
             ;;
         14)
-            check_install && restart_xray
+            check_install && restart
             ;;
         15)
-            check_install && status
+            check_install && restart_xray
             ;;
         16)
-            check_install && show_log
+            check_install && status
             ;;
         17)
-            check_install && enable
+            check_install && show_log
             ;;
         18)
-            check_install && disable
+            check_install && enable
             ;;
         19)
-            ssl_cert_issue_main
+            check_install && disable
             ;;
         20)
-            ssl_cert_issue_CF
+            ssl_cert_issue_main
             ;;
         21)
-            iplimit_main
+            ssl_cert_issue_CF
             ;;
         22)
-            firewall_menu
+            iplimit_main
             ;;
         23)
-            SSH_port_forwarding
+            firewall_menu
             ;;
         24)
-            bbr_menu
+            SSH_port_forwarding
             ;;
         25)
-            update_geo
-            ;;
-        26)
-            run_speedtest
-            ;;
-        27)
             postgresql_menu
             ;;
+        26)
+            bbr_menu
+            ;;
+        27)
+            update_geo
+            ;;
+        28)
+            run_speedtest
+            ;;
         *)
-            LOGE "Please enter the correct number [0-27]"
+            LOGE "Please enter the correct number [0-28]"
             ;;
     esac
 }
@@ -3241,8 +3369,14 @@ if [[ $# > 0 ]]; then
         "banlog")
             check_install 0 && show_banlog 0
             ;;
+        "setup-fail2ban")
+            setup_fail2ban_iplimit
+            ;;
         "update")
             check_install 0 && update 0
+            ;;
+        "update-dev")
+            check_install 0 && update_dev 0
             ;;
         "legacy")
             check_install 0 && legacy_version 0
@@ -3254,7 +3388,10 @@ if [[ $# > 0 ]]; then
             check_install 0 && uninstall 0
             ;;
         "update-all-geofiles")
-            check_install 0 && update_all_geofiles 0 && restart 0
+            geo_updated=0
+            if check_install 0 && update_all_geofiles 0; then
+                [[ $geo_updated -eq 0 ]] || restart 0
+            fi
             ;;
         "migrateDB")
             migrate_db "$2" "$3"

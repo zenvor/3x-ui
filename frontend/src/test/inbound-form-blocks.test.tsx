@@ -3,7 +3,6 @@ import { Form, type FormInstance } from 'antd';
 import type { ReactNode } from 'react';
 
 import {
-  ExternalProxyForm,
   GrpcForm,
   HttpUpgradeForm,
   KcpForm,
@@ -67,30 +66,13 @@ describe('inbound transport forms', () => {
     expect(fieldLabels()).toMatchSnapshot();
   });
 
-  it('ExternalProxyForm field structure is stable (one TLS entry)', () => {
+  it('SockoptForm field structure is stable (server-side fields only)', () => {
+    // The inbound sockopt form shows only server/listening-side fields;
+    // outbound-only fields (dialerProxy, domainStrategy, interface,
+    // addressPortStrategy, happyEyeballs, tcpMptcp) live in the outbound form.
     renderInForm(
-      () => <ExternalProxyForm toggleExternalProxy={noop} />,
-      {
-        streamSettings: {
-          externalProxy: [{
-            forceTls: 'tls',
-            dest: '',
-            port: 443,
-            remark: '',
-            sni: '',
-            fingerprint: '',
-            alpn: [],
-          }],
-        },
-      },
-    );
-    expect(fieldLabels()).toMatchSnapshot();
-  });
-
-  it('SockoptForm field structure is stable (enabled + happy eyeballs)', () => {
-    renderInForm(
-      () => <SockoptForm toggleSockopt={noop} />,
-      { streamSettings: { sockopt: { happyEyeballs: {} } } },
+      () => <SockoptForm toggleSockopt={noop} network="tcp" />,
+      { streamSettings: { sockopt: { mark: 0 } } },
     );
     expect(fieldLabels()).toMatchSnapshot();
   });
@@ -103,7 +85,8 @@ describe('inbound security forms', () => {
         saving={false}
         setCertFromPanel={noop}
         clearCertFiles={noop}
-        generateRandomPinHash={noop}
+        pinFromCert={noop}
+        pinFromRemote={noop}
         getNewEchCert={noop}
         clearEchCert={noop}
       />
@@ -115,7 +98,11 @@ describe('inbound security forms', () => {
     renderInForm(() => (
       <RealityForm
         saving={false}
-        randomizeRealityTarget={noop}
+        scanning={false}
+        scanResult={null}
+        scanRealityTarget={noop}
+        scanRealityCandidates={async () => []}
+        applyRealityScanResult={noop}
         randomizeShortIds={noop}
         genRealityKeypair={noop}
         clearRealityKeypair={noop}

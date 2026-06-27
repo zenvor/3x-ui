@@ -61,6 +61,69 @@ exports[`FinalMaskStreamSettingsSchema fixtures > parses quic-params byte-stably
 }
 `;
 
+exports[`FinalMaskStreamSettingsSchema fixtures > parses realm-tls byte-stably 1`] = `
+{
+  "tcp": [],
+  "udp": [
+    {
+      "settings": {
+        "stunServers": [
+          "stun.l.google.com:19302",
+        ],
+        "tlsConfig": {
+          "allowInsecure": false,
+          "alpn": [
+            "h3",
+          ],
+          "fingerprint": "chrome",
+          "serverName": "example.com",
+        },
+        "url": "realm://public@example.com/my-realm",
+      },
+      "type": "realm",
+    },
+  ],
+}
+`;
+
+exports[`FinalMaskStreamSettingsSchema fixtures > parses salamander-gecko byte-stably 1`] = `
+{
+  "tcp": [],
+  "udp": [
+    {
+      "settings": {
+        "packetSize": "100-200",
+        "password": "swordfish",
+      },
+      "type": "salamander",
+    },
+  ],
+}
+`;
+
+exports[`FinalMaskStreamSettingsSchema fixtures > parses tcp-fragment-segments byte-stably 1`] = `
+{
+  "tcp": [
+    {
+      "settings": {
+        "delays": [
+          "5-10",
+          "0",
+        ],
+        "lengths": [
+          "10-20",
+          "50-100",
+        ],
+        "maxSplit": "0",
+        "packets": "tlshello",
+      },
+      "type": "fragment",
+    },
+  ],
+  "udp": [],
+}
+`;
+
 exports[`FinalMaskStreamSettingsSchema fixtures > parses tcp-mask byte-stably 1`] = `
 {
   "tcp": [

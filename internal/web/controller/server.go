@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/entity"
@@ -64,17 +63,23 @@ func (a *ServerController) initRouter(g *gin.RouterGroup) {
 	g.GET("/getNewmlkem768", a.getNewmlkem768)
 	g.GET("/getNewVlessEnc", a.getNewVlessEnc)
 	g.GET("/clientIps", a.getClientIps)
+	g.GET("/fail2banStatus", a.getFail2banStatus)
 
 	g.POST("/stopXrayService", a.stopXrayService)
 	g.POST("/restartXrayService", a.restartXrayService)
 	g.POST("/installXray/:version", a.installXray)
 	g.POST("/updatePanel", a.updatePanel)
+	g.POST("/setUpdateChannel", a.setUpdateChannel)
 	g.POST("/updateGeofile", a.updateGeofile)
 	g.POST("/updateGeofile/:fileName", a.updateGeofile)
 	g.POST("/logs/:count", a.getLogs)
 	g.POST("/xraylogs/:count", a.getXrayLogs)
 	g.POST("/importDB", a.importDB)
 	g.POST("/getNewEchCert", a.getNewEchCert)
+	g.POST("/getCertHash", a.getCertHash)
+	g.POST("/getRemoteCertHash", a.getRemoteCertHash)
+	g.POST("/scanRealityTarget", a.scanRealityTarget)
+	g.POST("/scanRealityTargets", a.scanRealityTargets)
 	g.POST("/clientIps", a.setClientIps)
 }
 
@@ -101,6 +106,10 @@ func (a *ServerController) startTask() {
 
 // status returns the current server status information.
 func (a *ServerController) status(c *gin.Context) { jsonObj(c, a.serverService.LastStatus(), nil) }
+
+func (a *ServerController) getFail2banStatus(c *gin.Context) {
+	jsonObj(c, a.serverService.GetFail2banStatus(), nil)
+}
 
 func parseHistoryBucket(c *gin.Context) (int, bool) {
 	bucket, err := strconv.Atoi(c.Param("bucket"))
@@ -199,10 +208,34 @@ func (a *ServerController) installXray(c *gin.Context) {
 	jsonMsg(c, I18nWeb(c, "pages.index.xraySwitchVersionPopover"), err)
 }
 
-// updatePanel starts a panel self-update to the latest release.
+// updatePanel starts a panel self-update. With no "dev" form value it follows
+// this panel's own channel setting; an explicit "dev" (sent by the master node
+// updater) overrides it for this run.
 func (a *ServerController) updatePanel(c *gin.Context) {
-	err := a.panelService.StartUpdate()
+	devParam := c.PostForm("dev")
+	var err error
+	if devParam == "" {
+		err = a.panelService.StartUpdate()
+	} else {
+		dev, perr := strconv.ParseBool(devParam)
+		if perr != nil {
+			jsonMsg(c, "invalid data", perr)
+			return
+		}
+		err = a.panelService.StartUpdateChannel(dev)
+	}
 	jsonMsg(c, I18nWeb(c, "pages.index.panelUpdateStartedPopover"), err)
+}
+
+// setUpdateChannel toggles whether self-update tracks the rolling dev release.
+func (a *ServerController) setUpdateChannel(c *gin.Context) {
+	dev, err := strconv.ParseBool(c.PostForm("dev"))
+	if err != nil {
+		jsonMsg(c, "invalid data", err)
+		return
+	}
+	err = a.settingService.SetDevChannelEnable(dev)
+	jsonMsg(c, I18nWeb(c, "pages.index.updateChannelChanged"), err)
 }
 
 // updateGeofile updates the specified geo file for Xray.
@@ -292,10 +325,7 @@ func (a *ServerController) getDb(c *gin.Context) {
 		return
 	}
 
-	filename := "x-ui.db"
-	if database.IsPostgres() {
-		filename = "x-ui.dump"
-	}
+	filename := a.serverService.BackupFilename(c.Request.Host)
 	if !filenameRegex.MatchString(filename) {
 		c.AbortWithError(http.StatusBadRequest, fmt.Errorf("invalid filename"))
 		return
@@ -393,6 +423,51 @@ func (a *ServerController) getNewEchCert(c *gin.Context) {
 		return
 	}
 	jsonObj(c, cert, nil)
+}
+
+// getCertHash returns the hex SHA-256 of the given certificate (file path or
+// inline content) so the panel can fill the pinned-cert field.
+func (a *ServerController) getCertHash(c *gin.Context) {
+	hashes, err := a.serverService.GetCertHash(c.PostForm("certFile"), c.PostForm("certContent"))
+	if err != nil {
+		jsonMsg(c, "get cert hash", err)
+		return
+	}
+	jsonObj(c, hashes, nil)
+}
+
+// getRemoteCertHash runs `xray tls ping` against the given server and returns
+// its live certificate SHA-256 hash(es) for pinning.
+func (a *ServerController) getRemoteCertHash(c *gin.Context) {
+	hashes, err := a.serverService.GetRemoteCertHash(c.PostForm("server"))
+	if err != nil {
+		jsonMsg(c, "get remote cert hash", err)
+		return
+	}
+	jsonObj(c, hashes, nil)
+}
+
+// scanRealityTarget runs a live TLS 1.3 probe against the candidate REALITY
+// target and returns a structured feasibility verdict plus the cert SAN names.
+func (a *ServerController) scanRealityTarget(c *gin.Context) {
+	res, err := a.serverService.ScanRealityTarget(c.PostForm("target"))
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.scanRealityTargetError"), err)
+		return
+	}
+	jsonObj(c, res, nil)
+}
+
+// scanRealityTargets probes a batch of candidate REALITY targets (the supplied
+// comma-separated list, or the built-in seed set when empty) and returns each
+// verdict ranked by feasibility then latency.
+func (a *ServerController) scanRealityTargets(c *gin.Context) {
+	res, err := a.serverService.ScanRealityTargets(c.PostForm("targets"))
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.scanRealityTargetError"), err)
+		return
+	}
+	jsonObj(c, res, nil)
 }
 
 // getNewVlessEnc generates a new VLESS encryption key.

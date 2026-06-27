@@ -93,6 +93,7 @@ describe('parseVmessLink — XHTTP advanced fields', () => {
       scMaxBufferedPosts: 50,
       tls: 'tls',
     };
+    // legacy sessionKey must alias onto the renamed sessionIDKey (#6258)
     const link = `vmess://${Base64.encode(JSON.stringify(json))}`;
     const out = parseVmessLink(link);
     const xhttp = (out?.streamSettings as Record<string, unknown>).xhttpSettings as Record<string, unknown>;
@@ -101,7 +102,8 @@ describe('parseVmessLink — XHTTP advanced fields', () => {
     expect(xhttp.xPaddingHeader).toBe('X-Pad');
     expect(xhttp.xPaddingPlacement).toBe('header');
     expect(xhttp.xPaddingMethod).toBe('random');
-    expect(xhttp.sessionKey).toBe('X-Session');
+    expect(xhttp.sessionIDKey).toBe('X-Session');
+    expect(xhttp.sessionKey).toBeUndefined();
     expect(xhttp.seqKey).toBe('X-Seq');
     expect(xhttp.noSSEHeader).toBe(true);
     expect(xhttp.scMaxBufferedPosts).toBe(50);
@@ -135,7 +137,8 @@ describe('parseVlessLink — XHTTP advanced fields', () => {
       + '?type=xhttp&security=tls&host=edge.example&path=%2Fsp'
       + '&xPaddingObfsMode=true&xPaddingKey=secret-key&xPaddingHeader=X-Pad'
       + '&xPaddingPlacement=header&xPaddingMethod=random'
-      + '&sessionKey=X-Session&seqKey=X-Seq&noSSEHeader=true'
+      + '&sessionIDKey=X-Session&sessionIDTable=Base62&sessionIDLength=16-32'
+      + '&seqKey=X-Seq&noSSEHeader=true'
       + '&scMaxBufferedPosts=50'
       + '#imported-pad';
     const out = parseVlessLink(link);
@@ -145,7 +148,9 @@ describe('parseVlessLink — XHTTP advanced fields', () => {
     expect(xhttp.xPaddingHeader).toBe('X-Pad');
     expect(xhttp.xPaddingPlacement).toBe('header');
     expect(xhttp.xPaddingMethod).toBe('random');
-    expect(xhttp.sessionKey).toBe('X-Session');
+    expect(xhttp.sessionIDKey).toBe('X-Session');
+    expect(xhttp.sessionIDTable).toBe('Base62');
+    expect(xhttp.sessionIDLength).toBe('16-32');
     expect(xhttp.seqKey).toBe('X-Seq');
     expect(xhttp.noSSEHeader).toBe(true);
     expect(xhttp.scMaxBufferedPosts).toBe(50);
@@ -288,6 +293,46 @@ describe('parseHysteria2Link', () => {
     expect((udp[0].settings as Record<string, unknown>).password).toBe('ftwfgb9655hh2mgo');
   });
 
+  it('round-trips the salamander packetSize (Gecko) under fm', () => {
+    const fm = encodeURIComponent(JSON.stringify({
+      udp: [{ type: 'salamander', settings: { password: 'ftwfgb9655hh2mgo', packetSize: '100-200' } }],
+    }));
+    const link = `hysteria2://78e7795a209c4c099f896a816fc8448f@news.domain.org:8443?security=tls&sni=news.domain.org&fm=${fm}#hy2-gecko`;
+    const out = parseHysteria2Link(link);
+    expect(out).not.toBeNull();
+    const finalmask = (out!.streamSettings as Record<string, unknown>).finalmask as Record<string, unknown>;
+    const udp = finalmask.udp as Array<Record<string, unknown>>;
+    const settings = udp[0].settings as Record<string, unknown>;
+    expect(udp[0].type).toBe('salamander');
+    expect(settings.password).toBe('ftwfgb9655hh2mgo');
+    expect(settings.packetSize).toBe('100-200');
+  });
+
+  it('round-trips the realm tlsConfig under fm', () => {
+    const fm = encodeURIComponent(JSON.stringify({
+      udp: [{
+        type: 'realm',
+        settings: {
+          url: 'realm://public@example.com/my-realm',
+          stunServers: ['stun.l.google.com:19302'],
+          tlsConfig: { serverName: 'example.com', alpn: ['h3'], fingerprint: 'chrome', allowInsecure: false },
+        },
+      }],
+    }));
+    const link = `hysteria2://auth@srv:443?security=tls&sni=srv&fm=${fm}#hy2-realm`;
+    const out = parseHysteria2Link(link);
+    expect(out).not.toBeNull();
+    const finalmask = (out!.streamSettings as Record<string, unknown>).finalmask as Record<string, unknown>;
+    const udp = finalmask.udp as Array<Record<string, unknown>>;
+    const settings = udp[0].settings as Record<string, unknown>;
+    expect(udp[0].type).toBe('realm');
+    expect(settings.url).toBe('realm://public@example.com/my-realm');
+    const tlsConfig = settings.tlsConfig as Record<string, unknown>;
+    expect(tlsConfig.serverName).toBe('example.com');
+    expect(tlsConfig.alpn).toEqual(['h3']);
+    expect(tlsConfig.fingerprint).toBe('chrome');
+  });
+
   it('defaults alpn to h3 when the link omits it', () => {
     const out = parseHysteria2Link('hysteria2://auth@srv:443?sni=example.com');
     const tls = (out!.streamSettings as Record<string, unknown>).tlsSettings as Record<string, unknown>;
@@ -350,6 +395,23 @@ describe('parseVlessLink — extra / fm / x_padding_bytes (B20)', () => {
     const parsed = parseVlessLink(link);
     const xhttp = (parsed!.streamSettings as Record<string, unknown>).xhttpSettings as Record<string, unknown>;
     expect(xhttp.xPaddingBytes).toBe('900-9000');
+  });
+
+  it('extracts the nested xmux object from the extra JSON blob', () => {
+    // The inbound link bundles xmux into `extra` as a nested object
+    // (sub/service.go). It must survive import so the outbound form's
+    // XMUX sub-form populates rather than silently dropping it (#5353).
+    const extra = encodeURIComponent(JSON.stringify({
+      xmux: { maxConcurrency: '8-16', hMaxRequestTimes: '700-1000' },
+    }));
+    const link = 'vless://u@h:1?type=xhttp&security=none&path=%2F&host=&mode=auto'
+      + '&extra=' + extra + '#t';
+    const parsed = parseVlessLink(link);
+    const xhttp = (parsed!.streamSettings as Record<string, unknown>).xhttpSettings as Record<string, unknown>;
+    const xmux = xhttp.xmux as Record<string, unknown>;
+    expect(xmux).toBeDefined();
+    expect(xmux.maxConcurrency).toBe('8-16');
+    expect(xmux.hMaxRequestTimes).toBe('700-1000');
   });
 
   it('ignores malformed extra JSON without breaking the rest of the link', () => {

@@ -2,6 +2,7 @@ package tgbot
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -231,7 +232,7 @@ func (t *Tgbot) SendMsgToTgbotDeleteAfter(chatId int64, msg string, delayInSecon
 	go func() {
 		time.Sleep(time.Duration(delayInSeconds) * time.Second) // Wait for the specified delay
 		t.deleteMessageTgBot(chatId, sentMsg.MessageID)         // Delete the message
-		delete(userStates, chatId)
+		userStateMgr.clear(chatId)
 	}()
 }
 
@@ -246,4 +247,20 @@ func (t *Tgbot) deleteMessageTgBot(chatId int64, messageID int) {
 	} else {
 		logger.Info("Message deleted successfully")
 	}
+}
+
+// TestConnection verifies the bot token is valid and the API is reachable.
+func (t *Tgbot) TestConnection() error {
+	tgBotMutex.Lock()
+	b := bot
+	tgBotMutex.Unlock()
+	if b == nil {
+		return fmt.Errorf("bot not initialized")
+	}
+	me, err := b.GetMe(context.Background())
+	if err != nil {
+		return fmt.Errorf("API unreachable: %w", err)
+	}
+	_ = me
+	return nil
 }

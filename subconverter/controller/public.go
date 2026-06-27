@@ -42,7 +42,7 @@ func NewPublicController(engine *gin.Engine) *PublicController {
 		usage:      service.NewSubscriptionUsageService(),
 		settings:   service.NewSettingsService(),
 		accessLogs: service.NewAccessLogService(),
-		subInfo:    subsvc.NewSubService(false, ""),
+		subInfo:    subsvc.NewSubService(""),
 	}
 	engine.GET("/feed/:token", p.full)
 	engine.GET("/feed/:token/nodes", p.provider)

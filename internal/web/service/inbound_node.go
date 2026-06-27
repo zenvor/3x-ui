@@ -21,6 +21,12 @@ import (
 
 var reportedRemoteTagConflict sync.Map
 
+// nodeBulkPushThreshold caps how many per-client RPCs a single operation will
+// stream to a remote node. Above it, the panel marks the node dirty instead and
+// lets one ReconcileNode push converge the whole inbound — far cheaper than M
+// sequential round-trips. Small ops stay on the live per-client path.
+const nodeBulkPushThreshold = 32
+
 func (s *InboundService) runtimeFor(ib *model.Inbound) (runtime.Runtime, error) {
 	mgr := runtime.GetManager()
 	if mgr == nil {
@@ -90,18 +96,31 @@ func (s *InboundService) ReconcileNode(ctx context.Context, rt *runtime.Remote, 
 	if err != nil {
 		return err
 	}
+	remoteTagSet := make(map[string]struct{}, len(remoteTags))
+	for _, tag := range remoteTags {
+		remoteTagSet[tag] = struct{}{}
+	}
 	prefix := nodeTagPrefix(&nodeID)
 	desiredTags := make(map[string]struct{}, len(inbounds)*2)
 	for _, ib := range inbounds {
 		desiredTags[ib.Tag] = struct{}{}
+		// existsOnNode: does the node already report this inbound under any of the
+		// tag forms it may be stored as? If so, an unchanged push can be skipped.
+		_, existsOnNode := remoteTagSet[ib.Tag]
 		if prefix != "" {
 			if stripped, found := strings.CutPrefix(ib.Tag, prefix); found {
 				desiredTags[stripped] = struct{}{}
+				if _, ok := remoteTagSet[stripped]; ok {
+					existsOnNode = true
+				}
 			} else {
 				desiredTags[prefix+ib.Tag] = struct{}{}
+				if _, ok := remoteTagSet[prefix+ib.Tag]; ok {
+					existsOnNode = true
+				}
 			}
 		}
-		if err := rt.UpdateInbound(ctx, ib, ib); err != nil {
+		if _, err := rt.ReconcileInbound(ctx, ib, existsOnNode); err != nil {
 			return fmt.Errorf("reconcile inbound %q: %w", ib.Tag, err)
 		}
 	}
@@ -153,6 +172,25 @@ func (s *InboundService) upsertNodeBaseline(tx *gorm.DB, nodeID int, email strin
 	}).Create(&model.NodeClientTraffic{NodeId: nodeID, Email: email, Up: up, Down: down}).Error
 }
 
+// mergeActivationExpiry reconciles a node-reported client expiry with the value
+// already stored on the master. "Start after first connect" persists a negative
+// duration that each node converts to an absolute deadline (now+duration) the
+// first time the client connects there. The per-email client_traffics row is
+// shared across every node, so a node that has not yet seen a first connection
+// keeps reporting the negative duration — which must never reset a deadline
+// another node already activated.
+//
+// A node may legitimately move an already-activated deadline forward (traffic
+// reset / auto-renew extends it), so any positive node value is still adopted —
+// only an un-activated (<= 0) value is rejected once an absolute deadline
+// exists. Kept in lockstep with the SQL CASE in setRemoteTrafficLocked.
+func mergeActivationExpiry(existing, node int64) int64 {
+	if existing > 0 && node <= 0 {
+		return existing
+	}
+	return node
+}
+
 func (s *InboundService) SetRemoteTraffic(nodeID int, snap *runtime.TrafficSnapshot, dirty bool) (bool, error) {
 	var structuralChange bool
 	err := submitTrafficWrite(func() error {
@@ -163,6 +201,29 @@ func (s *InboundService) SetRemoteTraffic(nodeID int, snap *runtime.TrafficSnaps
 	return structuralChange, err
 }
 
+// GetNodeInboundTrafficTotals returns the current cumulative up/down for every
+// node-hosted inbound, keyed by tag. The node sync diffs successive snapshots of
+// this to derive per-inbound speed for the dashboard — node inbounds have no
+// local Xray poll to produce live deltas the way local inbounds do.
+func (s *InboundService) GetNodeInboundTrafficTotals() (map[string][2]int64, error) {
+	var rows []struct {
+		Tag  string
+		Up   int64
+		Down int64
+	}
+	if err := database.GetDB().Table("inbounds").
+		Select("tag, up, down").
+		Where("node_id IS NOT NULL").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make(map[string][2]int64, len(rows))
+	for _, r := range rows {
+		out[r.Tag] = [2]int64{r.Up, r.Down}
+	}
+	return out, nil
+}
+
 func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.TrafficSnapshot, dirty bool) (bool, error) {
 	if snap == nil || nodeID <= 0 {
 		return false, nil
@@ -171,18 +232,23 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 	now := time.Now().UnixMilli()
 
 	// originGuidFor attributes a synced inbound to the panel that physically
-	// hosts it: inbounds the node forwards from its own sub-nodes already carry
-	// a non-empty OriginNodeGuid (kept as-is across hops); the node's own local
-	// inbounds report empty, so they are attributed to the node's own GUID. An
-	// empty result (old-build node with no GUID yet) leaves attribution to the
-	// node_id fallback downstream (#4983).
+	// hosts it. A node's OWN inbounds report either an empty origin or — on
+	// builds that set it locally — the node's own panelGuid; both resolve to
+	// selfKey, which is the node's panelGuid unless that GUID is ambiguous
+	// (shared with another node or the master, i.e. a cloned server), in which
+	// case it falls back to the node-unique id so #4983 attribution doesn't
+	// collapse two physical nodes into one bucket. Only a DIFFERENT, non-empty
+	// origin (an inbound the node forwards from its own sub-node) is kept as-is,
+	// so a chained Node1->Node2->Node3 still attributes Node3's inbounds to Node3.
 	var nodeRow model.Node
 	db.Select("guid").Where("id = ?", nodeID).First(&nodeRow)
+	selfKey := effectiveNodeKey(&model.Node{Id: nodeID, Guid: nodeRow.Guid})
+	guidShared := nodeRow.Guid != "" && selfKey != nodeRow.Guid
 	originGuidFor := func(snapIb *model.Inbound) string {
-		if snapIb.OriginNodeGuid != "" {
+		if snapIb.OriginNodeGuid != "" && snapIb.OriginNodeGuid != nodeRow.Guid {
 			return snapIb.OriginNodeGuid
 		}
-		return nodeRow.Guid
+		return selfKey
 	}
 
 	var central []model.Inbound
@@ -241,15 +307,6 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 		nodeBaselines[baselineRows[i].Email] = nodeTrafficCounter{Up: baselineRows[i].Up, Down: baselineRows[i].Down}
 	}
 
-	var existingEmailsList []string
-	if err := db.Model(xray.ClientTraffic{}).Pluck("email", &existingEmailsList).Error; err != nil {
-		return false, err
-	}
-	existingEmails := make(map[string]struct{}, len(existingEmailsList))
-	for _, e := range existingEmailsList {
-		existingEmails[e] = struct{}{}
-	}
-
 	var defaultUserId int
 	if len(central) > 0 {
 		defaultUserId = central[0].UserId
@@ -268,13 +325,48 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 	// entirely — an email whose stats moved to (or always lived under) a
 	// sibling inbound still needs its baseline for the sibling's delta
 	// computation (#5202).
+	//
+	// Xray counts traffic per email, not per inbound, so a multi-attached
+	// client's shared counter is copied onto every inbound it's on. Fold each
+	// email to its per-field max (nodeEmailTotals) so divergent copies can't make
+	// the reset clamp re-add a lower sibling as fresh traffic (#5274).
 	snapEmailsAll := make(map[string]struct{})
+	nodeEmailTotals := make(map[string]nodeTrafficCounter)
 	for _, snapIb := range snap.Inbounds {
 		if snapIb == nil {
 			continue
 		}
 		for i := range snapIb.ClientStats {
-			snapEmailsAll[snapIb.ClientStats[i].Email] = struct{}{}
+			email := snapIb.ClientStats[i].Email
+			snapEmailsAll[email] = struct{}{}
+			cur := nodeEmailTotals[email]
+			if snapIb.ClientStats[i].Up > cur.Up {
+				cur.Up = snapIb.ClientStats[i].Up
+			}
+			if snapIb.ClientStats[i].Down > cur.Down {
+				cur.Down = snapIb.ClientStats[i].Down
+			}
+			nodeEmailTotals[email] = cur
+		}
+	}
+
+	// Membership set for the rowExists checks below. Only the snapshot's emails
+	// are ever probed, so scope the lookup to those instead of plucking the whole
+	// client_traffics table (50k+ rows) on every node poll.
+	existingEmails := make(map[string]struct{}, len(snapEmailsAll))
+	if len(snapEmailsAll) > 0 {
+		snapEmailList := make([]string, 0, len(snapEmailsAll))
+		for email := range snapEmailsAll {
+			snapEmailList = append(snapEmailList, email)
+		}
+		for _, batch := range chunkStrings(snapEmailList, sqliteMaxVars) {
+			var found []string
+			if err := db.Model(xray.ClientTraffic{}).Where("email IN ?", batch).Pluck("email", &found).Error; err != nil {
+				return false, err
+			}
+			for _, e := range found {
+				existingEmails[e] = struct{}{}
+			}
 		}
 	}
 
@@ -287,6 +379,8 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 	}()
 
 	structuralChange := false
+
+	newInboundIDs := make(map[int]struct{})
 
 	snapTags := make(map[string]struct{}, len(snap.Inbounds))
 	for _, snapIb := range snap.Inbounds {
@@ -343,6 +437,7 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 				}
 				continue
 			}
+			reportedRemoteTagConflict.Delete(fmt.Sprintf("%d:%s", nodeID, snapIb.Tag))
 			newIb := model.Inbound{
 				UserId:               defaultUserId,
 				NodeID:               &nodeID,
@@ -373,6 +468,7 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 			if newIb.Tag != snapIb.Tag {
 				tagToCentral[newIb.Tag] = &newIb
 			}
+			newInboundIDs[newIb.Id] = struct{}{}
 			structuralChange = true
 			continue
 		}
@@ -427,6 +523,15 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 
 	for _, c := range central {
 		if dirty {
+			continue
+		}
+		if len(snapTags) == 0 {
+			// A node mid-restart or with a transient DB error can return an empty
+			// inbound list with success=true. Treat "zero inbounds reported" as
+			// "nothing to say", not "delete all my inbounds" — otherwise a blip
+			// wipes the node's central inbounds and every client on them (and
+			// resets traffic history on re-create). A real per-inbound deletion
+			// still sweeps, because the node keeps reporting its other inbounds.
 			continue
 		}
 		if _, kept := snapTags[c.Tag]; kept {
@@ -500,20 +605,27 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 		for _, cs := range snapIb.ClientStats {
 			snapEmails[cs.Email] = struct{}{}
 
+			// Node-wide total, not this inbound's possibly-stale copy (#5274).
+			canon := nodeEmailTotals[cs.Email]
+
 			base, seen := nodeBaselines[cs.Email]
 			var deltaUp, deltaDown int64
 			if seen {
-				if deltaUp = cs.Up - base.Up; deltaUp < 0 {
-					deltaUp = cs.Up
+				if deltaUp = canon.Up - base.Up; deltaUp < 0 {
+					deltaUp = 0
 				}
-				if deltaDown = cs.Down - base.Down; deltaDown < 0 {
-					deltaDown = cs.Down
+				if deltaDown = canon.Down - base.Down; deltaDown < 0 {
+					deltaDown = 0
 				}
 			}
 
 			if _, rowExists := existingEmails[cs.Email]; !rowExists {
 				if dirty {
 					continue
+				}
+				var seedUp, seedDown int64
+				if _, isNewInbound := newInboundIDs[c.Id]; isNewInbound && !isClientEmailTombstoned(cs.Email) {
+					seedUp, seedDown = canon.Up, canon.Down
 				}
 				row := &xray.ClientTraffic{
 					InboundId:  c.Id,
@@ -522,8 +634,8 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 					Total:      cs.Total,
 					ExpiryTime: cs.ExpiryTime,
 					Reset:      cs.Reset,
-					Up:         cs.Up,
-					Down:       cs.Down,
+					Up:         seedUp,
+					Down:       seedDown,
 					LastOnline: cs.LastOnline,
 				}
 				if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "email"}}, DoNothing: true}).
@@ -534,40 +646,49 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 				centralCSByEmail[cs.Email] = row
 				existingEmails[cs.Email] = struct{}{}
 				structuralChange = true
-				if err := s.upsertNodeBaseline(tx, nodeID, cs.Email, cs.Up, cs.Down); err != nil {
+				if err := s.upsertNodeBaseline(tx, nodeID, cs.Email, canon.Up, canon.Down); err != nil {
 					return false, err
 				}
-				nodeBaselines[cs.Email] = nodeTrafficCounter{Up: cs.Up, Down: cs.Down}
+				nodeBaselines[cs.Email] = nodeTrafficCounter{Up: canon.Up, Down: canon.Down}
 				continue
 			}
 
 			if existing := centralCSByEmail[cs.Email]; existing != nil &&
 				(existing.Enable != cs.Enable ||
 					existing.Total != cs.Total ||
-					existing.ExpiryTime != cs.ExpiryTime ||
+					existing.ExpiryTime != mergeActivationExpiry(existing.ExpiryTime, cs.ExpiryTime) ||
 					existing.Reset != cs.Reset) {
 				structuralChange = true
 			}
 
 			enableExpr := database.ClientTrafficEnableMergeExpr()
+			// expiry_time merge mirrors mergeActivationExpiry: a node that has not
+			// yet seen the client's first connection keeps reporting the negative
+			// "start after first connect" duration, which must never reset the
+			// absolute deadline another node already activated. A positive node
+			// value is still adopted (e.g. auto-renew moves the deadline forward).
+			// CAST(? AS BIGINT): in the `<= 0` comparison Postgres would otherwise
+			// infer int4 from the literal and overflow on real expiry values.
 			if err := tx.Exec(
 				fmt.Sprintf(
 					`UPDATE client_traffics
-					 SET up = up + ?, down = down + ?, enable = %s, total = ?, expiry_time = ?, reset = ?,
-					     last_online = %s
+					 SET up = up + ?, down = down + ?, enable = %s, total = ?,
+					     expiry_time = CASE WHEN expiry_time > 0 AND CAST(? AS BIGINT) <= 0 THEN expiry_time ELSE CAST(? AS BIGINT) END,
+					     reset = ?, last_online = %s
 					 WHERE email = ?`,
 					enableExpr,
 					database.GreatestExpr("last_online", "?"),
 				),
-				deltaUp, deltaDown, cs.Enable, cs.Total, cs.ExpiryTime, cs.Reset,
+				deltaUp, deltaDown, cs.Enable, cs.Total,
+				cs.ExpiryTime, cs.ExpiryTime, cs.Reset,
 				cs.LastOnline, cs.Email,
 			).Error; err != nil {
 				return false, err
 			}
-			if err := s.upsertNodeBaseline(tx, nodeID, cs.Email, cs.Up, cs.Down); err != nil {
+			if err := s.upsertNodeBaseline(tx, nodeID, cs.Email, canon.Up, canon.Down); err != nil {
 				return false, err
 			}
-			nodeBaselines[cs.Email] = nodeTrafficCounter{Up: cs.Up, Down: cs.Down}
+			nodeBaselines[cs.Email] = nodeTrafficCounter{Up: canon.Up, Down: canon.Down}
 		}
 
 		for k, existing := range centralCS {
@@ -733,14 +854,25 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 
 	if p != nil {
 		tree := snap.OnlineTree
-		if len(tree) == 0 && len(snap.OnlineEmails) > 0 {
+		switch {
+		case len(tree) == 0 && len(snap.OnlineEmails) > 0:
 			// Old-build node (no GUID tree): key its flat online list under its
 			// own effective identity so attribution still works for that branch.
-			effectiveGuid := nodeRow.Guid
-			if effectiveGuid == "" {
-				effectiveGuid = synthNodeGuid(nodeID)
+			tree = map[string][]string{selfKey: snap.OnlineEmails}
+		case guidShared && len(tree) > 0:
+			// Newer cloned node: its own clients arrive keyed under the shared
+			// panelGuid. Remap just that entry to the node-unique key so the
+			// clones don't merge; descendant subtrees keep their distinct GUIDs.
+			if _, ok := tree[nodeRow.Guid]; ok {
+				remapped := make(map[string][]string, len(tree))
+				for g, emails := range tree {
+					if g == nodeRow.Guid {
+						g = selfKey
+					}
+					remapped[g] = emails
+				}
+				tree = remapped
 			}
-			tree = map[string][]string{effectiveGuid: snap.OnlineEmails}
 		}
 		p.SetNodeOnlineTree(nodeID, tree)
 	}
