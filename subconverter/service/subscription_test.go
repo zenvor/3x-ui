@@ -266,7 +266,6 @@ func TestSubscriptionPersistsCDNTLSOverride(t *testing.T) {
 			CdnTLS:        true,
 			CdnServer:     " edge.example.com ",
 			CdnServerName: "",
-			CdnXHTTPHost:  "",
 		}},
 	})
 	if err != nil {
@@ -279,8 +278,8 @@ func TestSubscriptionPersistsCDNTLSOverride(t *testing.T) {
 	if !got.CdnTLS || got.CdnServer != "edge.example.com" || got.CdnPort != 443 {
 		t.Fatalf("cdn endpoint not normalized: %+v", got)
 	}
-	if got.CdnServerName != "edge.example.com" || got.CdnXHTTPHost != "edge.example.com" {
-		t.Fatalf("cdn sni/host not defaulted: %+v", got)
+	if got.CdnServerName != "edge.example.com" {
+		t.Fatalf("cdn sni not defaulted: %+v", got)
 	}
 	if got.CdnClientFp != "chrome" {
 		t.Fatalf("cdn client defaults wrong: %+v", got)
@@ -296,14 +295,13 @@ func TestSubscriptionPersistsCDNTLSOverride(t *testing.T) {
 			CdnServer:     "203.0.113.20",
 			CdnPort:       8443,
 			CdnServerName: "edge.example.com",
-			CdnXHTTPHost:  "host.example.com",
 		}},
 	})
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}
 	got = updated.Inbounds[0]
-	if got.CdnServer != "203.0.113.20" || got.CdnPort != 8443 || got.CdnServerName != "edge.example.com" || got.CdnXHTTPHost != "host.example.com" {
+	if got.CdnServer != "203.0.113.20" || got.CdnPort != 8443 || got.CdnServerName != "edge.example.com" {
 		t.Fatalf("cdn override update not persisted: %+v", got)
 	}
 }

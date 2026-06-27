@@ -41,11 +41,6 @@
   user-select: none;
 }
 
-.subconverter-card-id {
-  font-size: 11px;
-  opacity: 0.6;
-}
-
 .subconverter-card-title {
   font-weight: 600;
   flex: 1;
@@ -58,7 +53,7 @@
 .subconverter-card-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -109,10 +104,6 @@
   word-break: break-all;
 }
 
-.subconverter-inbound-tags .ant-tag {
-  margin: 0;
-}
-
 .subconverter-ua-editor {
   width: 100%;
 }
@@ -129,8 +120,10 @@
 
 .subconverter-traffic-summary {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   min-width: 0;
 }
 
@@ -173,53 +166,74 @@
 }
 
 .subconverter-info-table td {
-  padding: 6px 8px;
+  padding: 4px 8px;
   vertical-align: top;
 }
 
 .subconverter-info-table td:first-child {
-  width: 120px;
+  width: 140px;
+  font-size: 13px;
   color: var(--ant-color-text-secondary);
   white-space: nowrap;
 }
 
-.link-panel {
-  border: 1px solid var(--ant-color-border);
-  border-radius: 8px;
-  padding: 10px;
-  margin-bottom: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.subconverter-info-table .ant-tag {
+  margin-inline-end: 0;
 }
 
-.link-panel-header {
+.subconverter-info-hint {
+  font-size: 12px;
+  opacity: 0.55;
+  margin-left: 6px;
+  color: var(--ant-color-text-tertiary);
+}
+
+.subconverter-info-chips {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
+  align-items: center;
 }
 
-.subconverter-info-actions {
-  display: flex;
-  justify-content: flex-end;
+.subconverter-info-chips-stack {
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 280px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.subconverter-info-chip-more {
+  cursor: pointer;
+  user-select: none;
+}
+
+.subconverter-info-chip-more:hover {
+  opacity: 0.85;
+}
+
+.subconverter-chip-more-button.ant-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  margin: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--ant-color-fill-quaternary);
+  color: var(--ant-color-text);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.subconverter-chip-more-button.ant-btn:hover,
+.subconverter-chip-more-button.ant-btn:focus-visible {
+  background: var(--ant-color-fill-secondary);
+  color: var(--ant-color-text);
 }
 
 .subconverter-info-loading {
   min-height: 160px;
-}
-
-.link-panel-text {
-  display: block;
-  padding: 6px 8px;
-  border-radius: 4px;
-  background: var(--ant-color-fill-tertiary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 11px;
-  line-height: 1.5;
-  word-break: break-all;
-  white-space: pre-wrap;
-  user-select: all;
 }
 
 .subconverter-card-empty {
@@ -230,6 +244,83 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
+}
+
+.subconverter-link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--ant-color-border);
+  border-radius: 8px;
+}
+
+.subconverter-link-row-tag {
+  margin: 0;
+  flex-shrink: 0;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.subconverter-link-row-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subconverter-link-row-title-copy {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ant-color-primary);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--ant-color-primary) 40%, transparent);
+  transition: text-decoration-color 120ms ease;
+}
+
+.subconverter-link-row-title-copy:hover,
+.subconverter-link-row-title-copy:focus-visible {
+  text-decoration-color: var(--ant-color-primary);
+}
+
+.subconverter-link-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.subconverter-bound-ip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.subconverter-bound-ip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.subconverter-bound-ip-tag {
+  display: inline-block;
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 2px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 @media (max-width: 768px) {
@@ -251,7 +342,4 @@
     padding: 12px;
   }
 
-  .subconverter-info-actions {
-    justify-content: flex-start;
-  }
 }

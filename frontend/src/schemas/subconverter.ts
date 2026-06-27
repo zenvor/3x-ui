@@ -10,7 +10,6 @@ export const SubscriptionInboundSchema = z.looseObject({
   cdnServer: z.string().optional(),
   cdnPort: z.number().optional(),
   cdnServerName: z.string().optional(),
-  cdnXhttpHost: z.string().optional(),
   cdnClientFingerprint: z.string().optional(),
 });
 

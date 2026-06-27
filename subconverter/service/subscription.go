@@ -75,7 +75,6 @@ type InboundInput struct {
 	CdnServer     string `json:"cdnServer"`
 	CdnPort       int    `json:"cdnPort"`
 	CdnServerName string `json:"cdnServerName"`
-	CdnXHTTPHost  string `json:"cdnXhttpHost"`
 	CdnClientFp   string `json:"cdnClientFingerprint"`
 }
 
@@ -376,7 +375,6 @@ func insertInbounds(tx *gorm.DB, subID int, items []InboundInput) error {
 			CdnServer:      in.CdnServer,
 			CdnPort:        in.CdnPort,
 			CdnServerName:  in.CdnServerName,
-			CdnXHTTPHost:   in.CdnXHTTPHost,
 			CdnClientFp:    in.CdnClientFp,
 		}
 		if err := tx.Create(&row).Error; err != nil {
@@ -390,13 +388,11 @@ func normalizeInboundInput(in *InboundInput) {
 	in.ClientEmail = strings.TrimSpace(in.ClientEmail)
 	in.CdnServer = strings.TrimSpace(in.CdnServer)
 	in.CdnServerName = strings.TrimSpace(in.CdnServerName)
-	in.CdnXHTTPHost = strings.TrimSpace(in.CdnXHTTPHost)
 	in.CdnClientFp = strings.TrimSpace(in.CdnClientFp)
 	if !in.CdnTLS {
 		in.CdnServer = ""
 		in.CdnPort = 0
 		in.CdnServerName = ""
-		in.CdnXHTTPHost = ""
 		in.CdnClientFp = ""
 		return
 	}
@@ -405,9 +401,6 @@ func normalizeInboundInput(in *InboundInput) {
 	}
 	if in.CdnServerName == "" {
 		in.CdnServerName = in.CdnServer
-	}
-	if in.CdnXHTTPHost == "" {
-		in.CdnXHTTPHost = in.CdnServerName
 	}
 	if in.CdnClientFp == "" {
 		in.CdnClientFp = "chrome"
@@ -552,7 +545,6 @@ func proxyOptionsFromInput(in InboundInput) ProxyOptions {
 		Server:     in.CdnServer,
 		Port:       in.CdnPort,
 		Servername: in.CdnServerName,
-		XHTTPHost:  in.CdnXHTTPHost,
 		ClientFp:   in.CdnClientFp,
 	}}
 }

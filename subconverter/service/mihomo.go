@@ -13,7 +13,7 @@ import (
 // MihomoProxy 是 Mihomo YAML 中的一条代理节点。
 //
 // 字段标签面向 goccy/go-yaml 编码器。subconverter 只支持 VLESS
-// Reality 入站的少量明确形态，其他传输和安全模式会在转换前被过滤。
+// TCP/xHTTP Reality、xHTTP TLS、xHTTP 明文和 xHTTP CDN TLS 的明确形态，其他传输和安全模式会在转换前被过滤。
 type MihomoProxy struct {
 	Name              string             `yaml:"name"`
 	Type              string             `yaml:"type"`
@@ -70,7 +70,7 @@ type MihomoXHTTPOpts struct {
 var ErrUnsupportedProtocol = errors.New("only VLESS protocol is supported")
 
 // ErrUnsupportedInbound 表示入站不是本转换器支持的 VLESS 形态。
-var ErrUnsupportedInbound = errors.New("only VLESS TCP/xHTTP Reality or xHTTP CDN TLS inbounds are supported")
+var ErrUnsupportedInbound = errors.New("only VLESS TCP/xHTTP Reality, xHTTP TLS or xHTTP inbounds are supported")
 
 type realityInfo struct {
 	Servername        string
@@ -87,6 +87,7 @@ type tlsInfo struct {
 
 type transportInfo struct {
 	Network   string
+	Security  string
 	XHTTPOpts *MihomoXHTTPOpts
 }
 
@@ -99,7 +100,6 @@ type CDNTLSOptions struct {
 	Server     string
 	Port       int
 	Servername string
-	XHTTPHost  string
 	ClientFp   string
 }
 
@@ -128,7 +128,7 @@ func ConvertInboundToProxy(inbound *model.Inbound, client *model.Client, hostFal
 		Server:            resolveServerAddress(inbound.Listen, hostFallback),
 		Port:              inbound.Port,
 		UUID:              client.ID,
-		TLS:               true,
+		TLS:               transport.Security == "reality" || transport.Security == "tls",
 		Servername:        tls.Servername,
 		ClientFingerprint: tls.ClientFingerprint,
 		ALPN:              tls.ALPN,
@@ -146,16 +146,16 @@ func ConvertInboundToProxy(inbound *model.Inbound, client *model.Client, hostFal
 	if cdn := normalizeCDNTLSOptions(opts.CDNTLS); cdn.Enabled && canApplyCDNTLSOverlay(transport, reality) {
 		proxy.Server = cdn.Server
 		proxy.Port = cdn.Port
+		proxy.TLS = true
 		proxy.Servername = cdn.Servername
 		proxy.ClientFingerprint = cdn.ClientFp
 		proxy.ALPN = []string{"h2"}
 		if proxy.XHTTPOpts == nil {
 			proxy.XHTTPOpts = &MihomoXHTTPOpts{}
 		}
-		proxy.XHTTPOpts.Host = cdn.XHTTPHost
 	}
 
-	if proxy.ClientFingerprint == "" {
+	if proxy.TLS && proxy.ClientFingerprint == "" {
 		proxy.ClientFingerprint = "chrome"
 	}
 	if client.Flow != "" && transport.Network == "tcp" {
@@ -195,7 +195,7 @@ func parseVlessSupported(inbound *model.Inbound, opts ProxyOptions) (transportIn
 		return transportInfo{}, realityInfo{}, tlsInfo{}, ErrUnsupportedInbound
 	}
 
-	transport := transportInfo{Network: network}
+	transport := transportInfo{Network: network, Security: security}
 	switch network {
 	case "tcp":
 		if !hasSupportedTCPSettings(stream) {
@@ -211,18 +211,41 @@ func parseVlessSupported(inbound *model.Inbound, opts ProxyOptions) (transportIn
 	case "reality":
 		reality, tls, err := parseRealityInfo(stream)
 		return transport, reality, tls, err
+	case "tls":
+		if network == "xhttp" {
+			return transport, realityInfo{}, parseTLSInfo(stream), nil
+		}
+		return transportInfo{}, realityInfo{}, tlsInfo{}, ErrUnsupportedInbound
 	case "none", "":
-		cdn := normalizeCDNTLSOptions(opts.CDNTLS)
-		if network == "xhttp" && cdn.Enabled {
-			return transport, realityInfo{}, tlsInfo{
-				Servername:        cdn.Servername,
-				ClientFingerprint: cdn.ClientFp,
-			}, nil
+		if network == "xhttp" {
+			return transport, realityInfo{}, tlsInfo{}, nil
 		}
 		return transportInfo{}, realityInfo{}, tlsInfo{}, ErrUnsupportedInbound
 	default:
 		return transportInfo{}, realityInfo{}, tlsInfo{}, ErrUnsupportedInbound
 	}
+}
+
+func parseTLSInfo(stream map[string]any) tlsInfo {
+	tlsSetting, _ := stream["tlsSettings"].(map[string]any)
+	if tlsSetting == nil {
+		return tlsInfo{}
+	}
+
+	info := tlsInfo{}
+	if servername, ok := tlsSetting["serverName"].(string); ok {
+		info.Servername = strings.TrimSpace(servername)
+	}
+	if fp, ok := tlsSetting["fingerprint"].(string); ok {
+		info.ClientFingerprint = strings.TrimSpace(fp)
+	}
+	if settings, ok := tlsSetting["settings"].(map[string]any); ok {
+		if fp, ok := settings["fingerprint"].(string); ok {
+			info.ClientFingerprint = strings.TrimSpace(fp)
+		}
+	}
+	info.ALPN = stringList(tlsSetting["alpn"])
+	return info
 }
 
 func parseRealityInfo(stream map[string]any) (realityInfo, tlsInfo, error) {
@@ -260,6 +283,33 @@ func parseRealityInfo(stream map[string]any) (realityInfo, tlsInfo, error) {
 	}, nil
 }
 
+func stringList(value any) []string {
+	var out []string
+	appendText := func(text string) {
+		text = strings.TrimSpace(text)
+		if text != "" {
+			out = append(out, text)
+		}
+	}
+
+	switch items := value.(type) {
+	case []string:
+		for _, item := range items {
+			appendText(item)
+		}
+	case []any:
+		for _, item := range items {
+			if text, ok := item.(string); ok {
+				appendText(text)
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func normalizeCDNTLSOptions(in *CDNTLSOptions) CDNTLSOptions {
 	if in == nil || !in.Enabled {
 		return CDNTLSOptions{}
@@ -267,16 +317,12 @@ func normalizeCDNTLSOptions(in *CDNTLSOptions) CDNTLSOptions {
 	out := *in
 	out.Server = strings.TrimSpace(out.Server)
 	out.Servername = strings.TrimSpace(out.Servername)
-	out.XHTTPHost = strings.TrimSpace(out.XHTTPHost)
 	out.ClientFp = strings.TrimSpace(out.ClientFp)
 	if out.Port == 0 {
 		out.Port = 443
 	}
 	if out.Servername == "" {
 		out.Servername = out.Server
-	}
-	if out.XHTTPHost == "" {
-		out.XHTTPHost = out.Servername
 	}
 	if out.ClientFp == "" {
 		out.ClientFp = "chrome"

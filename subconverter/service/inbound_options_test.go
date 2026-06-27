@@ -26,9 +26,15 @@ func TestInboundOptionCapabilities(t *testing.T) {
 			wantCDNTLSCandidate: false,
 		},
 		{
-			name:                "bare xhttp requires CDN TLS",
+			name:                "xhttp tls exports directly",
+			inbound:             vlessInbound("xhttp tls", "", 443, xhttpTLSStream()),
+			wantSubconverter:    true,
+			wantCDNTLSCandidate: true,
+		},
+		{
+			name:                "bare xhttp exports directly and can use CDN TLS",
 			inbound:             vlessInbound("xhttp none", "", 80, xhttpNoneStream()),
-			wantSubconverter:    false,
+			wantSubconverter:    true,
 			wantCDNTLSCandidate: true,
 		},
 		{

@@ -5,8 +5,10 @@ package locale
 import (
 	"embed"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
@@ -154,7 +156,13 @@ func loadTranslationsFromDisk(bundle *i18n.Bundle) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() {
+		if strings.HasPrefix(filepath.Base(path), ".") {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if d.IsDir() || filepath.Ext(path) != ".json" {
 			return nil
 		}
 		data, err := fs.ReadFile(root, path)
@@ -162,7 +170,10 @@ func loadTranslationsFromDisk(bundle *i18n.Bundle) error {
 			return err
 		}
 		_, err = bundle.ParseMessageFileBytes(data, path)
-		return err
+		if err != nil {
+			return fmt.Errorf("parse translation %s: %w", path, err)
+		}
+		return nil
 	})
 }
 
@@ -174,7 +185,13 @@ func parseTranslationFiles(i18nFS embed.FS, i18nBundle *i18n.Bundle) error {
 				return err
 			}
 
-			if d.IsDir() {
+			if strings.HasPrefix(filepath.Base(path), ".") {
+				if d.IsDir() {
+					return fs.SkipDir
+				}
+				return nil
+			}
+			if d.IsDir() || filepath.Ext(path) != ".json" {
 				return nil
 			}
 
@@ -184,7 +201,10 @@ func parseTranslationFiles(i18nFS embed.FS, i18nBundle *i18n.Bundle) error {
 			}
 
 			_, err = i18nBundle.ParseMessageFileBytes(data, path)
-			return err
+			if err != nil {
+				return fmt.Errorf("parse translation %s: %w", path, err)
+			}
+			return nil
 		})
 	if err != nil {
 		return err

@@ -20,7 +20,6 @@ import {
   Space,
   Spin,
   Statistic,
-  Tag,
   Tooltip,
   message,
 } from 'antd';
@@ -51,7 +50,6 @@ import {
   canConfigureCdnTls,
   fallbackCopy,
   getCommonClientEmails,
-  INBOUND_TAG_COLOR,
   isSupportedInbound,
   normalizeUAKeywords,
   requiresCdnTls,
@@ -168,20 +166,6 @@ export default function SubconverterPage() {
     if (!inbound) return `#${id}`;
     return formatInboundLabel(inbound.tag, inbound.remark) || `#${id}`;
   }, [inboundById]);
-
-  const renderInboundTags = useCallback((record: SubscriptionRecord, color: string = INBOUND_TAG_COLOR) => {
-    const items = (record.inbounds || []).filter((item) => inboundById.has(item.inboundId));
-    if (items.length === 0) return <span className="subconverter-muted">-</span>;
-    return (
-      <Space className="subconverter-inbound-tags" size={[4, 4]} wrap>
-        {items.map((item) => (
-          <Tag key={item.id || `${record.id}-${item.inboundId}`} color={color}>
-            {inboundTagLabel(item.inboundId)}
-          </Tag>
-        ))}
-      </Space>
-    );
-  }, [inboundById, inboundTagLabel]);
 
   const copyText = useCallback(async (text: string) => {
     try {
@@ -348,7 +332,6 @@ export default function SubconverterPage() {
       title: t('pages.subconverter.confirmDeleteIp'),
       content: (
         <Space orientation="vertical" size={4}>
-          <span>{`#${binding.subscriptionId}`}</span>
           <span>{`IP: ${binding.ip}`}</span>
         </Space>
       ),
@@ -371,7 +354,7 @@ export default function SubconverterPage() {
       title: t('pages.subconverter.confirmClearIps'),
       content: (
         <Space orientation="vertical" size={4}>
-          <span>{`#${record.id}${record.remark ? ` ${record.remark}` : ''}`}</span>
+          {record.remark && <span>{record.remark}</span>}
           <span>{`${t('pages.subconverter.boundIps')}: ${boundIps.length}`}</span>
         </Space>
       ),
@@ -391,7 +374,7 @@ export default function SubconverterPage() {
       title: t('pages.subconverter.confirmResetToken'),
       content: (
         <Space orientation="vertical" size={4}>
-          <span>{`#${record.id}${record.remark ? ` ${record.remark}` : ''}`}</span>
+          {record.remark && <span>{record.remark}</span>}
           <span>{`${t('pages.subconverter.boundIps')}: ${record.boundIpCount || 0}`}</span>
         </Space>
       ),
@@ -510,7 +493,6 @@ export default function SubconverterPage() {
                       inboundById={inboundById}
                       supportedInbounds={supportedInbounds}
                       inboundTagLabel={inboundTagLabel}
-                      renderInboundTags={renderInboundTags}
                       togglingId={togglingId}
                       onInfo={openInfo}
                       onEdit={openEdit}
@@ -560,7 +542,7 @@ export default function SubconverterPage() {
                 infoRecord={infoRecord}
                 boundIps={boundIps}
                 loading={detailQuery.isFetching}
-                renderInboundTags={renderInboundTags}
+                inboundById={inboundById}
                 onCopy={copyText}
                 onClearBoundIps={clearBoundIps}
                 onDeleteBoundIp={deleteBoundIp}

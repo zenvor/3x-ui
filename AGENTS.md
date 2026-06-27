@@ -155,11 +155,14 @@ normally `/etc/x-ui/subconverter.db`. Keeping the file separate means normal
 3X-UI import/export and upstream database migrations do not touch its data.
 
 Current converter scope is intentionally narrow: exportable nodes are enabled
-VLESS TCP Reality inbounds with usable Reality endpoint data, no non-empty
-`externalProxy`, no TCP HTTP header, and enabled clients with IDs. The frontend
-does pre-filtering for inbound shape and enabled/email clients, but it cannot
-verify client IDs from the slim inbound endpoint; the backend resolver remains
-the final authority.
+VLESS inbounds in the Mihomo shapes this fork supports: TCP Reality, XHTTP
+Reality, XHTTP TLS, plain XHTTP, and XHTTP with optional CDN TLS overlay.
+Unsupported protocols, unsupported transports/security modes, non-empty
+`externalProxy`, unsupported TCP HTTP header settings, disabled inbounds,
+disabled clients, and clients without IDs remain rejected. The frontend does
+pre-filtering for inbound shape and enabled/email clients, but it cannot verify
+client IDs from the slim inbound endpoint; the backend resolver remains the
+final authority.
 
 ## Upstream Sync Risks
 
