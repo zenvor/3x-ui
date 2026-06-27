@@ -126,6 +126,22 @@ func firstUsableName(leaf *x509.Certificate) string {
 	return ""
 }
 
+func realityProbeTLSConfig(sni string) *tls.Config {
+	cfg := &tls.Config{
+		ServerName:       sni,
+		NextProtos:       []string{"h2", "http/1.1"},
+		CurvePreferences: []tls.CurveID{tls.X25519, tls.X25519MLKEM768},
+		MinVersion:       tls.VersionTLS12,
+	}
+	if sni == "" {
+		// CIDR discovery starts from an IP address without a known DNS name.
+		// The probe completes the handshake only to read the certificate, then
+		// verifies it below against the first usable name found in that cert.
+		cfg.InsecureSkipVerify = true // lgtm[go/disabled-certificate-check]
+	}
+	return cfg
+}
+
 func splitRealityTarget(target string) (string, int, error) {
 	target = strings.TrimSpace(target)
 	if target == "" {
@@ -196,14 +212,7 @@ func (s *ServerService) probeRealityAddr(dialHost string, port int, sni string, 
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
-	cfg := &tls.Config{
-		ServerName:         sni,
-		InsecureSkipVerify: true,
-		NextProtos:         []string{"h2", "http/1.1"},
-		CurvePreferences:   []tls.CurveID{tls.X25519, tls.X25519MLKEM768},
-		MinVersion:         tls.VersionTLS12,
-	}
-	tlsConn := tls.Client(conn, cfg)
+	tlsConn := tls.Client(conn, realityProbeTLSConfig(sni))
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
 		res.Reason = "TLS handshake failed: " + err.Error()
 		return res

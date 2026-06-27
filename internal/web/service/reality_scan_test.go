@@ -47,6 +47,29 @@ func TestFilterUsableSANs(t *testing.T) {
 	}
 }
 
+func TestRealityProbeTLSConfigVerifiesKnownSNI(t *testing.T) {
+	cfg := realityProbeTLSConfig("example.com")
+	if cfg.ServerName != "example.com" {
+		t.Fatalf("ServerName = %q, want example.com", cfg.ServerName)
+	}
+	if cfg.InsecureSkipVerify {
+		t.Fatal("known-SNI probes must use normal certificate verification")
+	}
+	if cfg.MinVersion != tls.VersionTLS12 {
+		t.Fatalf("MinVersion = %d, want TLS 1.2", cfg.MinVersion)
+	}
+}
+
+func TestRealityProbeTLSConfigAllowsCertDiscoveryWithoutSNI(t *testing.T) {
+	cfg := realityProbeTLSConfig("")
+	if !cfg.InsecureSkipVerify {
+		t.Fatal("no-SNI discovery probes must allow the initial certificate read")
+	}
+	if cfg.ServerName != "" {
+		t.Fatalf("ServerName = %q, want empty", cfg.ServerName)
+	}
+}
+
 func TestSplitRealityTarget(t *testing.T) {
 	okCases := []struct {
 		in       string
