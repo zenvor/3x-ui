@@ -154,14 +154,19 @@ export default function SubconverterSubscriptionList({
               </div>
             }
           >
-            <Tag color="default" style={{ margin: 2, cursor: 'pointer' }}>
+            <Button
+              type="text"
+              size="small"
+              className="subconverter-chip-more-button"
+              aria-label={`${t('more')} ${overflow.length}`}
+            >
               +{overflow.length}
-            </Tag>
+            </Button>
           </Popover>
         )}
       </>
     );
-  }, [inboundById, inboundTagLabel]);
+  }, [inboundById, inboundTagLabel, t]);
 
   const columns = useMemo<ColumnsType<SubscriptionRecord>>(() => [
     {

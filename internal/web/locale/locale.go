@@ -156,10 +156,13 @@ func loadTranslationsFromDisk(bundle *i18n.Bundle) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() {
+		if strings.HasPrefix(filepath.Base(path), ".") {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
 			return nil
 		}
-		if strings.HasPrefix(filepath.Base(path), ".") || filepath.Ext(path) != ".json" {
+		if d.IsDir() || filepath.Ext(path) != ".json" {
 			return nil
 		}
 		data, err := fs.ReadFile(root, path)
@@ -182,10 +185,13 @@ func parseTranslationFiles(i18nFS embed.FS, i18nBundle *i18n.Bundle) error {
 				return err
 			}
 
-			if d.IsDir() {
+			if strings.HasPrefix(filepath.Base(path), ".") {
+				if d.IsDir() {
+					return fs.SkipDir
+				}
 				return nil
 			}
-			if strings.HasPrefix(filepath.Base(path), ".") || filepath.Ext(path) != ".json" {
+			if d.IsDir() || filepath.Ext(path) != ".json" {
 				return nil
 			}
 

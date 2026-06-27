@@ -95,9 +95,14 @@ export default function SubconverterInfoModal({
               </div>
             }
           >
-            <Tag color="default" className="subconverter-info-chip-more">
+            <Button
+              type="text"
+              size="small"
+              className="subconverter-info-chip-more subconverter-chip-more-button"
+              aria-label={`${t('more')} ${overflow.length}`}
+            >
               +{overflow.length} {t('more') !== 'more' ? t('more') : 'more'}
-            </Tag>
+            </Button>
           </Popover>
         )}
       </div>

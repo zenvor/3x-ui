@@ -1619,7 +1619,7 @@
       "cdnServerNamePlaceholder": "為空時預設使用伺服器",
       "maxIps": "IP 限制",
       "maxIpsHint": "超過設定值的 IP 數量將被拒絕存取訂閱轉換連結。（0 = 不限制）",
-      "confirmDelete": "刪除此訂閱轉換？IP 綁定與節點關聯也會一併清除。",
+      "confirmDelete": "刪除此訂閱轉換？IP 綁定與入站關聯也會一併清除。",
       "saved": "儲存成功",
       "updated": "訂閱轉換已更新",
       "deleted": "刪除成功",

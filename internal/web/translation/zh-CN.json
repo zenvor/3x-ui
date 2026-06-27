@@ -1619,7 +1619,7 @@
       "cdnServerNamePlaceholder": "为空时默认使用服务器",
       "maxIps": "IP 限制",
       "maxIpsHint": "超过设置值的 IP 数量将被拒绝访问订阅转换链接。（0 = 不限制）",
-      "confirmDelete": "删除该订阅转换？IP 绑定与节点关联也会一并清除。",
+      "confirmDelete": "删除该订阅转换？IP 绑定与入站关联也会一并清除。",
       "saved": "保存成功",
       "updated": "订阅转换已更新",
       "deleted": "删除成功",

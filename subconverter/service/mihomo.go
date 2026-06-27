@@ -284,21 +284,28 @@ func parseRealityInfo(stream map[string]any) (realityInfo, tlsInfo, error) {
 }
 
 func stringList(value any) []string {
-	items, ok := value.([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		text, ok := item.(string)
-		if !ok {
-			continue
-		}
+	var out []string
+	appendText := func(text string) {
 		text = strings.TrimSpace(text)
-		if text == "" {
-			continue
+		if text != "" {
+			out = append(out, text)
 		}
-		out = append(out, text)
+	}
+
+	switch items := value.(type) {
+	case []string:
+		for _, item := range items {
+			appendText(item)
+		}
+	case []any:
+		for _, item := range items {
+			if text, ok := item.(string); ok {
+				appendText(text)
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

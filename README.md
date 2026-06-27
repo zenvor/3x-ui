@@ -34,7 +34,7 @@ Built as an enhanced fork of the original X-UI project, 3X-UI adds broader proto
 - **Multi-node support** — manage and scale across multiple servers from a single panel.
 - **Outbound & routing** — WARP, NordVPN, custom routing rules, load balancers, and outbound proxy chaining.
 - **Built-in subscription server** with multiple output formats and [custom page templates](docs/custom-subscription-templates.md).
-- **Subconverter** — a Mihomo subscription converter added by this fork, with inbound/client selection, IP limits, User-Agent filtering, and access logs. Currently it only supports **VLESS + XHTTP + REALITY**, **VLESS + TCP + REALITY**, and **VLESS + XHTTP + CDN TLS**; other protocols, transports, and security modes are not supported.
+- **Subconverter** — a Mihomo subscription converter added by this fork, with inbound/client selection, IP limits, User-Agent filtering, and access logs. Currently it only supports **VLESS + TCP + REALITY**, **VLESS + XHTTP + REALITY**, **VLESS + XHTTP + TLS**, **VLESS + XHTTP**, and **VLESS + XHTTP + CDN TLS**; other protocols, transports, and security modes are not supported.
 - **Telegram bot** for remote monitoring and management.
 - **RESTful API** with in-panel Swagger documentation.
 - **Flexible storage** — SQLite (default) or PostgreSQL.
