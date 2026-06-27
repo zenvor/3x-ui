@@ -48,7 +48,7 @@ func TestFilterUsableSANs(t *testing.T) {
 }
 
 func TestRealityProbeTLSConfigVerifiesKnownSNI(t *testing.T) {
-	cfg := realityProbeTLSConfig("example.com")
+	cfg := realityProbeTLSConfig("93.184.216.34", "example.com")
 	if cfg.ServerName != "example.com" {
 		t.Fatalf("ServerName = %q, want example.com", cfg.ServerName)
 	}
@@ -60,13 +60,13 @@ func TestRealityProbeTLSConfigVerifiesKnownSNI(t *testing.T) {
 	}
 }
 
-func TestRealityProbeTLSConfigAllowsCertDiscoveryWithoutSNI(t *testing.T) {
-	cfg := realityProbeTLSConfig("")
-	if !cfg.InsecureSkipVerify {
-		t.Fatal("no-SNI discovery probes must allow the initial certificate read")
+func TestRealityProbeTLSConfigFallsBackToDialHostWithoutSNI(t *testing.T) {
+	cfg := realityProbeTLSConfig("93.184.216.34", "")
+	if cfg.ServerName != "93.184.216.34" {
+		t.Fatalf("ServerName = %q, want dial host", cfg.ServerName)
 	}
-	if cfg.ServerName != "" {
-		t.Fatalf("ServerName = %q, want empty", cfg.ServerName)
+	if cfg.InsecureSkipVerify {
+		t.Fatal("no-SNI probes must still use certificate verification")
 	}
 }
 
