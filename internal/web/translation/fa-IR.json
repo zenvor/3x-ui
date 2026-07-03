@@ -15,6 +15,10 @@
   "copied": "کپی شد",
   "more": "بیشتر",
   "download": "دانلود",
+  "regenerate": "تولید مجدد",
+  "jsonEditor": "ویرایشگر JSON",
+  "downloadImage": "دانلود تصویر",
+  "sort": "مرتب‌سازی",
   "remark": "نام",
   "enable": "فعال",
   "protocol": "پروتکل",
@@ -119,7 +123,8 @@
     "donate": "حمایت مالی",
     "hosts": "میزبان‌ها",
     "docs": "مستندات",
-    "subconverter": "مبدل اشتراک"
+    "subconverter": "مبدل اشتراک",
+    "openMenu": "باز کردن منو"
   },
   "pages": {
     "login": {
@@ -713,12 +718,15 @@
           "requestHeader": "سربرگ درخواست",
           "responseHeader": "سربرگ پاسخ"
         }
-      }
+      },
+      "sniffingDestOverride": "بازنویسی مقصد"
     },
     "clients": {
       "tabBasics": "پایه",
       "tabCredentials": "اطلاعات اتصال",
       "tabLinks": "لینک‌ها",
+      "wireguardConfig": "پیکربندی WireGuard",
+      "config": "پیکربندی",
       "linksHint": "لینک‌های اشتراک شخص‌ثالث و آدرس سابسکریپشن‌های خارجی را اضافه کنید تا در سابسکریپشن این کاربر قرار گیرند.",
       "addExternalLink": "افزودن لینک خارجی",
       "addExternalSubscription": "افزودن سابسکریپشن خارجی",
@@ -872,6 +880,9 @@
       "bulkAdjustNothing": "قبل از اعمال، روز یا ترافیک را تنظیم کنید.",
       "addDays": "افزودن روز",
       "addTrafficGB": "افزودن ترافیک (گیگابایت)",
+      "bulkFlow": "تنظیم flow",
+      "bulkFlowNoChange": "بدون تغییر",
+      "bulkFlowDisable": "غیرفعال (پاک کردن flow)",
       "delDepleted": "حذف اتمام‌یافته‌ها",
       "delDepletedConfirmTitle": "حذف کلاینت‌های اتمام‌یافته؟",
       "delDepletedConfirmContent": "هر کلاینتی که سهمیه ترافیک‌اش تمام شده یا تاریخ انقضایش گذشته است حذف می‌شود. این عمل غیرقابل بازگشت است.",
@@ -886,6 +897,10 @@
       "uuid": "UUID",
       "flow": "Flow",
       "vmessSecurity": "امنیت VMess",
+      "wireguardPrivateKey": "کلید خصوصی وایرگارد",
+      "wireguardPublicKey": "کلید عمومی وایرگارد",
+      "wireguardPreSharedKey": "کلید پیش‌اشتراکی وایرگارد",
+      "wireguardAllowedIPs": "آی‌پی‌های مجاز وایرگارد",
       "reverseTag": "تگ معکوس",
       "reverseTagPlaceholder": "Reverse tag اختیاری",
       "telegramId": "شناسه کاربر تلگرام",
@@ -935,8 +950,8 @@
       "deleteSuccess": "گروه از {count} کاربر پاک شد.",
       "resetTraffic": "بازنشانی ترافیک",
       "resetConfirmTitle": "بازنشانی ترافیک گروه {name}؟",
-      "resetConfirmContent": "این عمل آپلود/دانلود تمام {count} کاربر این گروه را صفر می‌کند.",
-      "resetSuccess": "ترافیک {count} کاربر بازنشانی شد.",
+      "resetConfirmContent": "این فقط شمارنده‌ی ترافیک گروه را صفر می‌کند؛ شمارنده‌ی تک‌تک کاربران دست‌نخورده می‌ماند.",
+      "resetSuccess": "ترافیک گروه {name} صفر شد.",
       "adjustSuccess": "{count} کاربر در {name} تنظیم شد.",
       "emptyForAction": "این گروه هنوز کاربری ندارد.",
       "deleteGroupOnly": "حذف گروه (نگه داشتن کاربران)",
@@ -1136,7 +1151,9 @@
         "custom": "سفارشی (crontab)",
         "seconds": "ثانیه",
         "minutes": "دقیقه",
-        "hours": "ساعت"
+        "hours": "ساعت",
+        "interval": "بازه زمانی",
+        "unit": "واحد"
       },
       "tgNotifyBackup": "پشتیبان‌گیری از دیتابیس",
       "tgNotifyBackupDesc": "فایل پشتیبان‌دیتابیس را به‌همراه گزارش ارسال می‌کند",
@@ -1219,6 +1236,8 @@
         "host": "میزبان LDAP",
         "port": "پورت LDAP",
         "useTls": "استفاده از TLS (LDAPS)",
+        "skipTlsVerify": "رد کردن تأیید گواهی TLS",
+        "skipTlsVerifyDesc": "ناامن — اعتبارسنجی گواهی سرور را غیرفعال می‌کند. فقط برای CAهای داخلی/غیرمعتبر استفاده کنید.",
         "bindDn": "Bind DN",
         "passwordConfigured": "تنظیم‌شده؛ برای حفظ رمز فعلی خالی بگذارید.",
         "passwordUnconfigured": "تنظیم نشده.",
@@ -1608,7 +1627,8 @@
         "city": "شهر",
         "allCities": "همه شهرها",
         "privateKey": "کلید خصوصی",
-        "load": "فشار سرور"
+        "load": "فشار سرور",
+        "moveToTop": "انتقال به بالا"
       },
       "outboundSub": {
         "manage": "سابسکریپشن‌ها",
@@ -1660,6 +1680,42 @@
         "toastDeleted": "حذف شد",
         "toastDeleteFailed": "حذف ناموفق بود"
       },
+      "tabBalancerSettings": "تنظیمات بالانسر",
+      "tabObservatory": "رصدخانه",
+      "observatory": {
+        "title": "رصدخانه",
+        "burstTitle": "رصدخانه Burst",
+        "autoManaged": "رصدگرها به‌صورت خودکار از روی بالانسرهای شما مدیریت می‌شوند. در ادامه می‌توانید نحوهٔ پروب‌زدن را تنظیم کنید؛ خروجی‌های تحت نظر از سلکتورهای بالانسر پیروی می‌کنند.",
+        "emptyHint": "هیچ رصدگر اتصالی فعال نیست. وقتی یک بالانسر Least Ping یا Least Load بسازید — یا یک بالانسر Random / Round-robin همراه با fallback — به‌صورت خودکار یکی اضافه می‌شود تا بالانسر بتواند خروجی‌ها را اندازه‌گیری کند و بهترین را انتخاب کند.",
+        "subjectSelector": "خروجی‌های تحت نظر",
+        "subjectSelectorDesc": "تگ خروجی‌هایی که این رصدگر پروب می‌کند. به‌صورت خودکار از روی بالانسرهای شما مدیریت می‌شود.",
+        "probeURL": "آدرس پروب (URL)",
+        "probeURLDesc": "آدرسی که برای سنجش هر خروجی فراخوانی می‌شود. باید HTTP 204 برگرداند.",
+        "probeInterval": "بازهٔ پروب",
+        "probeIntervalDesc": "هر چند وقت یک‌بار هر خروجی پروب شود، مثلاً 30s یا 1m یا 2h45m.",
+        "enableConcurrency": "پروب هم‌زمان",
+        "enableConcurrencyDesc": "همهٔ خروجی‌های تحت نظر را به‌جای یکی‌یکی، هم‌زمان پروب کن. سریع‌تر است اما در شبکه نمایان‌تر.",
+        "destination": "مقصد پروب",
+        "destinationDesc": "آدرسی که برای سنجش هر خروجی فراخوانی می‌شود. باید HTTP 204 برگرداند.",
+        "connectivity": "بررسی اتصال",
+        "connectivityDesc": "آدرس اختیاری برای بررسی شبکهٔ محلی که فقط پس از شکست مقصد امتحان می‌شود. برای نادیده‌گرفتن خالی بگذارید.",
+        "interval": "بازهٔ پروب",
+        "intervalDesc": "میانگین فاصلهٔ زمانی بین پروب‌ها برای هر خروجی، مثلاً 1m. کمینه 10s.",
+        "timeout": "مهلت پروب",
+        "timeoutDesc": "چه مدت برای پاسخ یک پروب صبر شود تا ناموفق به‌حساب بیاید، مثلاً 5s.",
+        "sampling": "تعداد نمونه‌گیری",
+        "samplingDesc": "تعداد نتایج اخیر پروب که برای امتیازدهی به هر خروجی نگه داشته می‌شود.",
+        "httpMethod": "متد HTTP",
+        "httpMethodDesc": "متد HTTP که برای پروب‌ها استفاده می‌شود.",
+        "deleteAlsoObservatory": "این آخرین بالانسری است که از Observatory استفاده می‌کند، بنابراین آن هم حذف خواهد شد.",
+        "deleteAlsoBurst": "این آخرین بالانسری است که از Burst Observatory استفاده می‌کند، بنابراین آن هم حذف خواهد شد."
+      },
+      "refCleanup": {
+        "header": "حذف این مورد مسیریابی شما را هم به‌روز می‌کند:",
+        "ruleRemoved": "قاعده {label} — حذف شد (مقصدی باقی نماند)",
+        "ruleModified": "قاعده {label} — حفظ شد (اکنون از {keeps} استفاده می‌کند)",
+        "balancerRemoved": "بالانسر {tag} — حذف شد (هدفی باقی نماند)"
+      },
       "balancer": {
         "addBalancer": "افزودن بالانسر",
         "editBalancer": "ویرایش بالانسر",
@@ -1677,7 +1733,10 @@
         "tolerance": "تحمل",
         "baselines": "خطوط پایه",
         "costs": "هزینه‌ها",
-        "balancerDesc": "امکان استفاده همزمان balancerTag و outboundTag باهم وجود ندارد. درصورت استفاده همزمان فقط outboundTag عمل خواهد کرد."
+        "balancerDesc": "امکان استفاده همزمان balancerTag و outboundTag باهم وجود ندارد. درصورت استفاده همزمان فقط outboundTag عمل خواهد کرد.",
+        "costMatch": "الگوی برچسب",
+        "costValue": "وزن",
+        "costRegexp": "تطبیق با عبارت باقاعده"
       },
       "wireguard": {
         "secretKey": "کلید شخصی",
@@ -1843,7 +1902,7 @@
         "nodeGuids": "نودهایی را که از این میزبان resolve می‌شوند انتخاب کنید. صرفاً انتساب نمایشی است.",
         "serverDescription": "یادداشت اختیاری که زیر نام نمایش داده می‌شود.",
         "allowInsecure": "رد کردن بررسی گواهی TLS (allowInsecure / skip-cert-verify).",
-        "vlessRoute": "پورت‌ها/بازه‌هایی که از طریق VLESS مسیریابی می‌شوند، مثلاً 53,443,1000-2000. برای هیچ‌کدام خالی بگذارید.",
+        "vlessRoute": "یک مقدار مسیر VLESS (0 تا 65535) که در UUID جاسازی می‌شود، مثلاً 443. برای هیچ‌کدام خالی بگذارید.",
         "remark": "یک برچسب ساده برای این میزبان. تنها زمانی به‌عنوان نام کانفیگ نمایش داده می‌شود که اینباند نام مخصوص خود را نداشته باشد."
       },
       "remarkVars": {
@@ -1893,7 +1952,7 @@
         "update": "به‌روزرسانی میزبان",
         "delete": "حذف میزبان",
         "badTag": "برچسب نامعتبر",
-        "badVlessRoute": "از پورت‌ها/بازه‌هایی مانند 53,443,1000-2000 استفاده کنید"
+        "badVlessRoute": "یک عدد بین 0 تا 65535 وارد کنید"
       }
     },
     "subconverter": {

@@ -16,6 +16,7 @@ export const EXAMPLES: Record<string, unknown> = {
     "ldapFlagField": "",
     "ldapHost": "",
     "ldapInboundTags": "",
+    "ldapInsecureSkipVerify": false,
     "ldapInvertFlag": false,
     "ldapPassword": "",
     "ldapPort": 0,
@@ -118,6 +119,7 @@ export const EXAMPLES: Record<string, unknown> = {
     "ldapFlagField": "",
     "ldapHost": "",
     "ldapInboundTags": "",
+    "ldapInsecureSkipVerify": false,
     "ldapInvertFlag": false,
     "ldapPassword": "",
     "ldapPort": 0,
@@ -212,6 +214,9 @@ export const EXAMPLES: Record<string, unknown> = {
     "token": "new-token-string"
   },
   "Client": {
+    "allowedIPs": [
+      ""
+    ],
     "auth": "",
     "comment": "",
     "created_at": 0,
@@ -221,8 +226,12 @@ export const EXAMPLES: Record<string, unknown> = {
     "flow": "",
     "group": "",
     "id": "",
+    "keepAlive": 0,
     "limitIp": 0,
     "password": "",
+    "preSharedKey": "",
+    "privateKey": "",
+    "publicKey": "",
     "reset": 0,
     "reverse": null,
     "security": "",
@@ -238,6 +247,7 @@ export const EXAMPLES: Record<string, unknown> = {
     "inboundId": 0
   },
   "ClientRecord": {
+    "allowedIPs": "",
     "auth": "",
     "comment": "",
     "createdAt": 0,
@@ -247,8 +257,12 @@ export const EXAMPLES: Record<string, unknown> = {
     "flow": "",
     "group": "",
     "id": 0,
+    "keepAlive": 0,
     "limitIp": 0,
     "password": "",
+    "preSharedKey": "",
+    "privateKey": "",
+    "publicKey": "",
     "reset": 0,
     "reverse": null,
     "security": "",
@@ -326,7 +340,7 @@ export const EXAMPLES: Record<string, unknown> = {
     ],
     "updatedAt": 0,
     "verifyPeerCertByName": "",
-    "vlessRoute": ""
+    "vlessRoute": "443"
   },
   "Inbound": {
     "clientStats": [
@@ -392,7 +406,10 @@ export const EXAMPLES: Record<string, unknown> = {
     "remark": "VLESS-443",
     "ssMethod": "",
     "tag": "in-443-tcp",
-    "tlsFlowCapable": true
+    "tlsFlowCapable": true,
+    "wgDns": "",
+    "wgMtu": 0,
+    "wgPublicKey": ""
   },
   "Msg": {
     "msg": "",

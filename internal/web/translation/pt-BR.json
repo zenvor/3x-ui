@@ -15,6 +15,10 @@
   "copied": "Copiado",
   "more": "mais",
   "download": "Baixar",
+  "regenerate": "Regenerar",
+  "jsonEditor": "Editor JSON",
+  "downloadImage": "Baixar imagem",
+  "sort": "Ordenar",
   "remark": "Observação",
   "enable": "Ativado",
   "protocol": "Protocolo",
@@ -119,7 +123,8 @@
     "donate": "Doar",
     "hosts": "Hosts",
     "docs": "Documentação",
-    "subconverter": "Conversor de assinaturas"
+    "subconverter": "Conversor de assinaturas",
+    "openMenu": "Abrir menu"
   },
   "pages": {
     "login": {
@@ -713,12 +718,15 @@
           "requestHeader": "Cabeçalho da Requisição",
           "responseHeader": "Cabeçalho da Resposta"
         }
-      }
+      },
+      "sniffingDestOverride": "Substituição de destino"
     },
     "clients": {
       "tabBasics": "Básico",
       "tabCredentials": "Credenciais",
       "tabLinks": "Links",
+      "wireguardConfig": "Configuração do WireGuard",
+      "config": "Configuração",
       "linksHint": "Adicione links de terceiros e URLs de assinatura remotas para incluir na assinatura deste cliente.",
       "addExternalLink": "Adicionar link externo",
       "addExternalSubscription": "Adicionar assinatura externa",
@@ -872,6 +880,9 @@
       "bulkAdjustNothing": "Defina dias ou tráfego antes de aplicar.",
       "addDays": "Adicionar dias",
       "addTrafficGB": "Adicionar tráfego (GB)",
+      "bulkFlow": "Definir flow",
+      "bulkFlowNoChange": "Sem alteração",
+      "bulkFlowDisable": "Desativar (limpar flow)",
       "delDepleted": "Excluir esgotados",
       "delDepletedConfirmTitle": "Excluir clientes esgotados?",
       "delDepletedConfirmContent": "Remove todos os clientes cuja cota de tráfego foi esgotada ou cuja expiração já passou. Não é possível desfazer.",
@@ -886,6 +897,10 @@
       "uuid": "UUID",
       "flow": "Flow",
       "vmessSecurity": "Segurança VMess",
+      "wireguardPrivateKey": "Chave privada do WireGuard",
+      "wireguardPublicKey": "Chave pública do WireGuard",
+      "wireguardPreSharedKey": "Chave pré-compartilhada do WireGuard",
+      "wireguardAllowedIPs": "IPs permitidos do WireGuard",
       "reverseTag": "Tag reversa",
       "reverseTagPlaceholder": "Reverse tag opcional",
       "telegramId": "ID de usuário do Telegram",
@@ -935,8 +950,8 @@
       "deleteSuccess": "Grupo limpo de {count} cliente(s).",
       "resetTraffic": "Redefinir tráfego",
       "resetConfirmTitle": "Redefinir tráfego do grupo {name}?",
-      "resetConfirmContent": "Isso zera up/down para todos os {count} cliente(s) deste grupo.",
-      "resetSuccess": "Tráfego redefinido para {count} cliente(s).",
+      "resetConfirmContent": "Isso redefine apenas o contador de tráfego do grupo. Os contadores de cada cliente não são afetados.",
+      "resetSuccess": "Tráfego do grupo {name} redefinido.",
       "adjustSuccess": "Ajustados {count} cliente(s) em {name}.",
       "emptyForAction": "Este grupo ainda não tem clientes.",
       "deleteGroupOnly": "Excluir grupo (manter clientes)",
@@ -1134,7 +1149,9 @@
         "custom": "Personalizado (crontab)",
         "seconds": "Segundos",
         "minutes": "Minutos",
-        "hours": "Horas"
+        "hours": "Horas",
+        "interval": "Intervalo",
+        "unit": "Unidade"
       },
       "tgNotifyBackup": "Backup do Banco de Dados",
       "tgNotifyBackupDesc": "Enviar arquivo de backup do banco de dados junto com o relatório.",
@@ -1217,6 +1234,8 @@
         "host": "Host LDAP",
         "port": "Porta LDAP",
         "useTls": "Usar TLS (LDAPS)",
+        "skipTlsVerify": "Pular verificação de certificado TLS",
+        "skipTlsVerifyDesc": "Inseguro — desativa a validação do certificado do servidor. Use apenas com CAs internos/não confiáveis.",
         "bindDn": "Bind DN",
         "passwordConfigured": "Configurada; deixe em branco para manter a senha atual.",
         "passwordUnconfigured": "Não configurada.",
@@ -1608,7 +1627,8 @@
         "city": "Cidade",
         "allCities": "Todas as Cidades",
         "privateKey": "Chave Privada",
-        "load": "Carga"
+        "load": "Carga",
+        "moveToTop": "Mover para o topo"
       },
       "outboundSub": {
         "manage": "Assinaturas",
@@ -1660,6 +1680,42 @@
         "toastDeleted": "Excluído",
         "toastDeleteFailed": "Falha ao excluir"
       },
+      "tabBalancerSettings": "Configurações do balanceador",
+      "tabObservatory": "Observatório",
+      "observatory": {
+        "title": "Observatório",
+        "burstTitle": "Observatório Burst",
+        "autoManaged": "Os observadores são gerenciados automaticamente a partir dos seus balanceadores. Ajuste abaixo como eles sondam; as saídas monitoradas seguem os seletores do balanceador.",
+        "emptyHint": "Nenhum observador de conexão ativo. Um é adicionado automaticamente ao criar um balanceador Least Ping ou Least Load — ou um balanceador Random / Round-robin com fallback — para que o balanceador possa medir suas saídas e escolher a melhor.",
+        "subjectSelector": "Saídas monitoradas",
+        "subjectSelectorDesc": "Tags de saída que este observador sonda. Gerenciadas automaticamente a partir dos seus balanceadores.",
+        "probeURL": "URL de sondagem",
+        "probeURLDesc": "URL requisitada para medir cada saída. Deve retornar HTTP 204.",
+        "probeInterval": "Intervalo de sondagem",
+        "probeIntervalDesc": "Com que frequência sondar cada saída, ex.: 30s, 1m, 2h45m.",
+        "enableConcurrency": "Sondagem concorrente",
+        "enableConcurrencyDesc": "Sonda todas as saídas monitoradas de uma vez, em vez de uma a uma. Mais rápido, mas mais visível na rede.",
+        "destination": "Destino da sondagem",
+        "destinationDesc": "URL requisitada para medir cada saída. Deve retornar HTTP 204.",
+        "connectivity": "Verificação de conectividade",
+        "connectivityDesc": "URL opcional de verificação da rede local, testada apenas após o destino falhar. Deixe vazio para ignorar.",
+        "interval": "Intervalo de sondagem",
+        "intervalDesc": "Tempo médio entre sondagens por saída, ex.: 1m. Mínimo 10s.",
+        "timeout": "Tempo limite da sondagem",
+        "timeoutDesc": "Quanto esperar por uma sondagem antes de considerá-la falha, ex.: 5s.",
+        "sampling": "Número de amostras",
+        "samplingDesc": "Número de resultados de sondagem recentes mantidos para pontuar cada saída.",
+        "httpMethod": "Método HTTP",
+        "httpMethodDesc": "Método HTTP usado nas sondagens.",
+        "deleteAlsoObservatory": "Este é o último balanceador que usa o Observatório, então ele também será removido.",
+        "deleteAlsoBurst": "Este é o último balanceador que usa o Observatório Burst, então ele também será removido."
+      },
+      "refCleanup": {
+        "header": "Excluir isto também atualiza o seu roteamento:",
+        "ruleRemoved": "Regra {label} — removida (sem destino restante)",
+        "ruleModified": "Regra {label} — mantida (agora usa {keeps})",
+        "balancerRemoved": "Balanceador {tag} — removido (sem destinos restantes)"
+      },
       "balancer": {
         "addBalancer": "Adicionar Balanceador",
         "editBalancer": "Editar Balanceador",
@@ -1677,7 +1733,10 @@
         "tolerance": "Tolerância",
         "baselines": "Baselines",
         "costs": "Costs",
-        "balancerDesc": "Não é possível usar balancerTag e outboundTag ao mesmo tempo. Se usados simultaneamente, apenas outboundTag funcionará."
+        "balancerDesc": "Não é possível usar balancerTag e outboundTag ao mesmo tempo. Se usados simultaneamente, apenas outboundTag funcionará.",
+        "costMatch": "Padrão de tag",
+        "costValue": "Peso",
+        "costRegexp": "Correspondência por expressão regular"
       },
       "wireguard": {
         "secretKey": "Chave Secreta",
@@ -1843,7 +1902,7 @@
         "nodeGuids": "Escolha os nós que foram resolvidos a partir deste host. Apenas atribuição visual.",
         "serverDescription": "Nota opcional exibida abaixo da observação.",
         "allowInsecure": "Ignorar a verificação do certificado TLS (allowInsecure / skip-cert-verify).",
-        "vlessRoute": "Portas/intervalos roteados via VLESS, ex.: 53,443,1000-2000. Deixe em branco para nenhum.",
+        "vlessRoute": "Um único valor de rota VLESS (0-65535) embutido no UUID, ex.: 443. Deixe em branco para nenhum.",
         "remark": "Um rótulo simples para este host. Mostrado como nome da configuração apenas quando a entrada não tem observação própria."
       },
       "remarkVars": {
@@ -1893,7 +1952,7 @@
         "update": "Atualizar host",
         "delete": "Excluir host",
         "badTag": "Tag inválida",
-        "badVlessRoute": "Use portas/intervalos como 53,443,1000-2000"
+        "badVlessRoute": "Insira um único número entre 0 e 65535"
       }
     },
     "subconverter": {

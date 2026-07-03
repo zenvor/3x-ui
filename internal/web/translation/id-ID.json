@@ -15,6 +15,10 @@
   "copied": "Tersalin",
   "more": "lainnya",
   "download": "Unduh",
+  "regenerate": "Buat Ulang",
+  "jsonEditor": "Editor JSON",
+  "downloadImage": "Unduh Gambar",
+  "sort": "Urutkan",
   "remark": "Catatan",
   "enable": "Aktifkan",
   "protocol": "Protokol",
@@ -119,7 +123,8 @@
     "donate": "Donasi",
     "hosts": "Host",
     "docs": "Dokumentasi",
-    "subconverter": "Konverter langganan"
+    "subconverter": "Konverter langganan",
+    "openMenu": "Buka menu"
   },
   "pages": {
     "login": {
@@ -713,12 +718,15 @@
           "requestHeader": "Header Permintaan",
           "responseHeader": "Header Respons"
         }
-      }
+      },
+      "sniffingDestOverride": "Penggantian tujuan"
     },
     "clients": {
       "tabBasics": "Dasar",
       "tabCredentials": "Kredensial",
       "tabLinks": "Tautan",
+      "wireguardConfig": "Konfigurasi WireGuard",
+      "config": "Konfigurasi",
       "linksHint": "Tambahkan tautan berbagi pihak ketiga dan URL langganan jarak jauh untuk disertakan dalam langganan klien ini.",
       "addExternalLink": "Tambah Tautan Eksternal",
       "addExternalSubscription": "Tambah Langganan Eksternal",
@@ -872,6 +880,9 @@
       "bulkAdjustNothing": "Setel hari atau trafik sebelum menerapkan.",
       "addDays": "Tambah hari",
       "addTrafficGB": "Tambah trafik (GB)",
+      "bulkFlow": "Atur flow",
+      "bulkFlowNoChange": "Tanpa perubahan",
+      "bulkFlowDisable": "Nonaktifkan (hapus flow)",
       "delDepleted": "Hapus yang habis",
       "delDepletedConfirmTitle": "Hapus klien yang habis?",
       "delDepletedConfirmContent": "Hapus setiap klien yang kuota lalu lintasnya habis atau yang masa berlakunya telah berakhir. Tidak dapat dibatalkan.",
@@ -886,6 +897,10 @@
       "uuid": "UUID",
       "flow": "Flow",
       "vmessSecurity": "Keamanan VMess",
+      "wireguardPrivateKey": "Kunci Privat WireGuard",
+      "wireguardPublicKey": "Kunci Publik WireGuard",
+      "wireguardPreSharedKey": "Kunci Pra-Berbagi WireGuard",
+      "wireguardAllowedIPs": "IP yang Diizinkan WireGuard",
       "reverseTag": "Reverse tag",
       "reverseTagPlaceholder": "Reverse tag opsional",
       "telegramId": "ID pengguna Telegram",
@@ -935,8 +950,8 @@
       "deleteSuccess": "Grup dihapus dari {count} klien.",
       "resetTraffic": "Reset trafik",
       "resetConfirmTitle": "Reset trafik grup {name}?",
-      "resetConfirmContent": "Ini mengatur ulang up/down ke 0 untuk semua {count} klien di grup ini.",
-      "resetSuccess": "Trafik direset untuk {count} klien.",
+      "resetConfirmContent": "Ini hanya mengatur ulang penghitung trafik grup. Penghitung tiap klien tidak terpengaruh.",
+      "resetSuccess": "Trafik grup {name} direset.",
       "adjustSuccess": "{count} klien di {name} disesuaikan.",
       "emptyForAction": "Grup ini belum memiliki klien.",
       "deleteGroupOnly": "Hapus grup (pertahankan klien)",
@@ -1134,7 +1149,9 @@
         "custom": "Kustom (crontab)",
         "seconds": "Detik",
         "minutes": "Menit",
-        "hours": "Jam"
+        "hours": "Jam",
+        "interval": "Interval",
+        "unit": "Satuan"
       },
       "tgNotifyBackup": "Cadangan Database",
       "tgNotifyBackupDesc": "Kirim berkas cadangan database dengan laporan.",
@@ -1217,6 +1234,8 @@
         "host": "LDAP host",
         "port": "Port LDAP",
         "useTls": "Gunakan TLS (LDAPS)",
+        "skipTlsVerify": "Lewati verifikasi sertifikat TLS",
+        "skipTlsVerifyDesc": "Tidak aman — menonaktifkan validasi sertifikat server. Gunakan hanya dengan CA internal/tidak terpercaya.",
         "bindDn": "Bind DN",
         "passwordConfigured": "Terkonfigurasi; biarkan kosong untuk mempertahankan kata sandi saat ini.",
         "passwordUnconfigured": "Tidak terkonfigurasi.",
@@ -1608,7 +1627,8 @@
         "city": "Kota",
         "allCities": "Semua Kota",
         "privateKey": "Kunci Privat",
-        "load": "Beban"
+        "load": "Beban",
+        "moveToTop": "Pindahkan ke atas"
       },
       "outboundSub": {
         "manage": "Langganan",
@@ -1660,6 +1680,42 @@
         "toastDeleted": "Dihapus",
         "toastDeleteFailed": "Gagal menghapus"
       },
+      "tabBalancerSettings": "Pengaturan Balancer",
+      "tabObservatory": "Observatory",
+      "observatory": {
+        "title": "Observatory",
+        "burstTitle": "Burst Observatory",
+        "autoManaged": "Observer dikelola otomatis dari balancer Anda. Atur cara mereka melakukan probe di bawah; outbound yang dipantau mengikuti selector balancer.",
+        "emptyHint": "Tidak ada observer koneksi yang aktif. Satu akan ditambahkan otomatis saat Anda membuat balancer Least Ping atau Least Load — atau balancer Random / Round-robin dengan fallback — sehingga balancer dapat mengukur outbound Anda dan memilih yang terbaik.",
+        "subjectSelector": "Outbound yang Dipantau",
+        "subjectSelectorDesc": "Tag outbound yang di-probe observer ini. Dikelola otomatis dari balancer Anda.",
+        "probeURL": "URL Probe",
+        "probeURLDesc": "URL yang diminta untuk mengukur setiap outbound. Harus mengembalikan HTTP 204.",
+        "probeInterval": "Interval Probe",
+        "probeIntervalDesc": "Seberapa sering memprobe tiap outbound, mis. 30s, 1m, 2h45m.",
+        "enableConcurrency": "Probe Bersamaan",
+        "enableConcurrencyDesc": "Probe semua outbound yang dipantau sekaligus, bukan satu per satu. Lebih cepat, tetapi lebih terlihat di jaringan.",
+        "destination": "Tujuan Probe",
+        "destinationDesc": "URL yang diminta untuk mengukur setiap outbound. Harus mengembalikan HTTP 204.",
+        "connectivity": "Pemeriksaan Konektivitas",
+        "connectivityDesc": "URL pemeriksaan jaringan lokal opsional, dicoba hanya setelah tujuan gagal. Kosongkan untuk melewati.",
+        "interval": "Interval Probe",
+        "intervalDesc": "Rata-rata waktu antar probe per outbound, mis. 1m. Minimal 10s.",
+        "timeout": "Batas Waktu Probe",
+        "timeoutDesc": "Berapa lama menunggu probe sebelum dianggap gagal, mis. 5s.",
+        "sampling": "Jumlah Sampling",
+        "samplingDesc": "Jumlah hasil probe terbaru yang disimpan untuk menilai tiap outbound.",
+        "httpMethod": "Metode HTTP",
+        "httpMethodDesc": "Metode HTTP yang digunakan untuk probe.",
+        "deleteAlsoObservatory": "Ini balancer terakhir yang memakai Observatory, jadi itu juga akan dihapus.",
+        "deleteAlsoBurst": "Ini balancer terakhir yang memakai Burst Observatory, jadi itu juga akan dihapus."
+      },
+      "refCleanup": {
+        "header": "Menghapus ini juga memperbarui perutean Anda:",
+        "ruleRemoved": "Aturan {label} — dihapus (tidak ada tujuan tersisa)",
+        "ruleModified": "Aturan {label} — dipertahankan (kini memakai {keeps})",
+        "balancerRemoved": "Balancer {tag} — dihapus (tidak ada target tersisa)"
+      },
       "balancer": {
         "addBalancer": "Tambahkan Penyeimbang",
         "editBalancer": "Sunting Penyeimbang",
@@ -1677,7 +1733,10 @@
         "tolerance": "Toleransi",
         "baselines": "Baselines",
         "costs": "Costs",
-        "balancerDesc": "BalancerTag dan outboundTag tidak dapat digunakan secara bersamaan. Jika digunakan secara bersamaan, hanya outboundTag yang akan berfungsi."
+        "balancerDesc": "BalancerTag dan outboundTag tidak dapat digunakan secara bersamaan. Jika digunakan secara bersamaan, hanya outboundTag yang akan berfungsi.",
+        "costMatch": "Pola tag",
+        "costValue": "Bobot",
+        "costRegexp": "Pencocokan ekspresi reguler"
       },
       "wireguard": {
         "secretKey": "Kunci Rahasia",
@@ -1843,7 +1902,7 @@
         "nodeGuids": "Pilih node yang teresolusi dari host ini. Hanya penetapan visual.",
         "serverDescription": "Catatan opsional yang ditampilkan di bawah catatan.",
         "allowInsecure": "Lewati verifikasi sertifikat TLS (allowInsecure / skip-cert-verify).",
-        "vlessRoute": "Port/rentang yang dirutekan melalui VLESS, mis. 53,443,1000-2000. Biarkan kosong jika tidak ada.",
+        "vlessRoute": "Satu nilai rute VLESS (0-65535) yang disisipkan ke UUID, mis. 443. Biarkan kosong jika tidak ada.",
         "remark": "Label sederhana untuk host ini. Ditampilkan sebagai nama konfigurasi hanya ketika inbound tidak memiliki catatan tersendiri."
       },
       "remarkVars": {
@@ -1893,7 +1952,7 @@
         "update": "Perbarui host",
         "delete": "Hapus host",
         "badTag": "Tag tidak valid",
-        "badVlessRoute": "Gunakan port/rentang seperti 53,443,1000-2000"
+        "badVlessRoute": "Masukkan satu angka antara 0 dan 65535"
       }
     },
     "subconverter": {

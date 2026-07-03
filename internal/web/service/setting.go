@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/xlzd/gotp"
+	"gorm.io/gorm"
+
 	"github.com/mhsanaei/3x-ui/v3/internal/config"
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
@@ -24,8 +27,6 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/util/reflect_util"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/entity"
 	"github.com/mhsanaei/3x-ui/v3/internal/xray"
-
-	"gorm.io/gorm"
 )
 
 //go:embed config.json
@@ -113,26 +114,27 @@ var defaultValueMap = map[string]string{
 	"devChannelEnable":            "false",
 
 	// LDAP defaults
-	"ldapEnable":            "false",
-	"ldapHost":              "",
-	"ldapPort":              "389",
-	"ldapUseTLS":            "false",
-	"ldapBindDN":            "",
-	"ldapPassword":          "",
-	"ldapBaseDN":            "",
-	"ldapUserFilter":        "(objectClass=person)",
-	"ldapUserAttr":          "mail",
-	"ldapVlessField":        "vless_enabled",
-	"ldapSyncCron":          "@every 1m",
-	"ldapFlagField":         "",
-	"ldapTruthyValues":      "true,1,yes,on",
-	"ldapInvertFlag":        "false",
-	"ldapInboundTags":       "",
-	"ldapAutoCreate":        "false",
-	"ldapAutoDelete":        "false",
-	"ldapDefaultTotalGB":    "0",
-	"ldapDefaultExpiryDays": "0",
-	"ldapDefaultLimitIP":    "0",
+	"ldapEnable":             "false",
+	"ldapHost":               "",
+	"ldapPort":               "389",
+	"ldapUseTLS":             "false",
+	"ldapInsecureSkipVerify": "false",
+	"ldapBindDN":             "",
+	"ldapPassword":           "",
+	"ldapBaseDN":             "",
+	"ldapUserFilter":         "(objectClass=person)",
+	"ldapUserAttr":           "mail",
+	"ldapVlessField":         "vless_enabled",
+	"ldapSyncCron":           "@every 1m",
+	"ldapFlagField":          "",
+	"ldapTruthyValues":       "true,1,yes,on",
+	"ldapInvertFlag":         "false",
+	"ldapInboundTags":        "",
+	"ldapAutoCreate":         "false",
+	"ldapAutoDelete":         "false",
+	"ldapDefaultTotalGB":     "0",
+	"ldapDefaultExpiryDays":  "0",
+	"ldapDefaultLimitIP":     "0",
 
 	// Event bus — per-subscriber event filtering (empty = all disabled)
 	"tgEnabledEvents":   "login.attempt,cpu.high",
@@ -567,6 +569,24 @@ func (s *SettingService) SetTwoFactorToken(value string) error {
 	return s.setString("twoFactorToken", value)
 }
 
+func (s *SettingService) VerifyTwoFactorCode(code string) error {
+	enabled, err := s.GetTwoFactorEnable()
+	if err != nil {
+		return err
+	}
+	if !enabled {
+		return nil
+	}
+	token, err := s.GetTwoFactorToken()
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(token) == "" || !gotp.NewDefaultTOTP(token).Verify(strings.TrimSpace(code), time.Now().Unix()) {
+		return common.NewError("invalid two factor code")
+	}
+	return nil
+}
+
 func (s *SettingService) GetPort() (int, error) {
 	return s.getInt("webPort")
 }
@@ -901,6 +921,10 @@ func (s *SettingService) GetLdapPort() (int, error) {
 
 func (s *SettingService) GetLdapUseTLS() (bool, error) {
 	return s.getBool("ldapUseTLS")
+}
+
+func (s *SettingService) GetLdapInsecureSkipVerify() (bool, error) {
+	return s.getBool("ldapInsecureSkipVerify")
 }
 
 func (s *SettingService) GetLdapBindDN() (string, error) {
