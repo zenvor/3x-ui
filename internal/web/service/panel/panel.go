@@ -1,6 +1,7 @@
 package panel
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -159,7 +160,7 @@ func (s *PanelService) startUpdate(useDev bool) error {
 
 	if systemdRun, err := exec.LookPath("systemd-run"); err == nil {
 		unitName := fmt.Sprintf("x-ui-web-update-%d", time.Now().Unix())
-		cmd := exec.Command(systemdRun,
+		cmd := exec.CommandContext(context.Background(), systemdRun,
 			"--unit", unitName,
 			"--setenv", "XUI_MAIN_FOLDER="+mainFolder,
 			"--setenv", "XUI_SERVICE="+serviceFolder,
@@ -181,7 +182,7 @@ func (s *PanelService) startUpdate(useDev bool) error {
 		}
 	}
 
-	cmd := exec.Command(bash, "-lc", updateScript)
+	cmd := exec.CommandContext(context.Background(), bash, "-lc", updateScript)
 	cmd.Env = append(os.Environ(),
 		"XUI_MAIN_FOLDER="+mainFolder,
 		"XUI_SERVICE="+serviceFolder,
@@ -201,7 +202,11 @@ func (s *PanelService) startUpdate(useDev bool) error {
 
 func downloadPanelUpdater() (string, error) {
 	client := (&service.SettingService{}).NewProxiedHTTPClient(15 * time.Second)
-	resp, err := client.Get(panelUpdaterURL)
+	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, panelUpdaterURL, nil)
+	if reqErr != nil {
+		return "", fmt.Errorf("download panel updater: %w", reqErr)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("download panel updater: %w", err)
 	}
@@ -230,7 +235,7 @@ func downloadPanelUpdater() (string, error) {
 	if n > maxPanelUpdaterBytes {
 		return "", fmt.Errorf("panel updater exceeds %d bytes", maxPanelUpdaterBytes)
 	}
-	if err := file.Chmod(0700); err != nil {
+	if err := file.Chmod(0o700); err != nil {
 		return "", err
 	}
 	ok = true
@@ -256,7 +261,11 @@ func fetchPanelRelease(tag string) (*service.Release, error) {
 		url = "https://api.github.com/repos/" + panelGitHubRepo + "/releases/tags/" + tag
 	}
 	client := (&service.SettingService{}).NewProxiedHTTPClient(10 * time.Second)
-	resp, err := client.Get(url)
+	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if reqErr != nil {
+		return nil, reqErr
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}

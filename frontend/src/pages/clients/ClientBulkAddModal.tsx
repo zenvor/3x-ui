@@ -16,7 +16,7 @@ import { ClientBulkAddFormSchema, type ClientBulkAddFormValues } from '@/schemas
 const FLOW_OPTIONS = Object.values(TLS_FLOW_CONTROL);
 
 const MULTI_CLIENT_PROTOCOLS = new Set([
-  'shadowsocks', 'vless', 'vmess', 'trojan', 'hysteria',
+  'shadowsocks', 'vless', 'vmess', 'trojan', 'hysteria', 'wireguard',
 ]);
 
 interface ClientBulkAddModalProps {
@@ -280,6 +280,7 @@ export default function ClientBulkAddModal({
                 style={{ flex: 1 }}
               />
               <Button
+                aria-label={t('regenerate')}
                 icon={<ReloadOutlined />}
                 onClick={() => update('subId', RandomUtil.randomLowerAndNum(16))}
               />

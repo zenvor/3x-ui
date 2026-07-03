@@ -32,6 +32,11 @@ export const ClientRecordSchema = z.object({
   inboundIds: nullableNumberArray.optional(),
   traffic: ClientTrafficSchema.nullable().optional(),
   reverse: z.object({ tag: z.string().optional() }).loose().nullable().optional(),
+  privateKey: z.string().optional(),
+  publicKey: z.string().optional(),
+  allowedIPs: z.string().optional(),
+  preSharedKey: z.string().optional(),
+  keepAlive: z.number().optional(),
   createdAt: z.number().optional(),
   updatedAt: z.number().optional(),
 }).loose();
@@ -44,6 +49,9 @@ export const InboundOptionSchema = z.object({
   port: z.number().optional(),
   tlsFlowCapable: z.boolean().optional(),
   ssMethod: z.string().optional(),
+  wgPublicKey: z.string().optional(),
+  wgMtu: z.number().optional(),
+  wgDns: z.string().optional(),
   // Hosting node id; absent/null for this panel's own inbounds (#4997).
   nodeId: z.number().nullable().optional(),
 }).loose();

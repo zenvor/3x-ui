@@ -15,6 +15,10 @@
   "copied": "اتنسخ",
   "more": "المزيد",
   "download": "تحميل",
+  "regenerate": "إعادة التوليد",
+  "jsonEditor": "محرر JSON",
+  "downloadImage": "تنزيل الصورة",
+  "sort": "ترتيب",
   "remark": "ملاحظة",
   "enable": "مفعل",
   "protocol": "بروتوكول",
@@ -119,7 +123,8 @@
     "donate": "تبرع",
     "hosts": "المضيفات",
     "docs": "التوثيق",
-    "subconverter": "محول الاشتراكات"
+    "subconverter": "محول الاشتراكات",
+    "openMenu": "فتح القائمة"
   },
   "pages": {
     "login": {
@@ -713,12 +718,15 @@
           "requestHeader": "رأس الطلب",
           "responseHeader": "رأس الرد"
         }
-      }
+      },
+      "sniffingDestOverride": "تجاوز الوجهة"
     },
     "clients": {
       "tabBasics": "أساسي",
       "tabCredentials": "بيانات الاعتماد",
       "tabLinks": "الروابط",
+      "wireguardConfig": "إعدادات WireGuard",
+      "config": "الإعداد",
       "linksHint": "أضف روابط مشاركة من جهات خارجية وعناوين اشتراك خارجية لتضمينها في اشتراك هذا العميل.",
       "addExternalLink": "إضافة رابط خارجي",
       "addExternalSubscription": "إضافة اشتراك خارجي",
@@ -872,6 +880,9 @@
       "bulkAdjustNothing": "حدد الأيام أو الترافيك قبل التطبيق.",
       "addDays": "إضافة أيام",
       "addTrafficGB": "إضافة ترافيك (GB)",
+      "bulkFlow": "تعيين التدفق",
+      "bulkFlowNoChange": "بدون تغيير",
+      "bulkFlowDisable": "تعطيل (مسح التدفق)",
       "delDepleted": "حذف المنتهية",
       "delDepletedConfirmTitle": "حذف العملاء المنتهية حصصهم؟",
       "delDepletedConfirmContent": "يُحذف كل عميل استُنفِدت حصة حركة مروره أو انتهت صلاحيته. لا يمكن التراجع.",
@@ -886,6 +897,10 @@
       "uuid": "UUID",
       "flow": "Flow",
       "vmessSecurity": "أمان VMess",
+      "wireguardPrivateKey": "مفتاح وايرغارد الخاص",
+      "wireguardPublicKey": "مفتاح وايرغارد العام",
+      "wireguardPreSharedKey": "مفتاح وايرغارد المشترك مسبقًا",
+      "wireguardAllowedIPs": "عناوين IP المسموحة لوايرغارد",
       "reverseTag": "وسم عكسي",
       "reverseTagPlaceholder": "Reverse tag اختياري",
       "telegramId": "معرّف مستخدم تلغرام",
@@ -935,8 +950,8 @@
       "deleteSuccess": "تم مسح المجموعة من {count} عميل.",
       "resetTraffic": "إعادة تعيين حركة المرور",
       "resetConfirmTitle": "إعادة تعيين حركة المرور للمجموعة {name}؟",
-      "resetConfirmContent": "يصفر up/down لجميع {count} عميل في هذه المجموعة.",
-      "resetSuccess": "تمت إعادة تعيين حركة المرور لـ {count} عميل.",
+      "resetConfirmContent": "يعيد تعيين عداد حركة مرور المجموعة فقط؛ ولا تتأثر عدادات العملاء الفرديين.",
+      "resetSuccess": "تمت إعادة تعيين حركة مرور المجموعة {name}.",
       "adjustSuccess": "تم ضبط {count} عميل في {name}.",
       "emptyForAction": "هذه المجموعة فارغة.",
       "deleteGroupOnly": "حذف المجموعة (مع الاحتفاظ بالعملاء)",
@@ -1134,7 +1149,9 @@
         "custom": "مخصص (crontab)",
         "seconds": "ثوانٍ",
         "minutes": "دقائق",
-        "hours": "ساعات"
+        "hours": "ساعات",
+        "interval": "الفاصل الزمني",
+        "unit": "الوحدة"
       },
       "tgNotifyBackup": "نسخة احتياطية لقاعدة البيانات",
       "tgNotifyBackupDesc": "ابعت ملف النسخة الاحتياطية لقاعدة البيانات مع التقرير.",
@@ -1217,6 +1234,8 @@
         "host": "مضيف LDAP",
         "port": "منفذ LDAP",
         "useTls": "استخدام TLS (LDAPS)",
+        "skipTlsVerify": "تخطي التحقق من شهادة TLS",
+        "skipTlsVerifyDesc": "غير آمن — يعطل التحقق من شهادة الخادم. استخدم فقط مع CA الداخلية/غير الموثوقة.",
         "bindDn": "Bind DN",
         "passwordConfigured": "مهيأة؛ اترك فارغاً للاحتفاظ بكلمة المرور الحالية.",
         "passwordUnconfigured": "غير مهيأة.",
@@ -1608,7 +1627,8 @@
         "city": "المدينة",
         "allCities": "كل المدن",
         "privateKey": "المفتاح الخاص",
-        "load": "الحمل"
+        "load": "الحمل",
+        "moveToTop": "نقل إلى الأعلى"
       },
       "outboundSub": {
         "manage": "الاشتراكات",
@@ -1660,6 +1680,42 @@
         "toastDeleted": "تم الحذف",
         "toastDeleteFailed": "فشل الحذف"
       },
+      "tabBalancerSettings": "إعدادات الموازن",
+      "tabObservatory": "المرصد",
+      "observatory": {
+        "title": "المرصد",
+        "burstTitle": "مرصد Burst",
+        "autoManaged": "تتم إدارة المراصد تلقائيًا من الموازنات لديك. اضبط طريقة الفحص بالأسفل؛ تتبع الوجهات الصادرة المراقَبة محدِّدات الموازن.",
+        "emptyHint": "لا يوجد مرصد اتصال نشط. تتم إضافة واحد تلقائيًا عند إنشاء موازن Least Ping أو Least Load — أو موازن Random / Round-robin مع fallback — حتى يتمكن الموازن من قياس الوجهات الصادرة واختيار الأفضل.",
+        "subjectSelector": "الوجهات المراقَبة",
+        "subjectSelectorDesc": "وسوم الوجهات الصادرة التي يفحصها هذا المرصد. تتم إدارتها تلقائيًا من الموازنات لديك.",
+        "probeURL": "رابط الفحص (URL)",
+        "probeURLDesc": "الرابط الذي يُطلب لقياس كل وجهة صادرة. يجب أن يُعيد HTTP 204.",
+        "probeInterval": "فترة الفحص",
+        "probeIntervalDesc": "كم مرة يتم فحص كل وجهة صادرة، مثل 30s أو 1m أو 2h45m.",
+        "enableConcurrency": "فحص متزامن",
+        "enableConcurrencyDesc": "افحص كل الوجهات المراقَبة دفعة واحدة بدلًا من واحدة تلو الأخرى. أسرع، لكنه أكثر وضوحًا على الشبكة.",
+        "destination": "وجهة الفحص",
+        "destinationDesc": "الرابط الذي يُطلب لقياس كل وجهة صادرة. يجب أن يُعيد HTTP 204.",
+        "connectivity": "فحص الاتصال",
+        "connectivityDesc": "رابط اختياري لفحص الشبكة المحلية، يُجرَّب فقط بعد فشل الوجهة. اتركه فارغًا للتخطي.",
+        "interval": "فترة الفحص",
+        "intervalDesc": "متوسط الوقت بين عمليات الفحص لكل وجهة صادرة، مثل 1m. الحد الأدنى 10s.",
+        "timeout": "مهلة الفحص",
+        "timeoutDesc": "كم من الوقت يُنتظر استجابة الفحص قبل اعتباره فاشلًا، مثل 5s.",
+        "sampling": "عدد العينات",
+        "samplingDesc": "عدد نتائج الفحص الأخيرة المحفوظة لتقييم كل وجهة صادرة.",
+        "httpMethod": "طريقة HTTP",
+        "httpMethodDesc": "طريقة HTTP المستخدمة في عمليات الفحص.",
+        "deleteAlsoObservatory": "هذا آخر موازن يستخدم Observatory، لذلك ستتم إزالته أيضًا.",
+        "deleteAlsoBurst": "هذا آخر موازن يستخدم Burst Observatory، لذلك ستتم إزالته أيضًا."
+      },
+      "refCleanup": {
+        "header": "حذف هذا سيُحدِّث التوجيه أيضًا:",
+        "ruleRemoved": "القاعدة {label} — أُزيلت (لا توجد وجهة متبقية)",
+        "ruleModified": "القاعدة {label} — مُحتفَظ بها (تستخدم الآن {keeps})",
+        "balancerRemoved": "الموازن {tag} — أُزيل (لا توجد أهداف متبقية)"
+      },
       "balancer": {
         "addBalancer": "أضف موازن تحميل",
         "editBalancer": "عدل موازن التحميل",
@@ -1677,7 +1733,10 @@
         "tolerance": "التحمل",
         "baselines": "Baselines",
         "costs": "Costs",
-        "balancerDesc": "ماينفعش تستخدم balancerTag و outboundTag مع بعض. لو اتستخدموا مع بعض، outboundTag هو اللي هيشتغل."
+        "balancerDesc": "ماينفعش تستخدم balancerTag و outboundTag مع بعض. لو اتستخدموا مع بعض، outboundTag هو اللي هيشتغل.",
+        "costMatch": "نمط الوسم",
+        "costValue": "الوزن",
+        "costRegexp": "مطابقة تعبير نمطي"
       },
       "wireguard": {
         "secretKey": "المفتاح السري",
@@ -1843,7 +1902,7 @@
         "nodeGuids": "اختر النودز التي تم تحليلها من هذا المضيف. تعيين بصري فقط.",
         "serverDescription": "ملاحظة اختيارية تظهر تحت الملاحظة.",
         "allowInsecure": "تخطّي التحقق من شهادة TLS (allowInsecure / skip-cert-verify).",
-        "vlessRoute": "المنافذ/النطاقات الموجَّهة عبر VLESS، مثل 53,443,1000-2000. اتركه فارغاً لعدم وجود أي منها.",
+        "vlessRoute": "قيمة مسار VLESS واحدة (0-65535) تُدمَج في UUID، مثل 443. اتركه فارغاً لعدم وجود أي منها.",
         "remark": "تسمية بسيطة لهذا المضيف. تظهر كاسم للإعداد فقط عندما لا يكون للوارد ملاحظة خاصة به."
       },
       "remarkVars": {
@@ -1893,7 +1952,7 @@
         "update": "تحديث المضيف",
         "delete": "حذف المضيف",
         "badTag": "وسم غير صالح",
-        "badVlessRoute": "استخدم منافذ/نطاقات مثل 53,443,1000-2000"
+        "badVlessRoute": "أدخل رقماً واحداً بين 0 و65535"
       }
     },
     "subconverter": {
