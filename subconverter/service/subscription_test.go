@@ -212,6 +212,44 @@ func TestSubscriptionCRUD(t *testing.T) {
 	}
 }
 
+func TestSubscriptionListOldestFirst(t *testing.T) {
+	setupTestDB(t)
+	svc := NewSubscriptionService()
+
+	enabled := true
+	oldest, err := svc.Create(SubscriptionInput{
+		Remark:  "oldest",
+		Enabled: &enabled,
+		Inbounds: []InboundInput{
+			{InboundId: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create oldest subscription: %v", err)
+	}
+	newest, err := svc.Create(SubscriptionInput{
+		Remark:  "newest",
+		Enabled: &enabled,
+		Inbounds: []InboundInput{
+			{InboundId: 2},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create newest subscription: %v", err)
+	}
+
+	subs, err := svc.List()
+	if err != nil {
+		t.Fatalf("list subscriptions: %v", err)
+	}
+	if len(subs) != 2 {
+		t.Fatalf("list length = %d, want 2", len(subs))
+	}
+	if subs[0].Id != oldest.Id || subs[1].Id != newest.Id {
+		t.Fatalf("list order = [%d, %d], want oldest-first [%d, %d]", subs[0].Id, subs[1].Id, oldest.Id, newest.Id)
+	}
+}
+
 func TestCreateRequiresInbounds(t *testing.T) {
 	setupTestDB(t)
 	svc := NewSubscriptionService()

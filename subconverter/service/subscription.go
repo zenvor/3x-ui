@@ -107,15 +107,15 @@ func (f SubscriptionFormInput) ToInput() SubscriptionInput {
 	}
 }
 
-// List returns all subscriptions ordered newest-first, with their Inbounds
-// junction rows preloaded.
+// List returns all subscriptions ordered oldest-first, with their Inbounds
+// junction rows preloaded. This matches the client list's default order.
 func (s *SubscriptionService) List() ([]model.Subscription, error) {
 	var subs []model.Subscription
 	db := database.GetDB()
 	err := db.
 		Preload("Inbounds").
 		Preload("Stats").
-		Order("id desc").
+		Order("created_at asc, id asc").
 		Find(&subs).Error
 	if err != nil {
 		return nil, err
