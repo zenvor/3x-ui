@@ -49,8 +49,10 @@ func NewPublicController(engine *gin.Engine) *PublicController {
 	return p
 }
 
-const yamlContentType = "application/x-yaml; charset=utf-8"
-const subscriptionTokenLength = 32
+const (
+	yamlContentType         = "application/x-yaml; charset=utf-8"
+	subscriptionTokenLength = 32
+)
 
 // full serves /feed/:token. It binds the requesting IP on first hit and
 // rejects with 403 once the subscription's MaxIps quota is full.

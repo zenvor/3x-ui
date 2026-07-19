@@ -107,15 +107,15 @@ func (f SubscriptionFormInput) ToInput() SubscriptionInput {
 	}
 }
 
-// List returns all subscriptions ordered newest-first, with their Inbounds
-// junction rows preloaded.
+// List returns all subscriptions in creation order, with their Inbounds
+// junction rows preloaded. This matches the client list's oldest-first default.
 func (s *SubscriptionService) List() ([]model.Subscription, error) {
 	var subs []model.Subscription
 	db := database.GetDB()
 	err := db.
 		Preload("Inbounds").
 		Preload("Stats").
-		Order("id desc").
+		Order("id asc").
 		Find(&subs).Error
 	if err != nil {
 		return nil, err
@@ -594,7 +594,7 @@ func generateUniqueToken(tx *gorm.DB) (string, error) {
 	for attempt := 0; attempt < 5; attempt++ {
 		b := make([]byte, tokenByteLen)
 		if _, err := rand.Read(b); err != nil {
-			return "", fmt.Errorf("%w: %v", ErrTokenGeneration, err)
+			return "", fmt.Errorf("%w: %w", ErrTokenGeneration, err)
 		}
 		token := hex.EncodeToString(b)
 

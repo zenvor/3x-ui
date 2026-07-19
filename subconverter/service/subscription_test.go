@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -212,6 +213,57 @@ func TestSubscriptionCRUD(t *testing.T) {
 	}
 }
 
+func TestSubscriptionListOldestFirst(t *testing.T) {
+	setupTestDB(t)
+	svc := NewSubscriptionService()
+
+	enabled := true
+	firstInserted, err := svc.Create(SubscriptionInput{
+		Remark:  "first inserted",
+		Enabled: &enabled,
+		Inbounds: []InboundInput{
+			{InboundId: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create first subscription: %v", err)
+	}
+	secondInserted, err := svc.Create(SubscriptionInput{
+		Remark:  "second inserted",
+		Enabled: &enabled,
+		Inbounds: []InboundInput{
+			{InboundId: 2},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create second subscription: %v", err)
+	}
+	lastInserted, err := svc.Create(SubscriptionInput{
+		Remark:  "last inserted",
+		Enabled: &enabled,
+		Inbounds: []InboundInput{
+			{InboundId: 7},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create last subscription: %v", err)
+	}
+
+	subs, err := svc.List()
+	if err != nil {
+		t.Fatalf("list subscriptions: %v", err)
+	}
+	if len(subs) != 3 {
+		t.Fatalf("list length = %d, want 3", len(subs))
+	}
+	want := []int{firstInserted.Id, secondInserted.Id, lastInserted.Id}
+	for i, id := range want {
+		if subs[i].Id != id {
+			t.Fatalf("list order at index %d = %d, want %d; full order = [%d, %d, %d]", i, subs[i].Id, id, subs[0].Id, subs[1].Id, subs[2].Id)
+		}
+	}
+}
+
 func TestCreateRequiresInbounds(t *testing.T) {
 	setupTestDB(t)
 	svc := NewSubscriptionService()
@@ -314,7 +366,7 @@ func TestSubscriptionCDNTLSOverrideRequiresServer(t *testing.T) {
 		Remark:   "bad",
 		Inbounds: []InboundInput{{InboundId: 1, CdnTLS: true}},
 	})
-	if err != ErrCDNServerRequired {
+	if !errors.Is(err, ErrCDNServerRequired) {
 		t.Fatalf("err = %v, want ErrCDNServerRequired", err)
 	}
 
@@ -323,7 +375,7 @@ func TestSubscriptionCDNTLSOverrideRequiresServer(t *testing.T) {
 		TrafficStats: true,
 		Inbounds:     []InboundInput{{InboundId: 10, CdnTLS: true}},
 	})
-	if err != ErrCDNServerRequired {
+	if !errors.Is(err, ErrCDNServerRequired) {
 		t.Fatalf("err = %v, want ErrCDNServerRequired with traffic stats enabled", err)
 	}
 }
@@ -369,7 +421,7 @@ func TestSubscriptionRejectsInboundsWithoutCommonClient(t *testing.T) {
 			{InboundId: 21},
 		},
 	})
-	if err != ErrCommonClientRequired {
+	if !errors.Is(err, ErrCommonClientRequired) {
 		t.Fatalf("err = %v, want ErrCommonClientRequired", err)
 	}
 }
@@ -394,7 +446,7 @@ func TestSubscriptionRejectsAmbiguousCommonClient(t *testing.T) {
 			{InboundId: 23},
 		},
 	})
-	if err != ErrCommonClientAmbiguous {
+	if !errors.Is(err, ErrCommonClientAmbiguous) {
 		t.Fatalf("err = %v, want ErrCommonClientAmbiguous", err)
 	}
 }
@@ -415,7 +467,7 @@ func TestSubscriptionRejectsSelectedClientMissingFromInbound(t *testing.T) {
 			{InboundId: 25, ClientEmail: "alice@x"},
 		},
 	})
-	if err != ErrSelectedClientInvalid {
+	if !errors.Is(err, ErrSelectedClientInvalid) {
 		t.Fatalf("err = %v, want ErrSelectedClientInvalid", err)
 	}
 }
@@ -513,7 +565,7 @@ func TestSubscriptionAllowsDisablingInvalidTrafficStatsSelection(t *testing.T) {
 			{InboundId: 29},
 		},
 	})
-	if err != ErrCommonClientRequired {
+	if !errors.Is(err, ErrCommonClientRequired) {
 		t.Fatalf("enable err = %v, want ErrCommonClientRequired", err)
 	}
 }
@@ -599,7 +651,7 @@ func TestGetMissingReturnsNotFound(t *testing.T) {
 	setupTestDB(t)
 	svc := NewSubscriptionService()
 
-	if _, err := svc.Get(9999); err != ErrSubscriptionNotFound {
+	if _, err := svc.Get(9999); !errors.Is(err, ErrSubscriptionNotFound) {
 		t.Fatalf("expected ErrSubscriptionNotFound, got %v", err)
 	}
 }

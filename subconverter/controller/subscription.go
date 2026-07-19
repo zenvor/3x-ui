@@ -14,7 +14,7 @@ import (
 //
 // Route layout (mounted on a group that already has CheckAPIAuth applied):
 //
-//	GET  /list           list every subscription, newest-first
+//	GET  /list           list every subscription, oldest-first
 //	GET  /get/:id        subscription detail with IP bindings and access logs
 //	GET  /logs           recent public feed access logs across subscriptions
 //	GET  /logs/:id       recent public feed access logs

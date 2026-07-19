@@ -11,11 +11,11 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/subconverter/model"
 )
 
-const accessLogRetention = 100
-const accessLogListMaxLimit = 500
-const accessLogUserAgentMaxRunes = 512
-
 const (
+	accessLogRetention         = 100
+	accessLogListMaxLimit      = 500
+	accessLogUserAgentMaxRunes = 512
+
 	AccessEndpointFull  = "full"
 	AccessEndpointNodes = "nodes"
 
