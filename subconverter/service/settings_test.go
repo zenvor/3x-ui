@@ -1,6 +1,9 @@
 package service
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestSettingsDefaultsAndUpdate(t *testing.T) {
 	setupTestDB(t)
@@ -50,7 +53,7 @@ func TestSettingsDefaultsAndUpdate(t *testing.T) {
 func TestSettingsRequiresKeywordsWhenEnabled(t *testing.T) {
 	setupTestDB(t)
 	_, err := NewSettingsService().Update(SettingsInput{UAFilterEnabled: true})
-	if err != ErrUAKeywordsRequired {
+	if !errors.Is(err, ErrUAKeywordsRequired) {
 		t.Fatalf("err = %v, want ErrUAKeywordsRequired", err)
 	}
 }

@@ -565,7 +565,7 @@ func TestConvertTLSSecurityRejected(t *testing.T) {
 	stream := `{"network":"tcp","security":"tls","tlsSettings":{}}`
 	in := vlessInbound("r", "host.example.com", 443, stream)
 	cl := client("u", "e", "")
-	if _, err := convertForTest(in, cl, "fb"); err != ErrUnsupportedInbound {
+	if _, err := convertForTest(in, cl, "fb"); !errors.Is(err, ErrUnsupportedInbound) {
 		t.Fatalf("err = %v, want ErrUnsupportedInbound", err)
 	}
 }
@@ -574,7 +574,7 @@ func TestConvertTCPNoneSecurityRejected(t *testing.T) {
 	stream := `{"network":"tcp","security":"none"}`
 	in := vlessInbound("r", "host.example.com", 443, stream)
 	cl := client("u", "e", "")
-	if _, err := convertForTest(in, cl, "fb"); err != ErrUnsupportedInbound {
+	if _, err := convertForTest(in, cl, "fb"); !errors.Is(err, ErrUnsupportedInbound) {
 		t.Fatalf("err = %v, want ErrUnsupportedInbound", err)
 	}
 }
@@ -619,7 +619,7 @@ func TestConvertExternalProxyRules(t *testing.T) {
 			in := vlessInbound("r", "host.example.com", 443, tc.stream)
 			cl := client("u", "e", "")
 			_, err := convertForTest(in, cl, "fb")
-			if tc.wantErr && err != ErrUnsupportedInbound {
+			if tc.wantErr && !errors.Is(err, ErrUnsupportedInbound) {
 				t.Fatalf("err = %v, want ErrUnsupportedInbound", err)
 			}
 			if !tc.wantErr && err != nil {
@@ -642,7 +642,7 @@ func TestConvertTCPHTTPHeaderRejected(t *testing.T) {
 	}`
 	in := vlessInbound("r", "host.example.com", 443, stream)
 	cl := client("u", "e", "")
-	if _, err := convertForTest(in, cl, "fb"); err != ErrUnsupportedInbound {
+	if _, err := convertForTest(in, cl, "fb"); !errors.Is(err, ErrUnsupportedInbound) {
 		t.Fatalf("err = %v, want ErrUnsupportedInbound", err)
 	}
 }

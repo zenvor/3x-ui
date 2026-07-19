@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -365,7 +366,7 @@ func TestSubscriptionCDNTLSOverrideRequiresServer(t *testing.T) {
 		Remark:   "bad",
 		Inbounds: []InboundInput{{InboundId: 1, CdnTLS: true}},
 	})
-	if err != ErrCDNServerRequired {
+	if !errors.Is(err, ErrCDNServerRequired) {
 		t.Fatalf("err = %v, want ErrCDNServerRequired", err)
 	}
 
@@ -374,7 +375,7 @@ func TestSubscriptionCDNTLSOverrideRequiresServer(t *testing.T) {
 		TrafficStats: true,
 		Inbounds:     []InboundInput{{InboundId: 10, CdnTLS: true}},
 	})
-	if err != ErrCDNServerRequired {
+	if !errors.Is(err, ErrCDNServerRequired) {
 		t.Fatalf("err = %v, want ErrCDNServerRequired with traffic stats enabled", err)
 	}
 }
@@ -420,7 +421,7 @@ func TestSubscriptionRejectsInboundsWithoutCommonClient(t *testing.T) {
 			{InboundId: 21},
 		},
 	})
-	if err != ErrCommonClientRequired {
+	if !errors.Is(err, ErrCommonClientRequired) {
 		t.Fatalf("err = %v, want ErrCommonClientRequired", err)
 	}
 }
@@ -445,7 +446,7 @@ func TestSubscriptionRejectsAmbiguousCommonClient(t *testing.T) {
 			{InboundId: 23},
 		},
 	})
-	if err != ErrCommonClientAmbiguous {
+	if !errors.Is(err, ErrCommonClientAmbiguous) {
 		t.Fatalf("err = %v, want ErrCommonClientAmbiguous", err)
 	}
 }
@@ -466,7 +467,7 @@ func TestSubscriptionRejectsSelectedClientMissingFromInbound(t *testing.T) {
 			{InboundId: 25, ClientEmail: "alice@x"},
 		},
 	})
-	if err != ErrSelectedClientInvalid {
+	if !errors.Is(err, ErrSelectedClientInvalid) {
 		t.Fatalf("err = %v, want ErrSelectedClientInvalid", err)
 	}
 }
@@ -564,7 +565,7 @@ func TestSubscriptionAllowsDisablingInvalidTrafficStatsSelection(t *testing.T) {
 			{InboundId: 29},
 		},
 	})
-	if err != ErrCommonClientRequired {
+	if !errors.Is(err, ErrCommonClientRequired) {
 		t.Fatalf("enable err = %v, want ErrCommonClientRequired", err)
 	}
 }
@@ -650,7 +651,7 @@ func TestGetMissingReturnsNotFound(t *testing.T) {
 	setupTestDB(t)
 	svc := NewSubscriptionService()
 
-	if _, err := svc.Get(9999); err != ErrSubscriptionNotFound {
+	if _, err := svc.Get(9999); !errors.Is(err, ErrSubscriptionNotFound) {
 		t.Fatalf("expected ErrSubscriptionNotFound, got %v", err)
 	}
 }
