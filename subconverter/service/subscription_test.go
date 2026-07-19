@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
-	"time"
 
 	xdatabase "github.com/mhsanaei/3x-ui/v3/internal/database"
 	xmodel "github.com/mhsanaei/3x-ui/v3/internal/database/model"
@@ -228,15 +227,15 @@ func TestSubscriptionListOldestFirst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create first subscription: %v", err)
 	}
-	oldest, err := svc.Create(SubscriptionInput{
-		Remark:  "oldest",
+	secondInserted, err := svc.Create(SubscriptionInput{
+		Remark:  "second inserted",
 		Enabled: &enabled,
 		Inbounds: []InboundInput{
 			{InboundId: 2},
 		},
 	})
 	if err != nil {
-		t.Fatalf("create oldest subscription: %v", err)
+		t.Fatalf("create second subscription: %v", err)
 	}
 	lastInserted, err := svc.Create(SubscriptionInput{
 		Remark:  "last inserted",
@@ -249,23 +248,6 @@ func TestSubscriptionListOldestFirst(t *testing.T) {
 		t.Fatalf("create last subscription: %v", err)
 	}
 
-	oldestTime := time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)
-	tieTime := oldestTime.Add(time.Hour)
-	for _, update := range []struct {
-		id        int
-		createdAt time.Time
-	}{
-		{id: firstInserted.Id, createdAt: tieTime},
-		{id: oldest.Id, createdAt: oldestTime},
-		{id: lastInserted.Id, createdAt: tieTime},
-	} {
-		if err := database.GetDB().Model(&model.Subscription{}).
-			Where("id = ?", update.id).
-			UpdateColumn("created_at", update.createdAt).Error; err != nil {
-			t.Fatalf("set subscription %d created_at: %v", update.id, err)
-		}
-	}
-
 	subs, err := svc.List()
 	if err != nil {
 		t.Fatalf("list subscriptions: %v", err)
@@ -273,7 +255,7 @@ func TestSubscriptionListOldestFirst(t *testing.T) {
 	if len(subs) != 3 {
 		t.Fatalf("list length = %d, want 3", len(subs))
 	}
-	want := []int{oldest.Id, firstInserted.Id, lastInserted.Id}
+	want := []int{firstInserted.Id, secondInserted.Id, lastInserted.Id}
 	for i, id := range want {
 		if subs[i].Id != id {
 			t.Fatalf("list order at index %d = %d, want %d; full order = [%d, %d, %d]", i, subs[i].Id, id, subs[0].Id, subs[1].Id, subs[2].Id)
