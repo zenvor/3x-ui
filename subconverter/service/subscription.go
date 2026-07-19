@@ -594,7 +594,7 @@ func generateUniqueToken(tx *gorm.DB) (string, error) {
 	for attempt := 0; attempt < 5; attempt++ {
 		b := make([]byte, tokenByteLen)
 		if _, err := rand.Read(b); err != nil {
-			return "", fmt.Errorf("%w: %v", ErrTokenGeneration, err)
+			return "", fmt.Errorf("%w: %w", ErrTokenGeneration, err)
 		}
 		token := hex.EncodeToString(b)
 

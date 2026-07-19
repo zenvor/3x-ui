@@ -73,7 +73,7 @@ func TestEnforceRejectsBeyondQuota(t *testing.T) {
 			t.Fatalf("ip %s should fit within quota: %v", ip, err)
 		}
 	}
-	if err := svc.Enforce(sub.Id, sub.MaxIps, "3.3.3.3"); err != ErrIPLimitExceeded {
+	if err := svc.Enforce(sub.Id, sub.MaxIps, "3.3.3.3"); !errors.Is(err, ErrIPLimitExceeded) {
 		t.Fatalf("3rd IP err = %v, want ErrIPLimitExceeded", err)
 	}
 }
@@ -172,7 +172,7 @@ func TestCheckOnlyRespectsQuotaForUnknownIP(t *testing.T) {
 	}
 
 	// CheckOnly for an unknown IP should fail because quota = 1 is full.
-	if err := svc.CheckOnly(sub.Id, sub.MaxIps, "2.2.2.2"); err != ErrIPLimitExceeded {
+	if err := svc.CheckOnly(sub.Id, sub.MaxIps, "2.2.2.2"); !errors.Is(err, ErrIPLimitExceeded) {
 		t.Fatalf("unknown IP over quota err = %v, want ErrIPLimitExceeded", err)
 	}
 }
@@ -235,7 +235,7 @@ func TestDeleteBindingRequiresSubscriptionScope(t *testing.T) {
 		t.Fatalf("list first bindings: %v", err)
 	}
 
-	if err := svc.Delete(second.Id, rows[0].Id); err != ErrIPBindingNotFound {
+	if err := svc.Delete(second.Id, rows[0].Id); !errors.Is(err, ErrIPBindingNotFound) {
 		t.Fatalf("cross subscription delete err = %v, want ErrIPBindingNotFound", err)
 	}
 	rows, err = svc.List(first.Id)
