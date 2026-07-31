@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   handle-issue:
-    if: github.event_name == 'issues'
+    if: vars.CLAUDE_BOT_ENABLED == 'true' && github.event_name == 'issues'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -344,7 +344,7 @@ jobs:
           fi
 
   handle-pr-review:
-    if: github.event_name == 'pull_request_target' && github.event.pull_request.user.type != 'Bot'
+    if: vars.CLAUDE_BOT_ENABLED == 'true' && github.event_name == 'pull_request_target' && github.event.pull_request.user.type != 'Bot'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -675,7 +675,7 @@ jobs:
           fi
 
   mention:
-    if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && github.event.comment.user.login == github.repository_owner && !(github.event.issue.pull_request && contains(github.event.comment.body, 'resolve pr conflicts'))
+    if: vars.CLAUDE_BOT_ENABLED == 'true' && github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && github.event.comment.user.login == github.repository_owner && !(github.event.issue.pull_request && contains(github.event.comment.body, 'resolve pr conflicts'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -766,7 +766,7 @@ jobs:
           fi
 
   resolve-conflicts:
-    if: github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, 'resolve pr conflicts') && github.event.comment.user.login == github.repository_owner && github.event.comment.author_association == 'OWNER'
+    if: vars.CLAUDE_BOT_ENABLED == 'true' && github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, 'resolve pr conflicts') && github.event.comment.user.login == github.repository_owner && github.event.comment.author_association == 'OWNER'
     runs-on: ubuntu-latest
     permissions:
       contents: read
