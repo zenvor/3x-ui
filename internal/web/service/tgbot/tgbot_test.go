@@ -1,11 +1,14 @@
 package tgbot
 
 import (
+	"errors"
 	"io"
 	"net"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/valyala/fasthttp"
 )
 
 func TestLoginAttemptDoesNotCarryPassword(t *testing.T) {
@@ -97,6 +100,29 @@ func TestTgbotProxyDialerNoneWhenEmpty(t *testing.T) {
 	client := tg.createRobustFastHTTPClient("")
 	if client.Dial != nil {
 		t.Fatal("Dial must be nil when no proxy is configured")
+	}
+}
+
+func TestTgbotHTTPClientRetryPolicy(t *testing.T) {
+	tg := &Tgbot{}
+	client := tg.createRobustFastHTTPClient("")
+	if client.RetryIfErr == nil {
+		t.Fatal("RetryIfErr must be configured")
+	}
+
+	request := &fasthttp.Request{}
+	for _, method := range []string{"GET", "POST"} {
+		request.Header.SetMethod(method)
+		resetTimeout, retry := client.RetryIfErr(request, 1, errors.New("connection failed"))
+		if resetTimeout || !retry {
+			t.Fatalf("%s must retry without resetting the timeout", method)
+		}
+	}
+
+	request.Header.SetMethod("PUT")
+	resetTimeout, retry := client.RetryIfErr(request, 1, errors.New("connection failed"))
+	if resetTimeout || retry {
+		t.Fatal("PUT must not retry or reset the timeout")
 	}
 }
 
