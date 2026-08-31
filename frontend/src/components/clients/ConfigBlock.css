@@ -17,7 +17,7 @@ body.light .config-block .ant-tag.ant-tag-filled.ant-tag-gold {
 }
 
 body:not(.dark) .config-block-text {
-  color: #595959;
+  color: #262626;
 }
 
 .config-block .ant-collapse-extra {
