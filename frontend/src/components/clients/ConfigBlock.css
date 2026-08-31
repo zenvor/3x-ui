@@ -16,7 +16,7 @@ body.light .config-block .ant-tag.ant-tag-filled.ant-tag-gold {
   color: #874d00;
 }
 
-body.light .config-block-text {
+body:not(.dark) .config-block-text {
   color: #595959;
 }
 
