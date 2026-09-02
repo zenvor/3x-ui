@@ -139,3 +139,26 @@
 .hosts-page .ant-card .ant-card-actions {
   background: transparent;
 }
+
+/* Shared list-card toolbar (Clients/Inbounds/Subconverter/Groups/Hosts);
+   global so lazily-loaded pages render correctly when opened directly. */
+.card-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+}
+
+@media (min-width: 769px) and (max-width: 920px) {
+  .card-toolbar {
+    gap: 6px;
+  }
+  .card-toolbar .ant-btn .ant-btn-icon + span,
+  .card-toolbar .ant-btn > span:not(.ant-btn-icon):not(.ant-tag):not(.anticon) {
+    display: none;
+  }
+  .card-toolbar .ant-btn {
+    padding-inline: 8px;
+  }
+}
