@@ -5,7 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -28,49 +28,53 @@ func walkPackages(requests []packageRequest) ([]Schema, []Alias, error) {
 	var aliases []Alias
 	for _, req := range requests {
 		dir := req.Path
-		pkgs, err := parser.ParseDir(fset, dir, func(fi fs.FileInfo) bool {
-			return !strings.HasSuffix(fi.Name(), "_test.go")
-		}, parser.ParseComments)
+		entries, err := os.ReadDir(dir)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parse %s: %w", dir, err)
+			return nil, nil, fmt.Errorf("read %s: %w", dir, err)
 		}
-		for _, pkg := range pkgs {
-			for _, file := range pkg.Files {
-				for _, decl := range file.Decls {
-					gen, ok := decl.(*ast.GenDecl)
-					if !ok || gen.Tok != token.TYPE {
+		for _, entry := range entries {
+			name := entry.Name()
+			if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+				continue
+			}
+			file, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.ParseComments)
+			if err != nil {
+				return nil, nil, fmt.Errorf("parse %s: %w", filepath.Join(dir, name), err)
+			}
+			for _, decl := range file.Decls {
+				gen, ok := decl.(*ast.GenDecl)
+				if !ok || gen.Tok != token.TYPE {
+					continue
+				}
+				for _, spec := range gen.Specs {
+					ts, ok := spec.(*ast.TypeSpec)
+					if !ok {
 						continue
 					}
-					for _, spec := range gen.Specs {
-						ts, ok := spec.(*ast.TypeSpec)
-						if !ok {
+					if strct, ok := ts.Type.(*ast.StructType); ok {
+						if req.StructAllow != nil && !req.StructAllow[ts.Name.Name] {
 							continue
 						}
-						if strct, ok := ts.Type.(*ast.StructType); ok {
-							if req.StructAllow != nil && !req.StructAllow[ts.Name.Name] {
-								continue
-							}
-							s := Schema{
-								Name:    ts.Name.Name,
-								Package: pkg.Name,
-								Doc:     collectDoc(gen.Doc, ts.Doc),
-							}
-							overrides := req.Overrides[ts.Name.Name]
-							for _, fld := range strct.Fields.List {
-								s.Fields = append(s.Fields, buildFields(fld, overrides)...)
-							}
-							schemas = append(schemas, s)
-							continue
+						s := Schema{
+							Name:    ts.Name.Name,
+							Package: file.Name.Name,
+							Doc:     collectDoc(gen.Doc, ts.Doc),
 						}
-						if req.AliasAllow != nil && !req.AliasAllow[ts.Name.Name] {
-							continue
+						overrides := req.Overrides[ts.Name.Name]
+						for _, fld := range strct.Fields.List {
+							s.Fields = append(s.Fields, buildFields(fld, overrides)...)
 						}
-						aliases = append(aliases, Alias{
-							Name:       ts.Name.Name,
-							Package:    pkg.Name,
-							Underlying: exprToType(ts.Type),
-						})
+						schemas = append(schemas, s)
+						continue
 					}
+					if req.AliasAllow != nil && !req.AliasAllow[ts.Name.Name] {
+						continue
+					}
+					aliases = append(aliases, Alias{
+						Name:       ts.Name.Name,
+						Package:    file.Name.Name,
+						Underlying: exprToType(ts.Type),
+					})
 				}
 			}
 		}
