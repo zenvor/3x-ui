@@ -34,43 +34,71 @@ function assertSuccess<T>(msg: Msg<T>, fallback: string): Msg<T> {
 
 export async function fetchSubconverterList(): Promise<SubscriptionRecord[]> {
   const msg = await HttpUtil.get(`${SUBCONVERTER_API}/list`, undefined, { silent: true });
-  const validated = parseMsg(assertSuccess(msg, 'Failed to fetch subscriptions'), SubscriptionRecordListSchema, 'subconverter/list');
+  const validated = parseMsg(
+    assertSuccess(msg, 'Failed to fetch subscriptions'),
+    SubscriptionRecordListSchema,
+    'subconverter/list',
+  );
   return Array.isArray(validated.obj) ? validated.obj : [];
 }
 
 export async function fetchSubconverterInbounds(): Promise<InboundOption[]> {
   const msg = await HttpUtil.get(`${SUBCONVERTER_API}/inbounds`, undefined, { silent: true });
-  const validated = parseMsg(assertSuccess(msg, 'Failed to fetch inbound options'), InboundOptionListSchema, 'subconverter/inbounds');
+  const validated = parseMsg(
+    assertSuccess(msg, 'Failed to fetch inbound options'),
+    InboundOptionListSchema,
+    'subconverter/inbounds',
+  );
   return Array.isArray(validated.obj) ? validated.obj : [];
 }
 
 export async function fetchSubconverterDefaults(): Promise<DefaultsPayload> {
-  const msg = await HttpUtil.post('/panel/api/setting/defaultSettings', undefined, { silent: true });
-  const validated = parseMsg(assertSuccess(msg, 'Failed to fetch defaults'), DefaultsPayloadSchema, 'setting/defaultSettings');
+  const msg = await HttpUtil.post('/panel/api/setting/defaultSettings', undefined, {
+    silent: true,
+  });
+  const validated = parseMsg(
+    assertSuccess(msg, 'Failed to fetch defaults'),
+    DefaultsPayloadSchema,
+    'setting/defaultSettings',
+  );
   return validated.obj || {};
 }
 
 export async function fetchSubconverterSettings(): Promise<SubconverterSettings> {
   const msg = await HttpUtil.get(`${SUBCONVERTER_API}/settings`, undefined, { silent: true });
-  const validated = parseMsg(assertSuccess(msg, 'Failed to fetch settings'), SubconverterSettingsSchema, 'subconverter/settings');
+  const validated = parseMsg(
+    assertSuccess(msg, 'Failed to fetch settings'),
+    SubconverterSettingsSchema,
+    'subconverter/settings',
+  );
   if (!validated.obj) throw new Error(validated.msg || 'Empty settings response');
   return validated.obj;
 }
 
 export async function fetchSubconverterDetail(id: number): Promise<SubscriptionDetailRecord> {
   const msg = await HttpUtil.get(`${SUBCONVERTER_API}/get/${id}`, undefined, { silent: true });
-  const validated = parseMsg(assertSuccess(msg, 'Failed to fetch subscription detail'), SubscriptionDetailRecordSchema, `subconverter/get/${id}`);
+  const validated = parseMsg(
+    assertSuccess(msg, 'Failed to fetch subscription detail'),
+    SubscriptionDetailRecordSchema,
+    `subconverter/get/${id}`,
+  );
   if (!validated.obj) throw new Error(validated.msg || 'Empty subscription detail response');
   return validated.obj;
 }
 
-export async function fetchSubconverterAccessLogs(limit: string | number): Promise<AccessLogRecord[]> {
+export async function fetchSubconverterAccessLogs(
+  limit: string | number,
+): Promise<AccessLogRecord[]> {
   const msg = await HttpUtil.get(
     `${SUBCONVERTER_API}/logs?limit=${encodeURIComponent(String(limit))}`,
     undefined,
     { silent: true },
   );
-  const validated = parseMsg(assertSuccess(msg, 'Failed to fetch access logs'), AccessLogRecordListSchema, 'subconverter/logs');
+  const validated = parseMsg(
+    assertSuccess(msg, 'Failed to fetch access logs'),
+    AccessLogRecordListSchema,
+    'subconverter/logs',
+  );
   return Array.isArray(validated.obj) ? validated.obj : [];
 }
 
@@ -125,14 +153,24 @@ export function useSubconverter() {
   });
 
   const saveMut = useMutation({
-    mutationFn: async ({ id, payload }: { id?: number | null; payload: FormValues }): Promise<Msg<SubscriptionRecord>> => {
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id?: number | null;
+      payload: FormValues;
+    }): Promise<Msg<SubscriptionRecord>> => {
       const body = FormValuesSchema.safeParse(payload);
       if (!body.success) {
         console.warn('[zod] subconverter/save body failed validation', body.error.issues);
       }
       const url = id == null ? `${SUBCONVERTER_API}/add` : `${SUBCONVERTER_API}/update/${id}`;
       const raw = await HttpUtil.post(url, body.success ? body.data : payload, JSON_HEADERS);
-      return parseMsg(raw, SubscriptionRecordSchema, id == null ? 'subconverter/add' : `subconverter/update/${id}`);
+      return parseMsg(
+        raw,
+        SubscriptionRecordSchema,
+        id == null ? 'subconverter/add' : `subconverter/update/${id}`,
+      );
     },
     onSuccess: (msg, variables) => {
       if (msg?.success) invalidateSubconverterRecord(queryClient, variables.id ?? msg.obj?.id);
@@ -145,7 +183,11 @@ export function useSubconverter() {
       if (!body.success) {
         console.warn('[zod] subconverter/settings body failed validation', body.error.issues);
       }
-      const raw = await HttpUtil.post(`${SUBCONVERTER_API}/settings`, body.success ? body.data : payload, JSON_HEADERS);
+      const raw = await HttpUtil.post(
+        `${SUBCONVERTER_API}/settings`,
+        body.success ? body.data : payload,
+        JSON_HEADERS,
+      );
       return parseMsg(raw, SubconverterSettingsSchema, 'subconverter/settings/save');
     },
     onSuccess: (msg) => {
@@ -154,7 +196,8 @@ export function useSubconverter() {
   });
 
   const removeMut = useMutation({
-    mutationFn: (id: number) => HttpUtil.post(`${SUBCONVERTER_API}/del/${id}`, undefined, { silent: true }),
+    mutationFn: (id: number) =>
+      HttpUtil.post(`${SUBCONVERTER_API}/del/${id}`, undefined, { silent: true }),
     onSuccess: (msg) => {
       if (msg?.success) {
         invalidateSubconverterList(queryClient);
@@ -165,7 +208,9 @@ export function useSubconverter() {
 
   const resetTokenMut = useMutation({
     mutationFn: async (id: number): Promise<Msg<SubscriptionRecord>> => {
-      const raw = await HttpUtil.post(`${SUBCONVERTER_API}/reset-token/${id}`, undefined, { silent: true });
+      const raw = await HttpUtil.post(`${SUBCONVERTER_API}/reset-token/${id}`, undefined, {
+        silent: true,
+      });
       return parseMsg(raw, SubscriptionRecordSchema, `subconverter/reset-token/${id}`);
     },
     onSuccess: (msg, id) => {
@@ -178,25 +223,35 @@ export function useSubconverter() {
 
   const deleteIpMut = useMutation({
     mutationFn: ({ subscriptionId, bindingId }: { subscriptionId: number; bindingId: number }) =>
-      HttpUtil.post(`${SUBCONVERTER_API}/ips/${subscriptionId}/del/${bindingId}`, undefined, { silent: true }),
+      HttpUtil.post(`${SUBCONVERTER_API}/ips/${subscriptionId}/del/${bindingId}`, undefined, {
+        silent: true,
+      }),
     onSuccess: (msg, variables) => {
       if (msg?.success) invalidateSubconverterRecord(queryClient, variables.subscriptionId);
     },
   });
 
   const clearIpsMut = useMutation({
-    mutationFn: (id: number) => HttpUtil.post(`${SUBCONVERTER_API}/ips/clear/${id}`, undefined, { silent: true }),
+    mutationFn: (id: number) =>
+      HttpUtil.post(`${SUBCONVERTER_API}/ips/clear/${id}`, undefined, { silent: true }),
     onSuccess: (msg, id) => {
       if (msg?.success) invalidateSubconverterRecord(queryClient, id);
     },
   });
 
-  const save = useCallback((id: number | null, payload: FormValues) => saveMut.mutateAsync({ id, payload }), [saveMut]);
-  const saveSettings = useCallback((payload: SettingsValues) => saveSettingsMut.mutateAsync(payload), [saveSettingsMut]);
+  const save = useCallback(
+    (id: number | null, payload: FormValues) => saveMut.mutateAsync({ id, payload }),
+    [saveMut],
+  );
+  const saveSettings = useCallback(
+    (payload: SettingsValues) => saveSettingsMut.mutateAsync(payload),
+    [saveSettingsMut],
+  );
   const remove = useCallback((id: number) => removeMut.mutateAsync(id), [removeMut]);
   const resetToken = useCallback((id: number) => resetTokenMut.mutateAsync(id), [resetTokenMut]);
   const deleteIp = useCallback(
-    (subscriptionId: number, bindingId: number) => deleteIpMut.mutateAsync({ subscriptionId, bindingId }),
+    (subscriptionId: number, bindingId: number) =>
+      deleteIpMut.mutateAsync({ subscriptionId, bindingId }),
     [deleteIpMut],
   );
   const clearIps = useCallback((id: number) => clearIpsMut.mutateAsync(id), [clearIpsMut]);

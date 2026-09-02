@@ -80,23 +80,47 @@ describe('subconverter utilities', () => {
     ];
     const inboundById = new Map(inbounds.map((item) => [item.id, item]));
     const rows = [
-      sub({ id: 1, remark: 'Alpha', token: 'aaa', enable: true, inbounds: [{ id: 1, subscriptionId: 1, inboundId: 11 }] }),
-      sub({ id: 2, remark: 'Beta', token: 'bbb', enable: false, inbounds: [{ id: 2, subscriptionId: 2, inboundId: 22 }] }),
+      sub({
+        id: 1,
+        remark: 'Alpha',
+        token: 'aaa',
+        enable: true,
+        inbounds: [{ id: 1, subscriptionId: 1, inboundId: 11 }],
+      }),
+      sub({
+        id: 2,
+        remark: 'Beta',
+        token: 'bbb',
+        enable: false,
+        inbounds: [{ id: 2, subscriptionId: 2, inboundId: 22 }],
+      }),
       sub({ id: 3, remark: 'Gamma', token: 'target-token', enable: true, inbounds: [] }),
     ];
 
-    expect(filterSubscriptions(rows, inboundById, { filterMode: true, filterBy: 'disabled' }).map((item) => item.id)).toEqual([2]);
-    expect(filterSubscriptions(rows, inboundById, { searchKey: 'target' }).map((item) => item.id)).toEqual([3]);
-    expect(filterSubscriptions(rows, inboundById, { protocolFilter: 'vless' }).map((item) => item.id)).toEqual([1]);
-    expect(filterSubscriptions(rows, inboundById, { inboundFilter: 22 }).map((item) => item.id)).toEqual([2]);
+    expect(
+      filterSubscriptions(rows, inboundById, { filterMode: true, filterBy: 'disabled' }).map(
+        (item) => item.id,
+      ),
+    ).toEqual([2]);
+    expect(
+      filterSubscriptions(rows, inboundById, { searchKey: 'target' }).map((item) => item.id),
+    ).toEqual([3]);
+    expect(
+      filterSubscriptions(rows, inboundById, { protocolFilter: 'vless' }).map((item) => item.id),
+    ).toEqual([1]);
+    expect(
+      filterSubscriptions(rows, inboundById, { inboundFilter: 22 }).map((item) => item.id),
+    ).toEqual([2]);
   });
 
   it('builds sorted protocol options from supported inbounds', () => {
-    expect(getSubscriptionProtocolOptions([
-      inbound({ id: 1, protocol: 'vmess' }),
-      inbound({ id: 2, protocol: 'vless' }),
-      inbound({ id: 3, protocol: 'vless' }),
-    ])).toEqual(['vless', 'vmess']);
+    expect(
+      getSubscriptionProtocolOptions([
+        inbound({ id: 1, protocol: 'vmess' }),
+        inbound({ id: 2, protocol: 'vless' }),
+        inbound({ id: 3, protocol: 'vless' }),
+      ]),
+    ).toEqual(['vless', 'vmess']);
   });
 
   it('intersects common client emails across selected inbounds', () => {
@@ -114,21 +138,33 @@ describe('subconverter utilities', () => {
 
   it('keeps disabled common clients out of selectable emails but available for diagnostics', () => {
     const inbounds = [
-      inbound({ id: 1, clients: [{ email: 'alice@x', enable: false, totalGB: 100, up: 40, down: 60 }] }),
-      inbound({ id: 2, clients: [{ email: 'alice@x', enable: false, totalGB: 100, up: 40, down: 60 }] }),
+      inbound({
+        id: 1,
+        clients: [{ email: 'alice@x', enable: false, totalGB: 100, up: 40, down: 60 }],
+      }),
+      inbound({
+        id: 2,
+        clients: [{ email: 'alice@x', enable: false, totalGB: 100, up: 40, down: 60 }],
+      }),
     ];
     const inboundById = new Map(inbounds.map((item) => [item.id, item]));
 
     expect(getCommonClientEmails([1, 2], inboundById)).toEqual([]);
-    expect(getCommonClientDetails([1, 2], inboundById).map((client) => client.email)).toEqual(['alice@x']);
+    expect(getCommonClientDetails([1, 2], inboundById).map((client) => client.email)).toEqual([
+      'alice@x',
+    ]);
     expect(isClientDepleted(getCommonClientDetails([1, 2], inboundById)[0])).toBe(true);
   });
 
   it('keeps the product rule to Mihomo-compatible inbound selection', () => {
-    expect(isSupportedInbound(inbound({ protocol: 'vless', subconverterCapable: true }))).toBe(true);
+    expect(isSupportedInbound(inbound({ protocol: 'vless', subconverterCapable: true }))).toBe(
+      true,
+    );
     expect(isSupportedInbound(inbound({ protocol: 'vless', cdnTlsCapable: true }))).toBe(true);
     expect(isSupportedInbound(inbound({ protocol: 'vless' }))).toBe(false);
-    expect(isSupportedInbound(inbound({ protocol: 'vmess', subconverterCapable: true }))).toBe(false);
+    expect(isSupportedInbound(inbound({ protocol: 'vmess', subconverterCapable: true }))).toBe(
+      false,
+    );
   });
 
   it('shows CDN TLS controls only for CDN-capable VLESS inbounds', () => {
@@ -139,9 +175,13 @@ describe('subconverter utilities', () => {
   });
 
   it('keeps CDN TLS optional for CDN-capable inbounds', () => {
-    expect(requiresCdnTls(inbound({ cdnTlsCapable: true, subconverterCapable: false }))).toBe(false);
+    expect(requiresCdnTls(inbound({ cdnTlsCapable: true, subconverterCapable: false }))).toBe(
+      false,
+    );
     expect(requiresCdnTls(inbound({ cdnTlsCapable: true, subconverterCapable: true }))).toBe(false);
-    expect(requiresCdnTls(inbound({ cdnTlsCapable: false, subconverterCapable: true }))).toBe(false);
+    expect(requiresCdnTls(inbound({ cdnTlsCapable: false, subconverterCapable: true }))).toBe(
+      false,
+    );
     expect(requiresCdnTls(undefined)).toBe(false);
   });
 });
@@ -152,20 +192,29 @@ describe('subconverter schemas', () => {
     const parsed = InboundOptionListSchema.parse([
       { id: 1, protocol: 'vless', port: 443, tlsVerifyMode: 'pinned' },
     ]);
-    expect(parsed[0]).toMatchObject({ id: 1, protocol: 'vless', port: 443, tlsVerifyMode: 'pinned' });
+    expect(parsed[0]).toMatchObject({
+      id: 1,
+      protocol: 'vless',
+      port: 443,
+      tlsVerifyMode: 'pinned',
+    });
   });
 
   it('validates settings payload shape', () => {
-    expect(SettingsValuesSchema.safeParse({
-      uaFilterEnabled: true,
-      uaKeywords: ['clash'],
-      uaRejectStatus: 403,
-    }).success).toBe(true);
-    expect(SettingsValuesSchema.safeParse({
-      uaFilterEnabled: true,
-      uaKeywords: 'clash',
-      uaRejectStatus: 403,
-    }).success).toBe(false);
+    expect(
+      SettingsValuesSchema.safeParse({
+        uaFilterEnabled: true,
+        uaKeywords: ['clash'],
+        uaRejectStatus: 403,
+      }).success,
+    ).toBe(true);
+    expect(
+      SettingsValuesSchema.safeParse({
+        uaFilterEnabled: true,
+        uaKeywords: 'clash',
+        uaRejectStatus: 403,
+      }).success,
+    ).toBe(false);
   });
 });
 

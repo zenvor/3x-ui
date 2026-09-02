@@ -71,15 +71,21 @@ export const InboundOptionSchema = z.looseObject({
   tlsFlowCapable: z.boolean().optional(),
   cdnTlsCapable: z.boolean().optional(),
   subconverterCapable: z.boolean().optional(),
-  clients: z.array(z.looseObject({
-    email: z.string(),
-    enable: z.boolean().optional(),
-    hasId: z.boolean().optional(),
-    totalGB: z.number().optional(),
-    expiryTime: z.number().optional(),
-    up: z.number().optional(),
-    down: z.number().optional(),
-  })).nullable().optional().transform((v) => v ?? []),
+  clients: z
+    .array(
+      z.looseObject({
+        email: z.string(),
+        enable: z.boolean().optional(),
+        hasId: z.boolean().optional(),
+        totalGB: z.number().optional(),
+        expiryTime: z.number().optional(),
+        up: z.number().optional(),
+        down: z.number().optional(),
+      }),
+    )
+    .nullable()
+    .optional()
+    .transform((v) => v ?? []),
 });
 
 export const DefaultsPayloadSchema = z.looseObject({
@@ -125,9 +131,18 @@ export const SettingsValuesSchema = z.object({
   uaRejectStatus: z.number(),
 });
 
-export const SubscriptionRecordListSchema = z.array(SubscriptionRecordSchema).nullable().transform((v) => v ?? []);
-export const InboundOptionListSchema = z.array(InboundOptionSchema).nullable().transform((v) => v ?? []);
-export const AccessLogRecordListSchema = z.array(AccessLogRecordSchema).nullable().transform((v) => v ?? []);
+export const SubscriptionRecordListSchema = z
+  .array(SubscriptionRecordSchema)
+  .nullable()
+  .transform((v) => v ?? []);
+export const InboundOptionListSchema = z
+  .array(InboundOptionSchema)
+  .nullable()
+  .transform((v) => v ?? []);
+export const AccessLogRecordListSchema = z
+  .array(AccessLogRecordSchema)
+  .nullable()
+  .transform((v) => v ?? []);
 
 export type SubscriptionInbound = z.infer<typeof SubscriptionInboundSchema>;
 export type SubscriptionStats = z.infer<typeof SubscriptionStatsSchema>;

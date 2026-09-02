@@ -58,13 +58,21 @@ export default function SubconverterMobileList({
         return (
           <div key={record.id} className="subconverter-card">
             <div className="subconverter-card-head">
-              <span className="subconverter-card-title" title={record.remark || record.token}>{title}</span>
+              <span className="subconverter-card-title" title={record.remark || record.token}>
+                {title}
+              </span>
               <div className="subconverter-card-actions">
                 <Popover
                   trigger="click"
                   placement="bottom"
                   destroyOnHidden
-                  content={<QrPanel value={buildFeedUrl(record.token)} remark={record.remark || record.token} size={220} />}
+                  content={
+                    <QrPanel
+                      value={buildFeedUrl(record.token)}
+                      remark={record.remark || record.token}
+                      size={220}
+                    />
+                  }
                 >
                   <Tooltip title={t('pages.clients.qrCode')}>
                     <Button
@@ -151,9 +159,7 @@ export default function SubconverterMobileList({
               </div>
               <div className="subconverter-card-row">
                 <span>{t('pages.subconverter.maxIps')}</span>
-                <Tag color={ipLimitTagColor(record)}>
-                  {formatIpLimitUsage(record)}
-                </Tag>
+                <Tag color={ipLimitTagColor(record)}>{formatIpLimitUsage(record)}</Tag>
               </div>
             </div>
           </div>

@@ -71,7 +71,9 @@ export default function SubconverterPage() {
   const queryClient = subconverter.queryClient;
 
   const [formOpen, setFormOpen] = useState(false);
-  const [infoTarget, setInfoTarget] = useState<Pick<SubscriptionRecord, 'id' | 'remark'> | null>(null);
+  const [infoTarget, setInfoTarget] = useState<Pick<SubscriptionRecord, 'id' | 'remark'> | null>(
+    null,
+  );
   const [editingId, setEditingId] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [accessLogsOpen, setAccessLogsOpen] = useState(false);
@@ -80,7 +82,9 @@ export default function SubconverterPage() {
 
   const detailQuery = useSubconverterDetail(infoTarget?.id ?? null);
 
-  useEffect(() => { setMessageInstance(messageApi); }, [messageApi]);
+  useEffect(() => {
+    setMessageInstance(messageApi);
+  }, [messageApi]);
 
   const pageClass = useMemo(() => {
     const classes = ['subconverter-page'];
@@ -89,26 +93,31 @@ export default function SubconverterPage() {
     return classes.join(' ');
   }, [isDark, isUltra]);
 
-  const subscriptions = useMemo(() => subconverter.listQuery.data ?? [], [subconverter.listQuery.data]);
-  const inbounds = useMemo(() => subconverter.inboundsQuery.data ?? [], [subconverter.inboundsQuery.data]);
+  const subscriptions = useMemo(
+    () => subconverter.listQuery.data ?? [],
+    [subconverter.listQuery.data],
+  );
+  const inbounds = useMemo(
+    () => subconverter.inboundsQuery.data ?? [],
+    [subconverter.inboundsQuery.data],
+  );
   const pageSize = useMemo(() => {
     const configured = subconverter.defaultsQuery.data?.pageSize;
     return configured && configured > 0 ? configured : 25;
   }, [subconverter.defaultsQuery.data?.pageSize]);
 
-  const fetched = (
+  const fetched =
     (subconverter.listQuery.data !== undefined || subconverter.listQuery.isError) &&
-    (subconverter.inboundsQuery.data !== undefined || subconverter.inboundsQuery.isError)
-  );
-  const spinning = (
+    (subconverter.inboundsQuery.data !== undefined || subconverter.inboundsQuery.isError);
+  const spinning =
     subconverter.listQuery.isFetching ||
     subconverter.inboundsQuery.isFetching ||
     subconverter.defaultsQuery.isFetching ||
-    settingsLoading
-  );
+    settingsLoading;
 
   useEffect(() => {
-    const error = subconverter.listQuery.error ||
+    const error =
+      subconverter.listQuery.error ||
       subconverter.inboundsQuery.error ||
       subconverter.defaultsQuery.error ||
       detailQuery.error;
@@ -129,17 +138,16 @@ export default function SubconverterPage() {
     return out;
   }, [inbounds]);
 
-  const supportedInbounds = useMemo(
-    () => inbounds.filter(isSupportedInbound),
-    [inbounds],
-  );
+  const supportedInbounds = useMemo(() => inbounds.filter(isSupportedInbound), [inbounds]);
 
-  const canConfigureInboundCdnTls = useCallback((id: number) => (
-    canConfigureCdnTls(inboundById.get(id))
-  ), [inboundById]);
-  const inboundRequiresCdnTls = useCallback((id: number) => (
-    requiresCdnTls(inboundById.get(id))
-  ), [inboundById]);
+  const canConfigureInboundCdnTls = useCallback(
+    (id: number) => canConfigureCdnTls(inboundById.get(id)),
+    [inboundById],
+  );
+  const inboundRequiresCdnTls = useCallback(
+    (id: number) => requiresCdnTls(inboundById.get(id)),
+    [inboundById],
+  );
 
   const stats = useMemo(() => {
     let enabled = 0;
@@ -155,31 +163,40 @@ export default function SubconverterPage() {
     return { enabled, completedSubscriptions, linkedInbounds: linkedInboundIds.size };
   }, [inboundById, subscriptions]);
 
-  const inboundSelectLabel = useCallback((id: number) => {
-    const inbound = inboundById.get(id);
-    if (!inbound) return `#${id}`;
-    return formatInboundLabel(inbound.tag, inbound.remark) || `#${id}`;
-  }, [inboundById]);
+  const inboundSelectLabel = useCallback(
+    (id: number) => {
+      const inbound = inboundById.get(id);
+      if (!inbound) return `#${id}`;
+      return formatInboundLabel(inbound.tag, inbound.remark) || `#${id}`;
+    },
+    [inboundById],
+  );
 
-  const inboundTagLabel = useCallback((id: number) => {
-    const inbound = inboundById.get(id);
-    if (!inbound) return `#${id}`;
-    return formatInboundLabel(inbound.tag, inbound.remark) || `#${id}`;
-  }, [inboundById]);
+  const inboundTagLabel = useCallback(
+    (id: number) => {
+      const inbound = inboundById.get(id);
+      if (!inbound) return `#${id}`;
+      return formatInboundLabel(inbound.tag, inbound.remark) || `#${id}`;
+    },
+    [inboundById],
+  );
 
-  const copyText = useCallback(async (text: string) => {
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-      } else {
+  const copyText = useCallback(
+    async (text: string) => {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          fallbackCopy(text);
+        }
+        messageApi.success(t('copied'));
+      } catch {
         fallbackCopy(text);
+        messageApi.success(t('copied'));
       }
-      messageApi.success(t('copied'));
-    } catch {
-      fallbackCopy(text);
-      messageApi.success(t('copied'));
-    }
-  }, [messageApi, t]);
+    },
+    [messageApi, t],
+  );
 
   const openCreate = useCallback(() => {
     setEditingId(null);
@@ -216,32 +233,36 @@ export default function SubconverterPage() {
     }
   }, [messageApi, queryClient, settingsForm, t]);
 
-  const openEdit = useCallback((record: SubscriptionRecord) => {
-    const cdnTls: FormValues['cdnTls'] = {};
-    for (const item of record.inbounds || []) {
-      if (!canConfigureInboundCdnTls(item.inboundId)) continue;
-      cdnTls[String(item.inboundId)] = {
-        enabled: inboundRequiresCdnTls(item.inboundId) || !!item.cdnTls,
-        server: item.cdnServer || '',
-        port: item.cdnPort || 443,
-        serverName: item.cdnServerName || '',
-      };
-    }
-    setEditingId(record.id);
-    form.resetFields();
-    form.setFieldsValue({
-      remark: record.remark,
-      limitIp: record.limitIp,
-      enable: record.enable,
-      trafficStats: !!record.trafficStats,
-      clientEmail: (record.inbounds || []).find((item) => item.clientEmail)?.clientEmail || undefined,
-      cdnTls,
-      inboundIds: (record.inbounds || [])
-        .map((item) => item.inboundId)
-        .filter((id) => inboundById.has(id)),
-    });
-    setFormOpen(true);
-  }, [canConfigureInboundCdnTls, form, inboundById, inboundRequiresCdnTls]);
+  const openEdit = useCallback(
+    (record: SubscriptionRecord) => {
+      const cdnTls: FormValues['cdnTls'] = {};
+      for (const item of record.inbounds || []) {
+        if (!canConfigureInboundCdnTls(item.inboundId)) continue;
+        cdnTls[String(item.inboundId)] = {
+          enabled: inboundRequiresCdnTls(item.inboundId) || !!item.cdnTls,
+          server: item.cdnServer || '',
+          port: item.cdnPort || 443,
+          serverName: item.cdnServerName || '',
+        };
+      }
+      setEditingId(record.id);
+      form.resetFields();
+      form.setFieldsValue({
+        remark: record.remark,
+        limitIp: record.limitIp,
+        enable: record.enable,
+        trafficStats: !!record.trafficStats,
+        clientEmail:
+          (record.inbounds || []).find((item) => item.clientEmail)?.clientEmail || undefined,
+        cdnTls,
+        inboundIds: (record.inbounds || [])
+          .map((item) => item.inboundId)
+          .filter((id) => inboundById.has(id)),
+      });
+      setFormOpen(true);
+    },
+    [canConfigureInboundCdnTls, form, inboundById, inboundRequiresCdnTls],
+  );
 
   const openInfo = useCallback((record: SubscriptionRecord) => {
     setInfoTarget({ id: record.id, remark: record.remark });
@@ -254,7 +275,9 @@ export default function SubconverterPage() {
     let selectedClientEmail = '';
     if (trafficStats) {
       const commonClientEmails = getCommonClientEmails(inboundIds, inboundById);
-      selectedClientEmail = String(values.clientEmail || '').trim() || (commonClientEmails.length === 1 ? commonClientEmails[0] : '');
+      selectedClientEmail =
+        String(values.clientEmail || '').trim() ||
+        (commonClientEmails.length === 1 ? commonClientEmails[0] : '');
       if (inboundIds.length > 0 && commonClientEmails.length === 0) {
         messageApi.error(t('pages.subconverter.commonClientRequired'));
         return;
@@ -266,7 +289,8 @@ export default function SubconverterPage() {
     }
     const inbounds = inboundIds.map((id) => {
       const cdn = values.cdnTls?.[String(id)];
-      const cdnEnabled = canConfigureInboundCdnTls(id) && (inboundRequiresCdnTls(id) || !!cdn?.enabled);
+      const cdnEnabled =
+        canConfigureInboundCdnTls(id) && (inboundRequiresCdnTls(id) || !!cdn?.enabled);
       return {
         inboundId: id,
         clientEmail: trafficStats ? selectedClientEmail : '',
@@ -294,7 +318,16 @@ export default function SubconverterPage() {
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : t('pages.subconverter.saveFailed'));
     }
-  }, [canConfigureInboundCdnTls, editingId, form, inboundById, inboundRequiresCdnTls, messageApi, subconverter, t]);
+  }, [
+    canConfigureInboundCdnTls,
+    editingId,
+    form,
+    inboundById,
+    inboundRequiresCdnTls,
+    messageApi,
+    subconverter,
+    t,
+  ]);
 
   const saveSettings = useCallback(async () => {
     const values = await settingsForm.validateFields();
@@ -313,123 +346,142 @@ export default function SubconverterPage() {
     }
   }, [messageApi, settingsForm, subconverter, t]);
 
-  const remove = useCallback((record: SubscriptionRecord) => {
-    modal.confirm({
-      title: t('pages.subconverter.confirmDelete'),
-      okText: t('confirm'),
-      cancelText: t('cancel'),
-      okType: 'danger',
-      async onOk() {
-        const msg = await subconverter.remove(record.id);
-        if (!msg?.success) throw new Error(msg?.msg || t('pages.subconverter.deleteFailed'));
-        messageApi.success(t('pages.subconverter.deleted'));
-      },
-    });
-  }, [messageApi, modal, subconverter, t]);
+  const remove = useCallback(
+    (record: SubscriptionRecord) => {
+      modal.confirm({
+        title: t('pages.subconverter.confirmDelete'),
+        okText: t('confirm'),
+        cancelText: t('cancel'),
+        okType: 'danger',
+        async onOk() {
+          const msg = await subconverter.remove(record.id);
+          if (!msg?.success) throw new Error(msg?.msg || t('pages.subconverter.deleteFailed'));
+          messageApi.success(t('pages.subconverter.deleted'));
+        },
+      });
+    },
+    [messageApi, modal, subconverter, t],
+  );
 
-  const deleteBoundIp = useCallback((binding: IpBindingRecord) => {
-    modal.confirm({
-      title: t('pages.subconverter.confirmDeleteIp'),
-      content: (
-        <Space orientation="vertical" size={4}>
-          <span>{`IP: ${binding.ip}`}</span>
-        </Space>
-      ),
-      okText: t('confirm'),
-      cancelText: t('cancel'),
-      okType: 'danger',
-      async onOk() {
-        const msg = await subconverter.deleteIp(binding.subscriptionId, binding.id);
-        if (!msg?.success) throw new Error(msg?.msg || t('pages.subconverter.deleteFailed'));
-        messageApi.success(t('pages.subconverter.deleted'));
-      },
-    });
-  }, [messageApi, modal, subconverter, t]);
+  const deleteBoundIp = useCallback(
+    (binding: IpBindingRecord) => {
+      modal.confirm({
+        title: t('pages.subconverter.confirmDeleteIp'),
+        content: (
+          <Space orientation="vertical" size={4}>
+            <span>{`IP: ${binding.ip}`}</span>
+          </Space>
+        ),
+        okText: t('confirm'),
+        cancelText: t('cancel'),
+        okType: 'danger',
+        async onOk() {
+          const msg = await subconverter.deleteIp(binding.subscriptionId, binding.id);
+          if (!msg?.success) throw new Error(msg?.msg || t('pages.subconverter.deleteFailed'));
+          messageApi.success(t('pages.subconverter.deleted'));
+        },
+      });
+    },
+    [messageApi, modal, subconverter, t],
+  );
 
   const infoRecord = detailQuery.data ?? null;
   const boundIps = useMemo(() => infoRecord?.boundIps ?? [], [infoRecord?.boundIps]);
 
-  const clearBoundIps = useCallback((record: SubscriptionRecord) => {
-    modal.confirm({
-      title: t('pages.subconverter.confirmClearIps'),
-      content: (
-        <Space orientation="vertical" size={4}>
-          {record.remark && <span>{record.remark}</span>}
-          <span>{`${t('pages.subconverter.boundIps')}: ${boundIps.length}`}</span>
-        </Space>
-      ),
-      okText: t('confirm'),
-      cancelText: t('cancel'),
-      okType: 'danger',
-      async onOk() {
-        const msg = await subconverter.clearIps(record.id);
-        if (!msg?.success) throw new Error(msg?.msg || t('pages.subconverter.deleteFailed'));
-        messageApi.success(t('pages.subconverter.deleted'));
-      },
-    });
-  }, [boundIps.length, messageApi, modal, subconverter, t]);
+  const clearBoundIps = useCallback(
+    (record: SubscriptionRecord) => {
+      modal.confirm({
+        title: t('pages.subconverter.confirmClearIps'),
+        content: (
+          <Space orientation="vertical" size={4}>
+            {record.remark && <span>{record.remark}</span>}
+            <span>{`${t('pages.subconverter.boundIps')}: ${boundIps.length}`}</span>
+          </Space>
+        ),
+        okText: t('confirm'),
+        cancelText: t('cancel'),
+        okType: 'danger',
+        async onOk() {
+          const msg = await subconverter.clearIps(record.id);
+          if (!msg?.success) throw new Error(msg?.msg || t('pages.subconverter.deleteFailed'));
+          messageApi.success(t('pages.subconverter.deleted'));
+        },
+      });
+    },
+    [boundIps.length, messageApi, modal, subconverter, t],
+  );
 
-  const resetToken = useCallback((record: SubscriptionRecord) => {
-    modal.confirm({
-      title: t('pages.subconverter.confirmResetToken'),
-      content: (
-        <Space orientation="vertical" size={4}>
-          {record.remark && <span>{record.remark}</span>}
-          <span>{`${t('pages.subconverter.boundIps')}: ${record.boundIpCount || 0}`}</span>
-        </Space>
-      ),
-      okText: t('confirm'),
-      cancelText: t('cancel'),
-      okType: 'danger',
-      async onOk() {
-        const msg = await subconverter.resetToken(record.id);
-        if (!msg?.success || !msg.obj) throw new Error(msg?.msg || t('pages.subconverter.saveFailed'));
-        messageApi.success(t('pages.subconverter.updated'));
-      },
-    });
-  }, [messageApi, modal, subconverter, t]);
+  const resetToken = useCallback(
+    (record: SubscriptionRecord) => {
+      modal.confirm({
+        title: t('pages.subconverter.confirmResetToken'),
+        content: (
+          <Space orientation="vertical" size={4}>
+            {record.remark && <span>{record.remark}</span>}
+            <span>{`${t('pages.subconverter.boundIps')}: ${record.boundIpCount || 0}`}</span>
+          </Space>
+        ),
+        okText: t('confirm'),
+        cancelText: t('cancel'),
+        okType: 'danger',
+        async onOk() {
+          const msg = await subconverter.resetToken(record.id);
+          if (!msg?.success || !msg.obj)
+            throw new Error(msg?.msg || t('pages.subconverter.saveFailed'));
+          messageApi.success(t('pages.subconverter.updated'));
+        },
+      });
+    },
+    [messageApi, modal, subconverter, t],
+  );
 
-  const toggleEnabled = useCallback(async (record: SubscriptionRecord, checked: boolean) => {
-    setTogglingId(record.id);
-    const inboundIds = (record.inbounds || []).map((item) => item.inboundId);
-    let clientEmail = (record.inbounds || []).find((item) => item.clientEmail)?.clientEmail || '';
-    const trafficStats = !!record.trafficStats;
-    if (checked && trafficStats && !clientEmail) {
-      const commonClientEmails = getCommonClientEmails(inboundIds, inboundById);
-      if (commonClientEmails.length === 1) {
-        clientEmail = commonClientEmails[0];
-      } else {
-        messageApi.error(t('pages.subconverter.clientRequired'));
-        setTogglingId(null);
-        return;
+  const toggleEnabled = useCallback(
+    async (record: SubscriptionRecord, checked: boolean) => {
+      setTogglingId(record.id);
+      const inboundIds = (record.inbounds || []).map((item) => item.inboundId);
+      let clientEmail = (record.inbounds || []).find((item) => item.clientEmail)?.clientEmail || '';
+      const trafficStats = !!record.trafficStats;
+      if (checked && trafficStats && !clientEmail) {
+        const commonClientEmails = getCommonClientEmails(inboundIds, inboundById);
+        if (commonClientEmails.length === 1) {
+          clientEmail = commonClientEmails[0];
+        } else {
+          messageApi.error(t('pages.subconverter.clientRequired'));
+          setTogglingId(null);
+          return;
+        }
       }
-    }
-    const payload: FormValues = {
-      remark: record.remark,
-      limitIp: record.limitIp,
-      enable: checked,
-      trafficStats,
-      inboundIds,
-      clientEmail: checked && trafficStats ? clientEmail || undefined : undefined,
-      inbounds: (record.inbounds || []).map((item) => ({
-        inboundId: item.inboundId,
-        clientEmail: checked && trafficStats ? item.clientEmail || clientEmail : item.clientEmail || '',
-        cdnTls: !!item.cdnTls,
-        cdnServer: item.cdnServer || '',
-        cdnPort: item.cdnPort || 443,
-        cdnServerName: item.cdnServerName || '',
-      })),
-    };
-    try {
-      const msg = await subconverter.save(record.id, payload);
-      if (!msg?.success) throw new Error(msg?.msg || t('pages.subconverter.saveFailed'));
-      messageApi.success(t('pages.subconverter.updated'));
-    } catch (error) {
-      messageApi.error(error instanceof Error ? error.message : t('pages.subconverter.saveFailed'));
-    } finally {
-      setTogglingId(null);
-    }
-  }, [inboundById, messageApi, subconverter, t]);
+      const payload: FormValues = {
+        remark: record.remark,
+        limitIp: record.limitIp,
+        enable: checked,
+        trafficStats,
+        inboundIds,
+        clientEmail: checked && trafficStats ? clientEmail || undefined : undefined,
+        inbounds: (record.inbounds || []).map((item) => ({
+          inboundId: item.inboundId,
+          clientEmail:
+            checked && trafficStats ? item.clientEmail || clientEmail : item.clientEmail || '',
+          cdnTls: !!item.cdnTls,
+          cdnServer: item.cdnServer || '',
+          cdnPort: item.cdnPort || 443,
+          cdnServerName: item.cdnServerName || '',
+        })),
+      };
+      try {
+        const msg = await subconverter.save(record.id, payload);
+        if (!msg?.success) throw new Error(msg?.msg || t('pages.subconverter.saveFailed'));
+        messageApi.success(t('pages.subconverter.updated'));
+      } catch (error) {
+        messageApi.error(
+          error instanceof Error ? error.message : t('pages.subconverter.saveFailed'),
+        );
+      } finally {
+        setTogglingId(null);
+      }
+    },
+    [inboundById, messageApi, subconverter, t],
+  );
 
   const infoTitle = infoRecord || infoTarget;
   return (
@@ -440,7 +492,12 @@ export default function SubconverterPage() {
           <Layout.Content className="content-area">
             {messageContextHolder}
             {modalContextHolder}
-            <Spin spinning={spinning || !fetched} delay={200} description={t('loading')} size="large">
+            <Spin
+              spinning={spinning || !fetched}
+              delay={200}
+              description={t('loading')}
+              size="large"
+            >
               {!fetched ? (
                 <div className="loading-spacer" />
               ) : (
@@ -448,20 +505,32 @@ export default function SubconverterPage() {
                   <Card className="summary-card" size="small" hoverable>
                     <Row gutter={[16, 12]}>
                       <Col xs={12} sm={12} md={8}>
-                        <Statistic title={t('pages.subconverter.totalCompletedSubscriptions')} value={stats.completedSubscriptions} prefix={<ContainerOutlined />} />
+                        <Statistic
+                          title={t('pages.subconverter.totalCompletedSubscriptions')}
+                          value={stats.completedSubscriptions}
+                          prefix={<ContainerOutlined />}
+                        />
                       </Col>
                       <Col xs={12} sm={12} md={8}>
-                        <Statistic title={t('pages.subconverter.enabledCount')} value={stats.enabled} prefix={<CheckCircleOutlined />} />
+                        <Statistic
+                          title={t('pages.subconverter.enabledCount')}
+                          value={stats.enabled}
+                          prefix={<CheckCircleOutlined />}
+                        />
                       </Col>
                       <Col xs={24} sm={24} md={8}>
-                        <Statistic title={t('pages.subconverter.linkedInbounds')} value={stats.linkedInbounds} prefix={<ApiOutlined />} />
+                        <Statistic
+                          title={t('pages.subconverter.linkedInbounds')}
+                          value={stats.linkedInbounds}
+                          prefix={<ApiOutlined />}
+                        />
                       </Col>
                     </Row>
                   </Card>
 
                   <Card
                     hoverable
-                    title={(
+                    title={
                       <Space size={8}>
                         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
                           {!isMobile && t('pages.subconverter.create')}
@@ -477,15 +546,21 @@ export default function SubconverterPage() {
                         )}
                         {isMobile ? (
                           <Tooltip title={t('pages.subconverter.accessLogs')}>
-                            <Button icon={<FileTextOutlined />} onClick={() => setAccessLogsOpen(true)} />
+                            <Button
+                              icon={<FileTextOutlined />}
+                              onClick={() => setAccessLogsOpen(true)}
+                            />
                           </Tooltip>
                         ) : (
-                          <Button icon={<FileTextOutlined />} onClick={() => setAccessLogsOpen(true)}>
+                          <Button
+                            icon={<FileTextOutlined />}
+                            onClick={() => setAccessLogsOpen(true)}
+                          >
                             {t('pages.subconverter.accessLogs')}
                           </Button>
                         )}
                       </Space>
-                    )}
+                    }
                   >
                     <SubconverterSubscriptionList
                       rows={subscriptions}

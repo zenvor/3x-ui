@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CopyOutlined, EyeOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { Button, Divider, Modal, Popover, Space, Spin, Tag, Tooltip } from 'antd';
@@ -53,15 +53,19 @@ export default function SubconverterInfoModal({
   const trafficUsed = clientTrafficUsed(trafficClient);
   const trafficTotal = clientTrafficTotal(trafficClient);
   const trafficRemaining = trafficTotal > 0 ? Math.max(0, trafficTotal - trafficUsed) : 0;
-  const dateLabel = (value?: string) => (value ? IntlUtil.formatDate(value, datepicker) || '-' : '-');
+  const dateLabel = (value?: string) =>
+    value ? IntlUtil.formatDate(value, datepicker) || '-' : '-';
   const boundIpLabel = (binding: IpBindingRecord) => {
     const timestamp = dateLabel(binding.boundAt || binding.lastSeenAt);
     return timestamp === '-' ? binding.ip : `${binding.ip} (${timestamp})`;
   };
 
-  useEffect(() => {
+  const resetKey = `${open}:${infoRecord?.id ?? ''}`;
+  const [prevResetKey, setPrevResetKey] = useState(resetKey);
+  if (prevResetKey !== resetKey) {
+    setPrevResetKey(resetKey);
     setBoundIpsModalOpen(false);
-  }, [open, infoRecord?.id]);
+  }
 
   const renderInboundChip = (inboundId: number) => {
     const inbound = inboundById.get(inboundId);
@@ -139,16 +143,24 @@ export default function SubconverterInfoModal({
                   </tr>
                   <tr>
                     <td>{t('pages.subconverter.completedSubscriptions')}</td>
-                    <td><Tag color="cyan">{infoRecord.stats?.completedCount || 0}</Tag></td>
+                    <td>
+                      <Tag color="cyan">{infoRecord.stats?.completedCount || 0}</Tag>
+                    </td>
                   </tr>
                   <tr>
                     <td>{t('pages.subconverter.maxIps')}</td>
-                    <td><Tag>{formatIpLimitUsage(infoRecord)}</Tag></td>
+                    <td>
+                      <Tag>{formatIpLimitUsage(infoRecord)}</Tag>
+                    </td>
                   </tr>
                   <tr>
                     <td>{t('pages.subconverter.boundIps')}</td>
                     <td>
-                      <Button size="small" icon={<EyeOutlined />} onClick={() => setBoundIpsModalOpen(true)}>
+                      <Button
+                        size="small"
+                        icon={<EyeOutlined />}
+                        onClick={() => setBoundIpsModalOpen(true)}
+                      >
                         {boundIps.length > 0 ? boundIps.length : ''}
                       </Button>
                     </td>
@@ -179,12 +191,12 @@ export default function SubconverterInfoModal({
                           {trafficClient ? (
                             <>
                               <Tag>
-                                ↑ {SizeFormatter.sizeFormat(trafficClient.up || 0)}
-                                {' '}/ ↓ {SizeFormatter.sizeFormat(trafficClient.down || 0)}
+                                ↑ {SizeFormatter.sizeFormat(trafficClient.up || 0)} / ↓{' '}
+                                {SizeFormatter.sizeFormat(trafficClient.down || 0)}
                               </Tag>
                               <span className="subconverter-info-hint">
-                                {SizeFormatter.sizeFormat(trafficUsed)}
-                                {' '}/ {trafficTotal > 0 ? SizeFormatter.sizeFormat(trafficTotal) : '∞'}
+                                {SizeFormatter.sizeFormat(trafficUsed)} /{' '}
+                                {trafficTotal > 0 ? SizeFormatter.sizeFormat(trafficTotal) : '∞'}
                               </span>
                             </>
                           ) : (
@@ -196,9 +208,13 @@ export default function SubconverterInfoModal({
                         <td>{t('pages.clients.remaining')}</td>
                         <td>
                           {trafficClient ? (
-                            trafficTotal > 0
-                              ? <Tag color={trafficRemaining > 0 ? '' : 'red'}>{SizeFormatter.sizeFormat(trafficRemaining)}</Tag>
-                              : <Tag color="purple">∞</Tag>
+                            trafficTotal > 0 ? (
+                              <Tag color={trafficRemaining > 0 ? '' : 'red'}>
+                                {SizeFormatter.sizeFormat(trafficRemaining)}
+                              </Tag>
+                            ) : (
+                              <Tag color="purple">∞</Tag>
+                            )
                           ) : (
                             <span className="subconverter-muted">-</span>
                           )}
@@ -208,11 +224,15 @@ export default function SubconverterInfoModal({
                   )}
                   <tr>
                     <td>{t('pages.inbounds.createdAt')}</td>
-                    <td><Tag>{dateLabel(infoRecord.createdAt)}</Tag></td>
+                    <td>
+                      <Tag>{dateLabel(infoRecord.createdAt)}</Tag>
+                    </td>
                   </tr>
                   <tr>
                     <td>{t('pages.inbounds.updatedAt')}</td>
-                    <td><Tag>{dateLabel(infoRecord.updatedAt)}</Tag></td>
+                    <td>
+                      <Tag>{dateLabel(infoRecord.updatedAt)}</Tag>
+                    </td>
                   </tr>
                   <tr>
                     <td>{t('pages.subconverter.inbounds')}</td>
@@ -224,7 +244,9 @@ export default function SubconverterInfoModal({
               <Divider plain>{t('subscription.title')}</Divider>
               <div className="subconverter-link-row">
                 <Tooltip title="Clash / Mihomo">
-                  <Tag color="gold" className="subconverter-link-row-tag">CLASH</Tag>
+                  <Tag color="gold" className="subconverter-link-row-tag">
+                    CLASH
+                  </Tag>
                 </Tooltip>
                 <button
                   type="button"
@@ -247,10 +269,20 @@ export default function SubconverterInfoModal({
                     trigger="click"
                     placement="left"
                     destroyOnHidden
-                    content={<QrPanel value={infoFeedUrl} remark={`${infoRecord.remark || infoRecord.token} - Clash / Mihomo`} size={220} />}
+                    content={
+                      <QrPanel
+                        value={infoFeedUrl}
+                        remark={`${infoRecord.remark || infoRecord.token} - Clash / Mihomo`}
+                        size={220}
+                      />
+                    }
                   >
                     <Tooltip title={t('pages.clients.qrCode')}>
-                      <Button size="small" icon={<QrcodeOutlined />} aria-label={t('pages.clients.qrCode')} />
+                      <Button
+                        size="small"
+                        icon={<QrcodeOutlined />}
+                        aria-label={t('pages.clients.qrCode')}
+                      />
                     </Tooltip>
                   </Popover>
                 </div>

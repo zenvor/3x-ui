@@ -40,9 +40,17 @@ export default function SubconverterSettingsModal({
         colon={false}
         labelCol={{ sm: { span: 8 } }}
         wrapperCol={{ sm: { span: 14 } }}
-        initialValues={{ uaFilterEnabled: true, uaKeywords: [...DEFAULT_UA_KEYWORDS], uaRejectStatus: 403 }}
+        initialValues={{
+          uaFilterEnabled: true,
+          uaKeywords: [...DEFAULT_UA_KEYWORDS],
+          uaRejectStatus: 403,
+        }}
       >
-        <Form.Item name="uaFilterEnabled" label={t('pages.subconverter.uaFilter')} valuePropName="checked">
+        <Form.Item
+          name="uaFilterEnabled"
+          label={t('pages.subconverter.uaFilter')}
+          valuePropName="checked"
+        >
           <Switch />
         </Form.Item>
         <Form.Item

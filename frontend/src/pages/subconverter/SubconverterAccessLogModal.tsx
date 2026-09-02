@@ -82,7 +82,10 @@ function shortTime(value?: string): string {
   return `${hh}:${mm}:${ss}`;
 }
 
-export default function SubconverterAccessLogModal({ open, onClose }: SubconverterAccessLogModalProps) {
+export default function SubconverterAccessLogModal({
+  open,
+  onClose,
+}: SubconverterAccessLogModalProps) {
   const { t } = useTranslation();
   const { datepicker } = useDatepicker();
   const { isMobile } = useMediaQuery();
@@ -101,28 +104,34 @@ export default function SubconverterAccessLogModal({ open, onClose }: Subconvert
   const loading = logsQuery.isFetching;
   const { refetch } = logsQuery;
 
-  const endpointLabel = useCallback((value: string) => {
-    if (value === EMPTY_FILTER_VALUE) return '-';
-    if (value === 'full' || value === 'nodes') {
-      return t(`pages.subconverter.endpointValues.${value}`);
-    }
-    return value || '-';
-  }, [t]);
+  const endpointLabel = useCallback(
+    (value: string) => {
+      if (value === EMPTY_FILTER_VALUE) return '-';
+      if (value === 'full' || value === 'nodes') {
+        return t(`pages.subconverter.endpointValues.${value}`);
+      }
+      return value || '-';
+    },
+    [t],
+  );
 
-  const resultLabel = useCallback((value: string) => {
-    if (value === EMPTY_FILTER_VALUE) return '-';
-    switch (value) {
-      case 'success':
-      case 'ua_rejected':
-      case 'ip_limit_exceeded':
-      case 'subscription_disabled':
-      case 'ip_missing':
-      case 'internal_error':
-        return t(`pages.subconverter.accessResult.${value}`);
-      default:
-        return value || '-';
-    }
-  }, [t]);
+  const resultLabel = useCallback(
+    (value: string) => {
+      if (value === EMPTY_FILTER_VALUE) return '-';
+      switch (value) {
+        case 'success':
+        case 'ua_rejected':
+        case 'ip_limit_exceeded':
+        case 'subscription_disabled':
+        case 'ip_missing':
+        case 'internal_error':
+          return t(`pages.subconverter.accessResult.${value}`);
+        default:
+          return value || '-';
+      }
+    },
+    [t],
+  );
 
   const endpointOptions = useMemo(() => {
     const values = [...DEFAULT_ENDPOINT_OPTIONS];
@@ -153,8 +162,10 @@ export default function SubconverterAccessLogModal({ open, onClose }: Subconvert
     const endpointSet = new Set(selectedEndpoints);
     const resultSet = new Set(selectedResults);
     return logs.filter((log) => {
-      if (endpointOptions.length > 0 && !endpointSet.has(normalizeFilterValue(log.endpoint))) return false;
-      if (resultOptions.length > 0 && !resultSet.has(normalizeFilterValue(log.result))) return false;
+      if (endpointOptions.length > 0 && !endpointSet.has(normalizeFilterValue(log.endpoint)))
+        return false;
+      if (resultOptions.length > 0 && !resultSet.has(normalizeFilterValue(log.result)))
+        return false;
       if (!q) return true;
       return [
         `#${log.subscriptionId}`,
@@ -204,11 +215,16 @@ export default function SubconverterAccessLogModal({ open, onClose }: Subconvert
     });
   }, [resultOptions]);
 
-  const fullDate = useCallback((value?: string) => IntlUtil.formatDate(value, datepicker), [datepicker]);
+  const fullDate = useCallback(
+    (value?: string) => IntlUtil.formatDate(value, datepicker),
+    [datepicker],
+  );
 
-  const subscriptionLabel = useCallback((log: AccessLogRecord) => (
-    `#${log.subscriptionId}${log.subscriptionRemark ? ` ${log.subscriptionRemark}` : ''}`
-  ), []);
+  const subscriptionLabel = useCallback(
+    (log: AccessLogRecord) =>
+      `#${log.subscriptionId}${log.subscriptionRemark ? ` ${log.subscriptionRemark}` : ''}`,
+    [],
+  );
 
   const toggleEndpointFilter = useCallback((value: string, checked: boolean) => {
     endpointFilterTouchedRef.current = true;
@@ -231,15 +247,17 @@ export default function SubconverterAccessLogModal({ open, onClose }: Subconvert
       FileManager.downloadTextFile('', 'subconverter-access.log');
       return;
     }
-    const lines = filteredLogs.map((log) => [
-      fullDate(log.accessedAt),
-      subscriptionLabel(log),
-      `endpoint=${endpointLabel(log.endpoint)}`,
-      `status=${log.statusCode}`,
-      `result=${resultLabel(log.result)}`,
-      `ip=${log.ip || ''}`,
-      `ua=${log.userAgent || ''}`,
-    ].join(' '));
+    const lines = filteredLogs.map((log) =>
+      [
+        fullDate(log.accessedAt),
+        subscriptionLabel(log),
+        `endpoint=${endpointLabel(log.endpoint)}`,
+        `status=${log.statusCode}`,
+        `result=${resultLabel(log.result)}`,
+        `ip=${log.ip || ''}`,
+        `ua=${log.userAgent || ''}`,
+      ].join(' '),
+    );
     FileManager.downloadTextFile(lines.join('\n'), 'subconverter-access.log');
   }, [endpointLabel, filteredLogs, fullDate, resultLabel, subscriptionLabel]);
 
@@ -251,7 +269,7 @@ export default function SubconverterAccessLogModal({ open, onClose }: Subconvert
       style={isMobile ? { top: 0, paddingBottom: 0, maxWidth: '100vw' } : undefined}
       className={isMobile ? 'subconverter-access-log-modal-mobile' : undefined}
       onCancel={onClose}
-      title={(
+      title={
         <span className="subconverter-access-log-title">
           {t('pages.subconverter.accessLogs')}
           <SyncOutlined
@@ -262,7 +280,7 @@ export default function SubconverterAccessLogModal({ open, onClose }: Subconvert
             onClick={refresh}
           />
         </span>
-      )}
+      }
     >
       <Form layout="inline" className="subconverter-access-log-toolbar">
         <Form.Item className="rows-item">
@@ -309,7 +327,13 @@ export default function SubconverterAccessLogModal({ open, onClose }: Subconvert
           </Form.Item>
         )}
         <Form.Item className="download-item">
-          <Button size="small" type="primary" onClick={download} icon={<DownloadOutlined />} aria-label={t('download')} />
+          <Button
+            size="small"
+            type="primary"
+            onClick={download}
+            icon={<DownloadOutlined />}
+            aria-label={t('download')}
+          />
         </Form.Item>
       </Form>
 
@@ -324,7 +348,9 @@ export default function SubconverterAccessLogModal({ open, onClose }: Subconvert
                   {shortTime(log.accessedAt)}
                 </span>
                 <Space size={[4, 4]} wrap>
-                  <Tag color={log.endpoint === 'nodes' ? 'purple' : 'green'}>{endpointLabel(log.endpoint)}</Tag>
+                  <Tag color={log.endpoint === 'nodes' ? 'purple' : 'green'}>
+                    {endpointLabel(log.endpoint)}
+                  </Tag>
                   <Tag color={statusColor(log.statusCode)}>{log.statusCode}</Tag>
                 </Space>
               </div>
@@ -353,7 +379,9 @@ export default function SubconverterAccessLogModal({ open, onClose }: Subconvert
             <tbody>
               {filteredLogs.map((log) => (
                 <tr key={log.id} className={resultClassName(log.result)}>
-                  <td><b>{fullDate(log.accessedAt)}</b></td>
+                  <td>
+                    <b>{fullDate(log.accessedAt)}</b>
+                  </td>
                   <td>{subscriptionLabel(log)}</td>
                   <td>{endpointLabel(log.endpoint)}</td>
                   <td>{log.statusCode}</td>

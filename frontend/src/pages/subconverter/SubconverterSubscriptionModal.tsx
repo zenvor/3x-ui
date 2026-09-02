@@ -68,20 +68,24 @@ export default function SubconverterSubscriptionModal({
     [commonClientEmails],
   );
   const hasSelectedInbounds = selectedInboundIds.length > 0;
-  const hasNoCommonClient = trafficStatsEnabled && hasSelectedInbounds && commonClientEmails.length === 0;
+  const hasNoCommonClient =
+    trafficStatsEnabled && hasSelectedInbounds && commonClientEmails.length === 0;
   const requiresClientChoice = trafficStatsEnabled && commonClientEmails.length > 1;
   const selectedClientEmail = String(watchedClientEmail || '').trim();
-  const clientSelectionInvalid = hasNoCommonClient || (requiresClientChoice && !selectedClientEmail);
+  const clientSelectionInvalid =
+    hasNoCommonClient || (requiresClientChoice && !selectedClientEmail);
   const selectedClientDetail = useMemo(() => {
-    const email = selectedClientEmail
-      || (commonClientEmails.length === 1 ? commonClientEmails[0] : '')
-      || (commonClientDetails.length === 1 ? commonClientDetails[0]?.email : '');
+    const email =
+      selectedClientEmail ||
+      (commonClientEmails.length === 1 ? commonClientEmails[0] : '') ||
+      (commonClientDetails.length === 1 ? commonClientDetails[0]?.email : '');
     if (!email) return undefined;
     return commonClientDetails.find((client) => client.email === email);
   }, [commonClientDetails, commonClientEmails, selectedClientEmail]);
-  const clientDisplayEmail = selectedClientEmail
-    || selectedClientDetail?.email
-    || (commonClientEmails.length === 1 ? commonClientEmails[0] : '');
+  const clientDisplayEmail =
+    selectedClientEmail ||
+    selectedClientDetail?.email ||
+    (commonClientEmails.length === 1 ? commonClientEmails[0] : '');
   const trafficLimitDisplay = useMemo(() => {
     if (!selectedClientDetail) return undefined;
     const total = clientTrafficTotal(selectedClientDetail);
@@ -108,11 +112,12 @@ export default function SubconverterSubscriptionModal({
     return undefined;
   }, [commonClientDetails, hasNoCommonClient, t]);
   const inboundOptions = useMemo(
-    () => supportedInbounds.map((inbound) => ({
-      value: inbound.id,
-      label: inboundSelectLabel(inbound.id),
-      title: inboundTagLabel(inbound.id),
-    })),
+    () =>
+      supportedInbounds.map((inbound) => ({
+        value: inbound.id,
+        label: inboundSelectLabel(inbound.id),
+        title: inboundTagLabel(inbound.id),
+      })),
     [inboundSelectLabel, inboundTagLabel, supportedInbounds],
   );
   const cdnTlsInboundIds = useMemo(
@@ -158,7 +163,14 @@ export default function SubconverterSubscriptionModal({
         colon={false}
         labelCol={{ sm: { span: 8 } }}
         wrapperCol={{ sm: { span: 14 } }}
-        initialValues={{ remark: '', limitIp: 0, enable: true, trafficStats: false, inboundIds: [], cdnTls: {} }}
+        initialValues={{
+          remark: '',
+          limitIp: 0,
+          enable: true,
+          trafficStats: false,
+          inboundIds: [],
+          cdnTls: {},
+        }}
       >
         <Row gutter={12}>
           <Col xs={24} md={12}>
@@ -167,7 +179,12 @@ export default function SubconverterSubscriptionModal({
             </Form.Item>
           </Col>
           <Col xs={24} md={4}>
-            <Form.Item {...cdnFieldLayout} name="enable" label={t('enable')} valuePropName="checked">
+            <Form.Item
+              {...cdnFieldLayout}
+              name="enable"
+              label={t('enable')}
+              valuePropName="checked"
+            >
               <Switch />
             </Form.Item>
           </Col>
@@ -195,7 +212,9 @@ export default function SubconverterSubscriptionModal({
                   <div className="subconverter-traffic-summary">
                     {(requiresClientChoice || clientDisplayEmail) && (
                       <div className="subconverter-traffic-row">
-                        <span className="subconverter-traffic-label">{t('pages.subconverter.client')}</span>
+                        <span className="subconverter-traffic-label">
+                          {t('pages.subconverter.client')}
+                        </span>
                         {requiresClientChoice ? (
                           <Form.Item name="clientEmail" noStyle>
                             <Select
@@ -207,24 +226,29 @@ export default function SubconverterSubscriptionModal({
                             />
                           </Form.Item>
                         ) : (
-                          <Tag color="green" className="subconverter-traffic-tag">{clientDisplayEmail}</Tag>
+                          <Tag color="green" className="subconverter-traffic-tag">
+                            {clientDisplayEmail}
+                          </Tag>
                         )}
                       </div>
                     )}
                     {trafficLimitDisplay && (
                       <>
                         <div className="subconverter-traffic-row">
-                          <span className="subconverter-traffic-label">{t('pages.inbounds.traffic')}</span>
+                          <span className="subconverter-traffic-label">
+                            {t('pages.inbounds.traffic')}
+                          </span>
                           <Tag className="subconverter-traffic-tag">
-                            ↑ {trafficLimitDisplay.up}
-                            {' '}/ ↓ {trafficLimitDisplay.down}
+                            ↑ {trafficLimitDisplay.up} / ↓ {trafficLimitDisplay.down}
                           </Tag>
                           <span className="subconverter-traffic-hint">
                             {trafficLimitDisplay.used} / {trafficLimitDisplay.total}
                           </span>
                         </div>
                         <div className="subconverter-traffic-row">
-                          <span className="subconverter-traffic-label">{t('pages.clients.remaining')}</span>
+                          <span className="subconverter-traffic-label">
+                            {t('pages.clients.remaining')}
+                          </span>
                           <Tag
                             className="subconverter-traffic-tag"
                             color={trafficLimitDisplay.remaining === 0 ? 'red' : undefined}
@@ -239,18 +263,14 @@ export default function SubconverterSubscriptionModal({
                 {selectedClientDetail && isClientDepleted(selectedClientDetail) && (
                   <Tag color="red">{t('depleted')}</Tag>
                 )}
-                {selectedClientDetail && !isClientDepleted(selectedClientDetail) && selectedClientDetail.enable === false && (
-                  <Tag>{t('disabled')}</Tag>
-                )}
+                {selectedClientDetail &&
+                  !isClientDepleted(selectedClientDetail) &&
+                  selectedClientDetail.enable === false && <Tag>{t('disabled')}</Tag>}
               </Space>
             </Form.Item>
           </Col>
           <Col span={24}>
-            <Form.Item
-              {...cdnFieldLayout}
-              label={t('pages.subconverter.inbounds')}
-              required
-            >
+            <Form.Item {...cdnFieldLayout} label={t('pages.subconverter.inbounds')} required>
               <SelectAllClearButtons
                 options={inboundOptions}
                 value={selectedInboundIds}
@@ -272,7 +292,8 @@ export default function SubconverterSubscriptionModal({
                   listHeight={220}
                   showSearch
                   filterOption={(input, option) =>
-                    ((option?.label as string) || '').toLowerCase().includes(input.toLowerCase())}
+                    ((option?.label as string) || '').toLowerCase().includes(input.toLowerCase())
+                  }
                 />
               </Form.Item>
             </Form.Item>
@@ -282,12 +303,18 @@ export default function SubconverterSubscriptionModal({
               <Alert
                 type="error"
                 showIcon
-                message={clientProblem ? (
-                  <Space wrap>
-                    <span>{t('pages.clients.client')}: {clientProblem.client.email}</span>
-                    <Tag color={clientProblem.color}>{clientProblem.label}</Tag>
-                  </Space>
-                ) : t('pages.subconverter.commonClientRequired')}
+                message={
+                  clientProblem ? (
+                    <Space wrap>
+                      <span>
+                        {t('pages.clients.client')}: {clientProblem.client.email}
+                      </span>
+                      <Tag color={clientProblem.color}>{clientProblem.label}</Tag>
+                    </Space>
+                  ) : (
+                    t('pages.subconverter.commonClientRequired')
+                  )
+                }
               />
             </Col>
           )}
@@ -300,7 +327,11 @@ export default function SubconverterSubscriptionModal({
                   const enabled = required || !!cdnTls?.[key]?.enabled;
                   return (
                     <div className="subconverter-cdn-override" key={key}>
-                      <Space orientation="vertical" size={8} className="subconverter-cdn-override-inner">
+                      <Space
+                        orientation="vertical"
+                        size={8}
+                        className="subconverter-cdn-override-inner"
+                      >
                         <div className="subconverter-cdn-override-head">
                           <Tag color={INBOUND_TAG_COLOR}>{inboundTagLabel(id)}</Tag>
                         </div>
@@ -324,12 +355,17 @@ export default function SubconverterSubscriptionModal({
                                 {...cdnFieldLayout}
                                 name={['cdnTls', key, 'server']}
                                 label={t('pages.subconverter.cdnServer')}
-                                rules={[{
-                                  validator: (_, value) => {
-                                    if (!enabled || String(value || '').trim()) return Promise.resolve();
-                                    return Promise.reject(new Error(t('pages.subconverter.cdnServerRequired')));
+                                rules={[
+                                  {
+                                    validator: (_, value) => {
+                                      if (!enabled || String(value || '').trim())
+                                        return Promise.resolve();
+                                      return Promise.reject(
+                                        new Error(t('pages.subconverter.cdnServerRequired')),
+                                      );
+                                    },
                                   },
-                                }]}
+                                ]}
                               >
                                 <Input placeholder={t('pages.subconverter.cdnServerPlaceholder')} />
                               </Form.Item>
@@ -341,12 +377,23 @@ export default function SubconverterSubscriptionModal({
                                 label={t('pages.subconverter.cdnPort')}
                                 initialValue={443}
                               >
-                                <InputNumber min={1} max={65535} placeholder="443" className="subconverter-full-width" />
+                                <InputNumber
+                                  min={1}
+                                  max={65535}
+                                  placeholder="443"
+                                  className="subconverter-full-width"
+                                />
                               </Form.Item>
                             </Col>
                             <Col xs={24} sm={12}>
-                              <Form.Item {...cdnFieldLayout} name={['cdnTls', key, 'serverName']} label={t('pages.subconverter.cdnServerName')}>
-                                <Input placeholder={t('pages.subconverter.cdnServerNamePlaceholder')} />
+                              <Form.Item
+                                {...cdnFieldLayout}
+                                name={['cdnTls', key, 'serverName']}
+                                label={t('pages.subconverter.cdnServerName')}
+                              >
+                                <Input
+                                  placeholder={t('pages.subconverter.cdnServerNamePlaceholder')}
+                                />
                               </Form.Item>
                             </Col>
                           </Row>
