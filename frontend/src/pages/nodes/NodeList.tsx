@@ -531,21 +531,25 @@ export default function NodeList({
   );
 
   return (
-    <Card size="small" hoverable>
-      <div className="toolbar">
-        <Button type="primary" icon={<PlusOutlined />} onClick={onAdd}>
-          {t('pages.nodes.addNode')}
-        </Button>
-        <Button icon={<SafetyCertificateOutlined />} onClick={onMtls}>
-          {t('pages.nodes.mtls.title')}
-        </Button>
-        {selectedIds.length > 0 && (
-          <Button icon={<CloudDownloadOutlined />} onClick={onUpdateSelected}>
-            {t('pages.nodes.updateSelected', { count: selectedIds.length })}
+    <Card
+      size="small"
+      hoverable
+      title={
+        <div className="card-toolbar">
+          <Button type="primary" icon={<PlusOutlined />} onClick={onAdd}>
+            {t('pages.nodes.addNode')}
           </Button>
-        )}
-      </div>
-
+          <Button icon={<SafetyCertificateOutlined />} onClick={onMtls}>
+            {t('pages.nodes.mtls.title')}
+          </Button>
+          {selectedIds.length > 0 && (
+            <Button icon={<CloudDownloadOutlined />} onClick={onUpdateSelected}>
+              {t('pages.nodes.updateSelected', { count: selectedIds.length })}
+            </Button>
+          )}
+        </div>
+      }
+    >
       {isMobile ? (
         <>
           <div className="node-cards">

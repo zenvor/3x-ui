@@ -529,9 +529,10 @@ export default function SubconverterPage() {
                   </Card>
 
                   <Card
+                    size="small"
                     hoverable
                     title={
-                      <Space size={8}>
+                      <div className="card-toolbar">
                         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
                           {!isMobile && t('pages.subconverter.create')}
                         </Button>
@@ -559,7 +560,7 @@ export default function SubconverterPage() {
                             {t('pages.subconverter.accessLogs')}
                           </Button>
                         )}
-                      </Space>
+                      </div>
                     }
                   >
                     <SubconverterSubscriptionList
