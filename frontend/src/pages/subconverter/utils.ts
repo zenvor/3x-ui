@@ -44,7 +44,10 @@ export function fallbackCopy(text: string): void {
 }
 
 export function isSupportedInbound(inbound: InboundOption): boolean {
-  return inbound.protocol === 'vless' && (inbound.subconverterCapable === true || inbound.cdnTlsCapable === true);
+  return (
+    inbound.protocol === 'vless' &&
+    (inbound.subconverterCapable === true || inbound.cdnTlsCapable === true)
+  );
 }
 
 export function canConfigureCdnTls(inbound?: InboundOption): boolean {
@@ -64,9 +67,9 @@ export function getCommonClientEmails(
   let common: string[] | null = null;
   for (const id of inboundIds) {
     const inbound = inboundById.get(id);
-    const emails = uniqueEmails((inbound?.clients || [])
-      .filter(isExportableInboundClient)
-      .map((client) => client.email));
+    const emails = uniqueEmails(
+      (inbound?.clients || []).filter(isExportableInboundClient).map((client) => client.email),
+    );
     if (emails.length === 0) return [];
     if (common === null) {
       common = emails;
@@ -111,9 +114,7 @@ export function getSubscriptionInboundIds(
   record: SubscriptionRecord,
   inboundById: Map<number, InboundOption>,
 ): number[] {
-  return (record.inbounds || [])
-    .map((item) => item.inboundId)
-    .filter((id) => inboundById.has(id));
+  return (record.inbounds || []).map((item) => item.inboundId).filter((id) => inboundById.has(id));
 }
 
 export function resolveSubscriptionClient(
@@ -126,7 +127,9 @@ export function resolveSubscriptionClient(
   if (inboundIds.length === 0) return undefined;
 
   const clientDetails = getCommonClientDetails(inboundIds, inboundById);
-  const clientEmail = String((record.inbounds || []).find((item) => item.clientEmail)?.clientEmail || '').trim();
+  const clientEmail = String(
+    (record.inbounds || []).find((item) => item.clientEmail)?.clientEmail || '',
+  ).trim();
   if (clientEmail) {
     return clientDetails.find((client) => client.email === clientEmail);
   }
@@ -176,7 +179,10 @@ function clientsByEmailMap(clients: InboundOptionClient[]): Map<string, InboundO
   return out;
 }
 
-function mergeClientDetails(left: InboundOptionClient, right: InboundOptionClient): InboundOptionClient {
+function mergeClientDetails(
+  left: InboundOptionClient,
+  right: InboundOptionClient,
+): InboundOptionClient {
   const leftExpiry = Number(left.expiryTime || 0);
   const rightExpiry = Number(right.expiryTime || 0);
   return {
@@ -184,9 +190,10 @@ function mergeClientDetails(left: InboundOptionClient, right: InboundOptionClien
     enable: left.enable !== false && right.enable !== false,
     hasId: left.hasId !== false && right.hasId !== false,
     totalGB: Math.max(Number(left.totalGB || 0), Number(right.totalGB || 0)),
-    expiryTime: leftExpiry > 0 && rightExpiry > 0
-      ? Math.min(leftExpiry, rightExpiry)
-      : Math.max(leftExpiry, rightExpiry),
+    expiryTime:
+      leftExpiry > 0 && rightExpiry > 0
+        ? Math.min(leftExpiry, rightExpiry)
+        : Math.max(leftExpiry, rightExpiry),
     up: Math.max(Number(left.up || 0), Number(right.up || 0)),
     down: Math.max(Number(left.down || 0), Number(right.down || 0)),
   };
@@ -228,16 +235,22 @@ export function filterSubscriptions(
   }
   if (!filterMode && searchKey?.trim()) {
     const q = searchKey.trim().toLowerCase();
-    filtered = filtered.filter((sub) =>
-      (sub.remark || '').toLowerCase().includes(q) ||
-      (sub.token || '').toLowerCase().includes(q));
+    filtered = filtered.filter(
+      (sub) =>
+        (sub.remark || '').toLowerCase().includes(q) || (sub.token || '').toLowerCase().includes(q),
+    );
   }
   if (protocolFilter) {
-    filtered = filtered.filter((sub) => (sub.inbounds || []).some((item) =>
-      inboundById.get(item.inboundId)?.protocol === protocolFilter));
+    filtered = filtered.filter((sub) =>
+      (sub.inbounds || []).some(
+        (item) => inboundById.get(item.inboundId)?.protocol === protocolFilter,
+      ),
+    );
   }
   if (inboundFilter) {
-    filtered = filtered.filter((sub) => (sub.inbounds || []).some((item) => item.inboundId === inboundFilter));
+    filtered = filtered.filter((sub) =>
+      (sub.inbounds || []).some((item) => item.inboundId === inboundFilter),
+    );
   }
   return filtered;
 }

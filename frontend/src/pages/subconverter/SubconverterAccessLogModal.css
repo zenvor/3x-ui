@@ -172,7 +172,7 @@ body.dark .subconverter-access-log-container {
   --subconverter-log-error: #ff7575;
 }
 
-html[data-theme="ultra-dark"] .subconverter-access-log-container {
+html[data-theme='ultra-dark'] .subconverter-access-log-container {
   --subconverter-log-divider: rgba(255, 255, 255, 0.12);
   --subconverter-log-success: #95de64;
   --subconverter-log-warning: #ffd666;
@@ -211,26 +211,47 @@ html[data-theme="ultra-dark"] .subconverter-access-log-container {
   align-self: center;
 }
 
-.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .rows-item .ant-form-item-row,
-.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item .ant-form-item-row {
+.subconverter-access-log-modal-mobile
+  .subconverter-access-log-toolbar
+  .rows-item
+  .ant-form-item-row,
+.subconverter-access-log-modal-mobile
+  .subconverter-access-log-toolbar
+  .filter-item
+  .ant-form-item-row {
   width: 100%;
   flex-wrap: nowrap;
   align-items: center;
   min-height: 32px;
 }
 
-.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .rows-item .ant-form-item-control-input,
-.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item .ant-form-item-control-input {
+.subconverter-access-log-modal-mobile
+  .subconverter-access-log-toolbar
+  .rows-item
+  .ant-form-item-control-input,
+.subconverter-access-log-modal-mobile
+  .subconverter-access-log-toolbar
+  .filter-item
+  .ant-form-item-control-input {
   min-height: 32px;
 }
 
-.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .rows-item .ant-form-item-control-input-content,
-.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item .ant-form-item-control-input-content {
+.subconverter-access-log-modal-mobile
+  .subconverter-access-log-toolbar
+  .rows-item
+  .ant-form-item-control-input-content,
+.subconverter-access-log-modal-mobile
+  .subconverter-access-log-toolbar
+  .filter-item
+  .ant-form-item-control-input-content {
   display: flex;
   align-items: center;
 }
 
-.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item .ant-form-item-label {
+.subconverter-access-log-modal-mobile
+  .subconverter-access-log-toolbar
+  .filter-item
+  .ant-form-item-label {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -238,11 +259,18 @@ html[data-theme="ultra-dark"] .subconverter-access-log-container {
   padding-bottom: 0;
 }
 
-.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item .ant-form-item-label > label {
+.subconverter-access-log-modal-mobile
+  .subconverter-access-log-toolbar
+  .filter-item
+  .ant-form-item-label
+  > label {
   height: 32px;
 }
 
-.subconverter-access-log-modal-mobile .subconverter-access-log-toolbar .filter-item .ant-form-item-control {
+.subconverter-access-log-modal-mobile
+  .subconverter-access-log-toolbar
+  .filter-item
+  .ant-form-item-control {
   flex: 1 1 auto;
   min-width: 0;
 }

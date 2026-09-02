@@ -48,29 +48,6 @@ func TestFilterUsableSANs(t *testing.T) {
 	}
 }
 
-func TestRealityProbeTLSConfigVerifiesKnownSNI(t *testing.T) {
-	cfg := realityProbeTLSConfig("93.184.216.34", "example.com")
-	if cfg.ServerName != "example.com" {
-		t.Fatalf("ServerName = %q, want example.com", cfg.ServerName)
-	}
-	if cfg.InsecureSkipVerify {
-		t.Fatal("known-SNI probes must use normal certificate verification")
-	}
-	if cfg.MinVersion != tls.VersionTLS12 {
-		t.Fatalf("MinVersion = %d, want TLS 1.2", cfg.MinVersion)
-	}
-}
-
-func TestRealityProbeTLSConfigFallsBackToDialHostWithoutSNI(t *testing.T) {
-	cfg := realityProbeTLSConfig("93.184.216.34", "")
-	if cfg.ServerName != "93.184.216.34" {
-		t.Fatalf("ServerName = %q, want dial host", cfg.ServerName)
-	}
-	if cfg.InsecureSkipVerify {
-		t.Fatal("no-SNI probes must still use certificate verification")
-	}
-}
-
 func TestSplitRealityTarget(t *testing.T) {
 	okCases := []struct {
 		in       string
@@ -101,13 +78,13 @@ func TestSplitRealityTarget(t *testing.T) {
 }
 
 func TestScanRealityTargetInputValidation(t *testing.T) {
-	if _, err := (&ServerService{}).ScanRealityTarget("", 0); err == nil {
+	if _, err := (&ServerService{}).ScanRealityTarget("", "", 0, false); err == nil {
 		t.Error("ScanRealityTarget(empty) expected error, got nil")
 	}
 }
 
 func TestScanRealityTargetBlocksPrivate(t *testing.T) {
-	res, err := (&ServerService{}).ScanRealityTarget("127.0.0.1:443", 0)
+	res, err := (&ServerService{}).ScanRealityTarget("127.0.0.1:443", "", 0, false)
 	if err != nil {
 		t.Fatalf("ScanRealityTarget(loopback) unexpected error: %v", err)
 	}

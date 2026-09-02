@@ -87,188 +87,267 @@ export default function SubconverterSubscriptionList({
     });
   }, [filterBy, filterMode, inboundById, inboundFilter, protocolFilter, rows, searchKey]);
 
-  const renderTraffic = useCallback((record: SubscriptionRecord) => {
-    const client = resolveSubscriptionClient(record, inboundById);
-    if (!client) return <span className="subconverter-muted">-</span>;
+  const renderTraffic = useCallback(
+    (record: SubscriptionRecord) => {
+      const client = resolveSubscriptionClient(record, inboundById);
+      if (!client) return <span className="subconverter-muted">-</span>;
 
-    const used = clientTrafficUsed(client);
-    const total = clientTrafficTotal(client);
-    return (
-      <Popover
-        content={(
-          <table cellPadding={2}>
-            <tbody>
-              <tr>
-                <td>↑ {SizeFormatter.sizeFormat(client.up || 0)}</td>
-                <td>↓ {SizeFormatter.sizeFormat(client.down || 0)}</td>
-              </tr>
-              {total > 0 && used < total && (
-                <tr>
-                  <td>{t('remained')}</td>
-                  <td>{SizeFormatter.sizeFormat(total - used)}</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        )}
-      >
-        <Tag color="purple">
-          {SizeFormatter.sizeFormat(used)} /
-          {' '}
-          {total > 0 ? SizeFormatter.sizeFormat(total) : <InfinityIcon />}
-        </Tag>
-      </Popover>
-    );
-  }, [inboundById, t]);
-
-  const renderTableInboundTags = useCallback((record: SubscriptionRecord) => {
-    const inboundIds = (record.inbounds || [])
-      .filter((item) => inboundById.has(item.inboundId))
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-      .map((item) => item.inboundId);
-    if (inboundIds.length === 0) return <span className="subconverter-muted">—</span>;
-
-    const visible = inboundIds.slice(0, INBOUND_CHIP_LIMIT);
-    const overflow = inboundIds.slice(INBOUND_CHIP_LIMIT);
-    const chip = (id: number) => {
-      const label = inboundTagLabel(id);
+      const used = clientTrafficUsed(client);
+      const total = clientTrafficTotal(client);
       return (
-        <Tooltip key={id} title={label}>
-          <Tag color={INBOUND_TAG_COLOR} style={{ margin: 2 }}>
-            {label}
+        <Popover
+          content={
+            <table cellPadding={2}>
+              <tbody>
+                <tr>
+                  <td>↑ {SizeFormatter.sizeFormat(client.up || 0)}</td>
+                  <td>↓ {SizeFormatter.sizeFormat(client.down || 0)}</td>
+                </tr>
+                {total > 0 && used < total && (
+                  <tr>
+                    <td>{t('remained')}</td>
+                    <td>{SizeFormatter.sizeFormat(total - used)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          }
+        >
+          <Tag color="purple">
+            {SizeFormatter.sizeFormat(used)} /{' '}
+            {total > 0 ? SizeFormatter.sizeFormat(total) : <InfinityIcon />}
           </Tag>
-        </Tooltip>
+        </Popover>
       );
-    };
+    },
+    [inboundById, t],
+  );
 
-    return (
-      <>
-        {visible.map((id) => chip(id))}
-        {overflow.length > 0 && (
-          <Popover
-            trigger="click"
-            placement="bottomRight"
-            content={
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 280, maxHeight: 280, overflowY: 'auto' }}>
-                {overflow.map((id) => chip(id))}
-              </div>
-            }
-          >
-            <Button
-              type="text"
-              size="small"
-              className="subconverter-chip-more-button"
-              aria-label={`${t('more')} ${overflow.length}`}
+  const renderTableInboundTags = useCallback(
+    (record: SubscriptionRecord) => {
+      const inboundIds = (record.inbounds || [])
+        .filter((item) => inboundById.has(item.inboundId))
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+        .map((item) => item.inboundId);
+      if (inboundIds.length === 0) return <span className="subconverter-muted">—</span>;
+
+      const visible = inboundIds.slice(0, INBOUND_CHIP_LIMIT);
+      const overflow = inboundIds.slice(INBOUND_CHIP_LIMIT);
+      const chip = (id: number) => {
+        const label = inboundTagLabel(id);
+        return (
+          <Tooltip key={id} title={label}>
+            <Tag color={INBOUND_TAG_COLOR} style={{ margin: 2 }}>
+              {label}
+            </Tag>
+          </Tooltip>
+        );
+      };
+
+      return (
+        <>
+          {visible.map((id) => chip(id))}
+          {overflow.length > 0 && (
+            <Popover
+              trigger="click"
+              placement="bottomRight"
+              content={
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                    maxWidth: 280,
+                    maxHeight: 280,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {overflow.map((id) => chip(id))}
+                </div>
+              }
             >
-              +{overflow.length}
-            </Button>
-          </Popover>
-        )}
-      </>
-    );
-  }, [inboundById, inboundTagLabel, t]);
+              <Button
+                type="text"
+                size="small"
+                className="subconverter-chip-more-button"
+                aria-label={`${t('more')} ${overflow.length}`}
+              >
+                +{overflow.length}
+              </Button>
+            </Popover>
+          )}
+        </>
+      );
+    },
+    [inboundById, inboundTagLabel, t],
+  );
 
-  const columns = useMemo<ColumnsType<SubscriptionRecord>>(() => [
-    {
-      title: t('pages.clients.actions'),
-      key: 'actions',
-      width: 200,
-      render: (_, record) => (
-        <Space size={4}>
-          <Popover
-            trigger="click"
-            placement="bottom"
-            destroyOnHidden
-            content={<QrPanel value={buildFeedUrl(record.token)} remark={record.remark || record.token} size={220} />}
-          >
-            <Tooltip title={t('pages.clients.qrCode')}>
-              <Button size="small" type="text" style={ACTION_ICON_STYLE} icon={<QrcodeOutlined />} aria-label={t('pages.clients.qrCode')} />
+  const columns = useMemo<ColumnsType<SubscriptionRecord>>(
+    () => [
+      {
+        title: t('pages.clients.actions'),
+        key: 'actions',
+        width: 200,
+        render: (_, record) => (
+          <Space size={4}>
+            <Popover
+              trigger="click"
+              placement="bottom"
+              destroyOnHidden
+              content={
+                <QrPanel
+                  value={buildFeedUrl(record.token)}
+                  remark={record.remark || record.token}
+                  size={220}
+                />
+              }
+            >
+              <Tooltip title={t('pages.clients.qrCode')}>
+                <Button
+                  size="small"
+                  type="text"
+                  style={ACTION_ICON_STYLE}
+                  icon={<QrcodeOutlined />}
+                  aria-label={t('pages.clients.qrCode')}
+                />
+              </Tooltip>
+            </Popover>
+            <Tooltip title={t('copy')}>
+              <Button
+                size="small"
+                type="text"
+                style={ACTION_ICON_STYLE}
+                icon={<CopyOutlined />}
+                aria-label={t('pages.subconverter.copyFeedUrl')}
+                onClick={() => onCopy(buildFeedUrl(record.token))}
+              />
             </Tooltip>
-          </Popover>
-          <Tooltip title={t('copy')}>
-            <Button size="small" type="text" style={ACTION_ICON_STYLE} icon={<CopyOutlined />} aria-label={t('pages.subconverter.copyFeedUrl')} onClick={() => onCopy(buildFeedUrl(record.token))} />
-          </Tooltip>
-          <Tooltip title={t('info')}>
-            <Button size="small" type="text" style={ACTION_ICON_STYLE} icon={<InfoCircleOutlined />} aria-label={t('info')} onClick={() => onInfo(record)} />
-          </Tooltip>
-          <Tooltip title={t('pages.subconverter.resetToken')}>
-            <Button size="small" type="text" style={ACTION_ICON_STYLE} icon={<RetweetOutlined />} aria-label={t('pages.subconverter.resetToken')} onClick={() => onResetToken(record)} />
-          </Tooltip>
-          <Tooltip title={t('edit')}>
-            <Button size="small" type="text" style={ACTION_ICON_STYLE} icon={<EditOutlined />} aria-label={t('edit')} onClick={() => onEdit(record)} />
-          </Tooltip>
-          <Tooltip title={t('delete')}>
-            <Button size="small" type="text" danger style={ACTION_ICON_STYLE} icon={<DeleteOutlined />} aria-label={t('delete')} onClick={() => onRemove(record)} />
-          </Tooltip>
-        </Space>
-      ),
-    },
-    {
-      title: t('enable'),
-      dataIndex: 'enable',
-      width: 88,
-      align: 'center',
-      render: (_, record) => (
-        <Switch
-          checked={record.enable}
-          size="small"
-          loading={togglingId === record.id}
-          onChange={(checked) => onToggleEnabled(record, checked)}
-        />
-      ),
-    },
-    {
-      title: t('remark'),
-      dataIndex: 'remark',
-      ellipsis: true,
-      width: 180,
-    },
-    {
-      title: t('pages.subconverter.inbounds'),
-      dataIndex: 'inbounds',
-      width: 170,
-      render: (_, record) => renderTableInboundTags(record),
-    },
-    {
-      title: t('pages.inbounds.traffic'),
-      key: 'traffic',
-      width: 120,
-      align: 'center',
-      render: (_, record) => renderTraffic(record),
-    },
-    {
-      title: t('pages.subconverter.completedSubscriptions'),
-      dataIndex: ['stats', 'completedCount'],
-      width: 112,
-      align: 'center',
-      sorter: (a, b) => (a.stats?.completedCount || 0) - (b.stats?.completedCount || 0),
-      showSorterTooltip: false,
-      render: (_value, record) => record.stats?.completedCount || 0,
-    },
-    {
-      title: t('pages.subconverter.maxIps'),
-      dataIndex: 'limitIp',
-      width: 104,
-      align: 'center',
-      sorter: (a, b) => {
-        const limitDiff = ipLimitSortValue(a) - ipLimitSortValue(b);
-        if (limitDiff !== 0) return limitDiff;
-        return (a.boundIpCount || 0) - (b.boundIpCount || 0);
+            <Tooltip title={t('info')}>
+              <Button
+                size="small"
+                type="text"
+                style={ACTION_ICON_STYLE}
+                icon={<InfoCircleOutlined />}
+                aria-label={t('info')}
+                onClick={() => onInfo(record)}
+              />
+            </Tooltip>
+            <Tooltip title={t('pages.subconverter.resetToken')}>
+              <Button
+                size="small"
+                type="text"
+                style={ACTION_ICON_STYLE}
+                icon={<RetweetOutlined />}
+                aria-label={t('pages.subconverter.resetToken')}
+                onClick={() => onResetToken(record)}
+              />
+            </Tooltip>
+            <Tooltip title={t('edit')}>
+              <Button
+                size="small"
+                type="text"
+                style={ACTION_ICON_STYLE}
+                icon={<EditOutlined />}
+                aria-label={t('edit')}
+                onClick={() => onEdit(record)}
+              />
+            </Tooltip>
+            <Tooltip title={t('delete')}>
+              <Button
+                size="small"
+                type="text"
+                danger
+                style={ACTION_ICON_STYLE}
+                icon={<DeleteOutlined />}
+                aria-label={t('delete')}
+                onClick={() => onRemove(record)}
+              />
+            </Tooltip>
+          </Space>
+        ),
       },
-      showSorterTooltip: false,
-      render: (_value, record) => (
-        <Tag color={ipLimitTagColor(record)}>{formatIpLimitUsage(record)}</Tag>
-      ),
-    },
-  ], [onCopy, onEdit, onInfo, onRemove, onResetToken, onToggleEnabled, renderTableInboundTags, renderTraffic, t, togglingId]);
+      {
+        title: t('enable'),
+        dataIndex: 'enable',
+        width: 88,
+        align: 'center',
+        render: (_, record) => (
+          <Switch
+            checked={record.enable}
+            size="small"
+            loading={togglingId === record.id}
+            onChange={(checked) => onToggleEnabled(record, checked)}
+          />
+        ),
+      },
+      {
+        title: t('remark'),
+        dataIndex: 'remark',
+        ellipsis: true,
+        width: 180,
+      },
+      {
+        title: t('pages.subconverter.inbounds'),
+        dataIndex: 'inbounds',
+        width: 170,
+        render: (_, record) => renderTableInboundTags(record),
+      },
+      {
+        title: t('pages.inbounds.traffic'),
+        key: 'traffic',
+        width: 120,
+        align: 'center',
+        render: (_, record) => renderTraffic(record),
+      },
+      {
+        title: t('pages.subconverter.completedSubscriptions'),
+        dataIndex: ['stats', 'completedCount'],
+        width: 112,
+        align: 'center',
+        sorter: (a, b) => (a.stats?.completedCount || 0) - (b.stats?.completedCount || 0),
+        showSorterTooltip: false,
+        render: (_value, record) => record.stats?.completedCount || 0,
+      },
+      {
+        title: t('pages.subconverter.maxIps'),
+        dataIndex: 'limitIp',
+        width: 104,
+        align: 'center',
+        sorter: (a, b) => {
+          const limitDiff = ipLimitSortValue(a) - ipLimitSortValue(b);
+          if (limitDiff !== 0) return limitDiff;
+          return (a.boundIpCount || 0) - (b.boundIpCount || 0);
+        },
+        showSorterTooltip: false,
+        render: (_value, record) => (
+          <Tag color={ipLimitTagColor(record)}>{formatIpLimitUsage(record)}</Tag>
+        ),
+      },
+    ],
+    [
+      onCopy,
+      onEdit,
+      onInfo,
+      onRemove,
+      onResetToken,
+      onToggleEnabled,
+      renderTableInboundTags,
+      renderTraffic,
+      t,
+      togglingId,
+    ],
+  );
 
-  const handleProtocolChange = useCallback((value?: string) => {
-    setProtocolFilter(value);
-    if (value && inboundFilter) {
-      const inbound = inboundById.get(inboundFilter);
-      if (!inbound || inbound.protocol !== value) setInboundFilter(undefined);
-    }
-  }, [inboundById, inboundFilter]);
+  const handleProtocolChange = useCallback(
+    (value?: string) => {
+      setProtocolFilter(value);
+      if (value && inboundFilter) {
+        const inbound = inboundById.get(inboundFilter);
+        if (!inbound || inbound.protocol !== value) setInboundFilter(undefined);
+      }
+    },
+    [inboundById, inboundFilter],
+  );
 
   return (
     <Space orientation="vertical" size={12} className="subconverter-stack">
@@ -353,11 +432,15 @@ export default function SubconverterSubscriptionList({
           columns={columns}
           dataSource={filteredRows}
           scroll={{ x: TABLE_SCROLL_X }}
-          pagination={filteredRows.length > pageSize ? {
-            pageSize,
-            showSizeChanger: true,
-            pageSizeOptions: ['10', '25', '50', '100', '200'],
-          } : false}
+          pagination={
+            filteredRows.length > pageSize
+              ? {
+                  pageSize,
+                  showSizeChanger: true,
+                  pageSizeOptions: ['10', '25', '50', '100', '200'],
+                }
+              : false
+          }
         />
       )}
     </Space>

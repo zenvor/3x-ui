@@ -20,9 +20,8 @@ export default function UaKeywordEditor({ addLabel, value = [], onChange }: UaKe
     onChange?.(next);
   };
 
-  const canRemoveAt = (index: number) => normalizeUAKeywords(
-    value.filter((_, itemIndex) => itemIndex !== index),
-  ).length > 0;
+  const canRemoveAt = (index: number) =>
+    normalizeUAKeywords(value.filter((_, itemIndex) => itemIndex !== index)).length > 0;
 
   const removeAt = (index: number) => {
     if (!canRemoveAt(index)) return;
