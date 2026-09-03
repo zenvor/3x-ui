@@ -2093,6 +2093,13 @@
       "uaKeywords": "UA anahtar kelimeleri",
       "uaKeywordsRequired": "En az bir UA anahtar kelimesi girin",
       "uaRejectStatus": "Reddetme durumu",
+      "template": "Mihomo Yapılandırması",
+      "templateNotCached": "Henüz önbelleğe alınmış yapılandırma yok; abonelikler kullanılamıyor",
+      "templateUpdatedAt": "Önbellek güncelleme: {time}",
+      "templateRefresh": "Şimdi Yenile",
+      "templateRefreshed": "Yapılandırma yenilendi",
+      "templateUpToDate": "Yapılandırma zaten güncel",
+      "templateRefreshFailed": "Yapılandırma yenilenemedi",
       "accessLogs": "Erişim günlükleri",
       "boundIps": "IP Bağlantıları",
       "noBoundIps": "❗ IP bağlantı kaydı yok!",
@@ -2116,7 +2123,8 @@
         "ip_limit_exceeded": "IP sınırı aşıldı",
         "subscription_disabled": "Abonelik devre dışı",
         "ip_missing": "IP eksik",
-        "internal_error": "İç hata"
+        "internal_error": "İç hata",
+        "template_unavailable": "Yapılandırma kullanılamıyor"
       }
     }
   },

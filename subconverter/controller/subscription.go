@@ -19,12 +19,14 @@ import (
 //	GET  /logs           recent public feed access logs across subscriptions
 //	GET  /logs/:id       recent public feed access logs
 //	GET  /ips/:id        current IP bindings
+//	GET  /template       cached Mihomo template status
 //	POST /add            create (token is generated server-side)
 //	POST /update/:id     replace mutable fields + the inbound list
 //	POST /del/:id        delete subscription and related rows
 //	POST /reset-token/:id replace token and clear IP bindings, stats, logs
 //	POST /ips/:subscriptionId/del/:bindingId delete one IP binding
 //	POST /ips/clear/:id  clear every IP binding under one subscription
+//	POST /template/refresh pull the remote template into the disk cache now
 //
 // Path layout matches 3X-UI's existing controllers (e.g. inbound.go).
 type SubscriptionController struct {
@@ -57,6 +59,7 @@ func (a *SubscriptionController) initRouter(g *gin.RouterGroup) {
 	g.GET("/ips/:id", a.ips)
 	g.GET("/settings", a.settings)
 	g.GET("/inbounds", a.inbounds)
+	g.GET("/template", a.templateStatus)
 	g.POST("/add", a.add)
 	g.POST("/update/:id", a.update)
 	g.POST("/del/:id", a.delete)
@@ -64,6 +67,7 @@ func (a *SubscriptionController) initRouter(g *gin.RouterGroup) {
 	g.POST("/ips/clear/:id", a.clearIPs)
 	g.POST("/reset-token/:id", a.resetToken)
 	g.POST("/settings", a.updateSettings)
+	g.POST("/template/refresh", a.refreshTemplate)
 }
 
 func (a *SubscriptionController) list(c *gin.Context) {
@@ -96,6 +100,19 @@ func (a *SubscriptionController) settings(c *gin.Context) {
 		return
 	}
 	jsonObj(c, settings, nil)
+}
+
+func (a *SubscriptionController) templateStatus(c *gin.Context) {
+	jsonObj(c, service.GetTemplateStatus(), nil)
+}
+
+func (a *SubscriptionController) refreshTemplate(c *gin.Context) {
+	changed, err := service.FetchTemplate()
+	if err != nil {
+		jsonMsg(c, "refresh template failed", err)
+		return
+	}
+	jsonObj(c, service.TemplateRefreshResult{TemplateStatus: service.GetTemplateStatus(), Changed: changed}, nil)
 }
 
 func (a *SubscriptionController) inbounds(c *gin.Context) {

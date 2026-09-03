@@ -2093,6 +2093,13 @@
       "uaKeywords": "Từ khóa UA",
       "uaKeywordsRequired": "Nhập ít nhất một từ khóa UA",
       "uaRejectStatus": "Trạng thái từ chối",
+      "template": "Cấu hình Mihomo",
+      "templateNotCached": "Chưa có cấu hình được lưu trong bộ nhớ đệm; đăng ký không khả dụng",
+      "templateUpdatedAt": "Bộ nhớ đệm cập nhật lúc {time}",
+      "templateRefresh": "Làm mới ngay",
+      "templateRefreshed": "Đã làm mới cấu hình",
+      "templateUpToDate": "Cấu hình đã được cập nhật",
+      "templateRefreshFailed": "Không thể làm mới cấu hình",
       "accessLogs": "Nhật ký truy cập",
       "boundIps": "Liên kết IP",
       "noBoundIps": "❗ Không có bản ghi liên kết IP!",
@@ -2116,7 +2123,8 @@
         "ip_limit_exceeded": "Vượt giới hạn IP",
         "subscription_disabled": "Đăng ký đã tắt",
         "ip_missing": "Thiếu IP",
-        "internal_error": "Lỗi nội bộ"
+        "internal_error": "Lỗi nội bộ",
+        "template_unavailable": "Cấu hình không khả dụng"
       }
     }
   },

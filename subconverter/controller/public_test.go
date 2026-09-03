@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -17,7 +18,26 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/xray"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/database"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/model"
+	"github.com/mhsanaei/3x-ui/v3/subconverter/service"
 )
+
+// Tests seed a minimal template into the cache and assert only the renderer
+// contract; template content itself lives in the mihomo-config repository.
+const publicTestTemplate = `mixed-port: 7890
+proxy-providers:
+  main:
+    type: http
+    url: '__API_DOMAIN__/feed/__TOKEN__/nodes'
+rules:
+  - MATCH,PROXY
+`
+
+func seedPublicTemplateCache(t *testing.T) {
+	t.Helper()
+	if err := os.WriteFile(service.TemplateCachePath(), []byte(publicTestTemplate), 0o644); err != nil {
+		t.Fatalf("seed template cache: %v", err)
+	}
+}
 
 func setupPublicControllerTest(t *testing.T) *gin.Engine {
 	t.Helper()
@@ -31,6 +51,7 @@ func setupPublicControllerTest(t *testing.T) *gin.Engine {
 	if err := database.InitDB(); err != nil {
 		t.Fatalf("init db: %v", err)
 	}
+	seedPublicTemplateCache(t)
 	t.Cleanup(func() {
 		_ = database.Reset()
 		logger.CloseLogger()
@@ -53,7 +74,7 @@ func TestFeedSuccessRecordsSubscriptionCount(t *testing.T) {
 	assertCompletedCount(t, sub.Id, 1)
 }
 
-func TestFeedIncludesWebRTCLeakProtectionRulesByDefault(t *testing.T) {
+func TestFeedServesCachedTemplate(t *testing.T) {
 	engine := setupPublicControllerTest(t)
 	sub := createPublicTestSubscription(t, 1)
 
@@ -61,14 +82,46 @@ func TestFeedIncludesWebRTCLeakProtectionRulesByDefault(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("feed status = %d, want 200; body=%s", resp.Code, resp.Body.String())
 	}
-	for _, rule := range []string{
-		"AND,((NETWORK,udp),(DST-PORT,3478-3481)),REJECT",
-		"AND,((NETWORK,UDP),(DST-PORT,443)),REJECT",
-		"NETWORK,udp,REJECT",
-	} {
-		if !strings.Contains(resp.Body.String(), rule) {
-			t.Fatalf("expected leak protection rule %q in feed body:\n%s", rule, resp.Body.String())
-		}
+	body := resp.Body.String()
+	if !strings.Contains(body, "/feed/"+sub.Token+"/nodes") {
+		t.Fatalf("expected rendered provider URL in feed body:\n%s", body)
+	}
+	if strings.Contains(body, "__TOKEN__") || strings.Contains(body, "__API_DOMAIN__") {
+		t.Fatalf("feed body still contains placeholders:\n%s", body)
+	}
+}
+
+func TestFeedReturns503WhenTemplateCacheMissing(t *testing.T) {
+	engine := setupPublicControllerTest(t)
+	sub := createPublicTestSubscription(t, 1)
+	if err := os.Remove(service.TemplateCachePath()); err != nil {
+		t.Fatalf("remove template cache: %v", err)
+	}
+
+	resp := performFeedRequest(engine, "/feed/"+sub.Token, "1.1.1.1")
+	if resp.Code != http.StatusServiceUnavailable {
+		t.Fatalf("feed status = %d, want 503; body=%s", resp.Code, resp.Body.String())
+	}
+	assertLatestAccessLog(t, sub.Id, "full", "template_unavailable", http.StatusServiceUnavailable, "1.1.1.1")
+	assertCompletedCount(t, sub.Id, 0)
+}
+
+func TestFeed503DoesNotConsumeIPSlot(t *testing.T) {
+	engine := setupPublicControllerTest(t)
+	sub := createPublicTestSubscription(t, 1)
+	if err := os.Remove(service.TemplateCachePath()); err != nil {
+		t.Fatalf("remove template cache: %v", err)
+	}
+
+	if resp := performFeedRequest(engine, "/feed/"+sub.Token, "1.1.1.1"); resp.Code != http.StatusServiceUnavailable {
+		t.Fatalf("feed status = %d, want 503", resp.Code)
+	}
+
+	// With the template back, a fresh IP must still get 200: had the 503 above
+	// bound 1.1.1.1 first, maxIps=1 would now reject 2.2.2.2 with 403.
+	seedPublicTemplateCache(t)
+	if resp := performFeedRequest(engine, "/feed/"+sub.Token, "2.2.2.2"); resp.Code != http.StatusOK {
+		t.Fatalf("feed status = %d, want 200; the 503 must not consume an IP slot", resp.Code)
 	}
 }
 
@@ -430,6 +483,8 @@ func setupPublicControllerMainDB(t *testing.T) {
 		t.Fatalf("init main db: %v", err)
 	}
 	t.Cleanup(func() { _ = xdatabase.CloseDB() })
+	// XUI_DB_FOLDER just moved, so the template cache must be re-seeded there.
+	seedPublicTemplateCache(t)
 
 	for _, inbound := range []*xmodel.Inbound{
 		publicTestInbound(1, []xmodel.Client{

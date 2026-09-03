@@ -11,6 +11,8 @@ import {
   InboundOptionListSchema,
   SettingsValuesSchema,
   SubconverterSettingsSchema,
+  SubconverterTemplateRefreshSchema,
+  SubconverterTemplateStatusSchema,
   SubscriptionDetailRecordSchema,
   SubscriptionRecordListSchema,
   SubscriptionRecordSchema,
@@ -20,6 +22,8 @@ import {
   type InboundOption,
   type SettingsValues,
   type SubconverterSettings,
+  type SubconverterTemplateRefresh,
+  type SubconverterTemplateStatus,
   type SubscriptionDetailRecord,
   type SubscriptionRecord,
 } from '@/schemas/subconverter';
@@ -72,6 +76,17 @@ export async function fetchSubconverterSettings(): Promise<SubconverterSettings>
     'subconverter/settings',
   );
   if (!validated.obj) throw new Error(validated.msg || 'Empty settings response');
+  return validated.obj;
+}
+
+export async function fetchSubconverterTemplateStatus(): Promise<SubconverterTemplateStatus> {
+  const msg = await HttpUtil.get(`${SUBCONVERTER_API}/template`, undefined, { silent: true });
+  const validated = parseMsg(
+    assertSuccess(msg, 'Failed to fetch template status'),
+    SubconverterTemplateStatusSchema,
+    'subconverter/template',
+  );
+  if (!validated.obj) throw new Error(validated.msg || 'Empty template status response');
   return validated.obj;
 }
 
@@ -130,6 +145,34 @@ export function useSubconverterDetail(id: number | null) {
     queryFn: () => fetchSubconverterDetail(id!),
     enabled: id !== null,
   });
+}
+
+export function useSubconverterTemplate(enabled: boolean) {
+  const queryClient = useQueryClient();
+  const statusQuery = useQuery({
+    queryKey: keys.subconverter.template(),
+    queryFn: fetchSubconverterTemplateStatus,
+    enabled,
+  });
+  const refreshMut = useMutation({
+    mutationFn: async (): Promise<Msg<SubconverterTemplateRefresh>> => {
+      const raw = await HttpUtil.post(`${SUBCONVERTER_API}/template/refresh`, undefined, {
+        silent: true,
+      });
+      return parseMsg(raw, SubconverterTemplateRefreshSchema, 'subconverter/template/refresh');
+    },
+    onSuccess: (msg) => {
+      if (msg?.success && msg.obj) {
+        const { changed: _changed, ...status } = msg.obj;
+        queryClient.setQueryData(keys.subconverter.template(), status);
+      }
+    },
+  });
+  // mutateAsync is a stable reference across renders (React Query guarantee),
+  // so this memo actually holds; depending on the result object would not.
+  const { mutateAsync: refreshMutate } = refreshMut;
+  const refresh = useCallback(() => refreshMutate(), [refreshMutate]);
+  return { statusQuery, refresh, refreshPending: refreshMut.isPending };
 }
 
 export function useSubconverter() {

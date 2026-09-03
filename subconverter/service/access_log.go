@@ -25,6 +25,7 @@ const (
 	AccessResultSubscriptionDisabled = "subscription_disabled"
 	AccessResultIPMissing            = "ip_missing"
 	AccessResultInternalError        = "internal_error"
+	AccessResultTemplateUnavailable  = "template_unavailable"
 )
 
 type AccessLogService struct {

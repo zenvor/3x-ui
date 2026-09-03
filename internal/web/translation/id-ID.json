@@ -2093,6 +2093,13 @@
       "uaKeywords": "Kata kunci UA",
       "uaKeywordsRequired": "Masukkan setidaknya satu kata kunci UA",
       "uaRejectStatus": "Status penolakan",
+      "template": "Konfigurasi Mihomo",
+      "templateNotCached": "Belum ada konfigurasi tersimpan; langganan tidak tersedia",
+      "templateUpdatedAt": "Cache diperbarui: {time}",
+      "templateRefresh": "Segarkan Sekarang",
+      "templateRefreshed": "Konfigurasi disegarkan",
+      "templateUpToDate": "Konfigurasi sudah terbaru",
+      "templateRefreshFailed": "Gagal menyegarkan konfigurasi",
       "accessLogs": "Log akses",
       "boundIps": "Ikatan IP",
       "noBoundIps": "❗ Tidak ada catatan ikatan IP!",
@@ -2116,7 +2123,8 @@
         "ip_limit_exceeded": "Batas IP terlampaui",
         "subscription_disabled": "Langganan dinonaktifkan",
         "ip_missing": "IP tidak ada",
-        "internal_error": "Kesalahan internal"
+        "internal_error": "Kesalahan internal",
+        "template_unavailable": "Konfigurasi tidak tersedia"
       }
     }
   },

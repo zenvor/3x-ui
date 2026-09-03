@@ -98,6 +98,19 @@ export const SubconverterSettingsSchema = z.looseObject({
   uaRejectStatus: z.number().default(403),
 });
 
+export const SubconverterTemplateStatusSchema = z.looseObject({
+  url: z.string(),
+  cached: z.boolean(),
+  updatedAt: z.number().default(0),
+});
+
+export const SubconverterTemplateRefreshSchema = z.looseObject({
+  url: z.string(),
+  cached: z.boolean(),
+  updatedAt: z.number().default(0),
+  changed: z.boolean().default(false),
+});
+
 export const SubscriptionInboundInputSchema = z.object({
   inboundId: z.number(),
   clientEmail: z.string().optional(),
@@ -153,5 +166,7 @@ export type SubscriptionDetailRecord = z.infer<typeof SubscriptionDetailRecordSc
 export type InboundOption = z.infer<typeof InboundOptionSchema>;
 export type DefaultsPayload = z.infer<typeof DefaultsPayloadSchema>;
 export type SubconverterSettings = z.infer<typeof SubconverterSettingsSchema>;
+export type SubconverterTemplateStatus = z.infer<typeof SubconverterTemplateStatusSchema>;
+export type SubconverterTemplateRefresh = z.infer<typeof SubconverterTemplateRefreshSchema>;
 export type FormValues = z.infer<typeof FormValuesSchema>;
 export type SettingsValues = z.infer<typeof SettingsValuesSchema>;

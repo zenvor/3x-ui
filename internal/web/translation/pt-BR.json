@@ -2093,6 +2093,13 @@
       "uaKeywords": "Palavras-chave UA",
       "uaKeywordsRequired": "Informe pelo menos uma palavra-chave UA",
       "uaRejectStatus": "Status de rejeição",
+      "template": "Configuração do Mihomo",
+      "templateNotCached": "Nenhuma configuração em cache ainda; assinaturas indisponíveis",
+      "templateUpdatedAt": "Cache atualizado em {time}",
+      "templateRefresh": "Atualizar Agora",
+      "templateRefreshed": "Configuração atualizada",
+      "templateUpToDate": "A configuração já está atualizada",
+      "templateRefreshFailed": "Falha ao atualizar a configuração",
       "accessLogs": "Logs de acesso",
       "boundIps": "Vínculos de IP",
       "noBoundIps": "❗ Nenhum registro de vínculo de IP!",
@@ -2116,7 +2123,8 @@
         "ip_limit_exceeded": "Limite de IP excedido",
         "subscription_disabled": "Assinatura desativada",
         "ip_missing": "IP ausente",
-        "internal_error": "Erro interno"
+        "internal_error": "Erro interno",
+        "template_unavailable": "Configuração indisponível"
       }
     }
   },

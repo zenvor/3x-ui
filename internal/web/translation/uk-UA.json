@@ -2093,6 +2093,13 @@
       "uaKeywords": "Ключові слова UA",
       "uaKeywordsRequired": "Введіть принаймні одне ключове слово UA",
       "uaRejectStatus": "Статус відхилення",
+      "template": "Конфігурація Mihomo",
+      "templateNotCached": "Конфігурацію ще не кешовано; підписки недоступні",
+      "templateUpdatedAt": "Кеш оновлено: {time}",
+      "templateRefresh": "Оновити зараз",
+      "templateRefreshed": "Конфігурацію оновлено",
+      "templateUpToDate": "Конфігурація уже актуальна",
+      "templateRefreshFailed": "Не вдалося оновити конфігурацію",
       "accessLogs": "Журнали доступу",
       "boundIps": "Прив’язки IP",
       "noBoundIps": "❗ Немає записів прив’язки IP!",
@@ -2116,7 +2123,8 @@
         "ip_limit_exceeded": "Ліміт IP перевищено",
         "subscription_disabled": "Підписку вимкнено",
         "ip_missing": "IP відсутній",
-        "internal_error": "Внутрішня помилка"
+        "internal_error": "Внутрішня помилка",
+        "template_unavailable": "Конфігурація недоступна"
       }
     }
   },

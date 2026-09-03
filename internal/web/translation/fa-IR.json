@@ -2093,6 +2093,13 @@
       "uaKeywords": "کلیدواژه‌های UA",
       "uaKeywordsRequired": "حداقل یک کلیدواژه UA وارد کنید",
       "uaRejectStatus": "وضعیت رد",
+      "template": "پیکربندی Mihomo",
+      "templateNotCached": "پیکربندی در حافظه پنهان نیست؛ اشتراک‌ها در دسترس نیستند",
+      "templateUpdatedAt": "آخرین به‌روزرسانی حافظه پنهان: {time}",
+      "templateRefresh": "به‌روزرسانی",
+      "templateRefreshed": "پیکربندی به‌روزرسانی شد",
+      "templateUpToDate": "پیکربندی از قبل به‌روز است",
+      "templateRefreshFailed": "به‌روزرسانی پیکربندی ناموفق بود",
       "accessLogs": "گزارش‌های دسترسی",
       "boundIps": "اتصال IP",
       "noBoundIps": "❗ رکورد اتصال IP وجود ندارد!",
@@ -2116,7 +2123,8 @@
         "ip_limit_exceeded": "محدودیت IP رد شد",
         "subscription_disabled": "اشتراک غیرفعال است",
         "ip_missing": "IP موجود نیست",
-        "internal_error": "خطای داخلی"
+        "internal_error": "خطای داخلی",
+        "template_unavailable": "پیکربندی در دسترس نیست"
       }
     }
   },

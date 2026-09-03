@@ -1,6 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import { Form, Modal, Radio, Switch } from 'antd';
+import { Button, Divider, Form, Modal, Radio, Space, Spin, Switch, Typography } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import type { FormInstance } from 'antd/es/form';
+
+import type { SubconverterTemplateStatus } from '@/schemas/subconverter';
+import { useDatepicker } from '@/hooks/useDatepicker';
+import { IntlUtil } from '@/utils';
 
 import type { SettingsValues } from './types';
 import UaKeywordEditor from './UaKeywordEditor';
@@ -10,6 +15,11 @@ interface SubconverterSettingsModalProps {
   open: boolean;
   saving: boolean;
   form: FormInstance<SettingsValues>;
+  templateStatus?: SubconverterTemplateStatus;
+  templateStatusLoading: boolean;
+  templateStatusError: boolean;
+  templateRefreshing: boolean;
+  onRefreshTemplate: () => void;
   onOk: () => void;
   onCancel: () => void;
 }
@@ -18,10 +28,16 @@ export default function SubconverterSettingsModal({
   open,
   saving,
   form,
+  templateStatus,
+  templateStatusLoading,
+  templateStatusError,
+  templateRefreshing,
+  onRefreshTemplate,
   onOk,
   onCancel,
 }: SubconverterSettingsModalProps) {
   const { t } = useTranslation();
+  const { datepicker } = useDatepicker();
 
   return (
     <Modal
@@ -77,6 +93,39 @@ export default function SubconverterSettingsModal({
           </Radio.Group>
         </Form.Item>
       </Form>
+
+      <Divider plain />
+      <Space orientation="vertical" size={4} style={{ width: '100%' }}>
+        <Typography.Text strong>{t('pages.subconverter.template')}</Typography.Text>
+        <Typography.Text type="secondary" style={{ wordBreak: 'break-all' }}>
+          {templateStatus?.url}
+        </Typography.Text>
+        <Space size={8}>
+          {templateStatusLoading ? (
+            <Spin size="small" />
+          ) : templateStatusError ? (
+            <Typography.Text type="danger">{t('pages.subconverter.loadFailed')}</Typography.Text>
+          ) : templateStatus?.cached ? (
+            <Typography.Text>
+              {t('pages.subconverter.templateUpdatedAt', {
+                time: IntlUtil.formatDate(templateStatus.updatedAt, datepicker),
+              })}
+            </Typography.Text>
+          ) : (
+            <Typography.Text type="warning">
+              {t('pages.subconverter.templateNotCached')}
+            </Typography.Text>
+          )}
+          <Button
+            size="small"
+            icon={<ReloadOutlined />}
+            loading={templateRefreshing}
+            onClick={onRefreshTemplate}
+          >
+            {t('pages.subconverter.templateRefresh')}
+          </Button>
+        </Space>
+      </Space>
     </Modal>
   );
 }
