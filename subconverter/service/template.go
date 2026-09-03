@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/goccy/go-yaml"
+
 	"github.com/mhsanaei/3x-ui/v3/internal/config"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 )
@@ -32,6 +34,9 @@ var templateState = struct {
 	sync.Mutex
 	etag string
 }{}
+
+// templateRefreshOnce guards StartTemplateRefresh against SIGHUP reloads.
+var templateRefreshOnce sync.Once
 
 // TemplateStatus is the API-facing view of the cached Mihomo template.
 type TemplateStatus struct {
@@ -136,7 +141,7 @@ func fetchTemplate(ctx context.Context, client *http.Client, url, cachePath, eta
 }
 
 // validateTemplate rejects downloads that would break every rendered
-// subscription: empty content or placeholders the renderer expects gone.
+// subscription: empty, not a parseable YAML mapping, or missing a placeholder.
 func validateTemplate(content string) error {
 	if strings.TrimSpace(content) == "" {
 		return errors.New("template is empty")
@@ -145,6 +150,10 @@ func validateTemplate(content string) error {
 		if !strings.Contains(content, placeholder) {
 			return fmt.Errorf("missing placeholder %s", placeholder)
 		}
+	}
+	var parsed map[string]any
+	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
+		return fmt.Errorf("template is not valid YAML: %w", err)
 	}
 	return nil
 }
@@ -159,19 +168,21 @@ func atomicWriteFile(path string, data []byte) error {
 	return os.Rename(tmp, path)
 }
 
-// StartTemplateRefresh fetches in the background so panel startup never blocks
-// on GitHub reachability, then keeps refreshing on a ticker.
+// StartTemplateRefresh starts the background fetch+ticker once per process:
+// SIGHUP panel reloads re-run RegisterRoutes, and a second ticker would leak.
 func StartTemplateRefresh() {
-	go func() {
-		if _, err := FetchTemplate(); err != nil {
-			logger.Warning("subconverter template initial fetch failed:", err)
-		}
-		ticker := time.NewTicker(templateRefreshInterval)
-		defer ticker.Stop()
-		for range ticker.C {
+	templateRefreshOnce.Do(func() {
+		go func() {
 			if _, err := FetchTemplate(); err != nil {
-				logger.Warning("subconverter template refresh failed:", err)
+				logger.Warning("subconverter template initial fetch failed:", err)
 			}
-		}
-	}()
+			ticker := time.NewTicker(templateRefreshInterval)
+			defer ticker.Stop()
+			for range ticker.C {
+				if _, err := FetchTemplate(); err != nil {
+					logger.Warning("subconverter template refresh failed:", err)
+				}
+			}
+		}()
+	})
 }

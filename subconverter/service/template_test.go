@@ -109,6 +109,31 @@ func TestFetchTemplateRejectsEmptyBody(t *testing.T) {
 	}
 }
 
+func TestFetchTemplateRejectsBrokenYAMLWithPlaceholders(t *testing.T) {
+	// Placeholders present (in a comment is enough for the string check) but
+	// the YAML itself does not parse: must not replace the known-good cache.
+	broken := "# __API_DOMAIN__ __TOKEN__\nproxy-providers:\n  main: [unclosed\n"
+	server, cachePath := newTemplateServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("ETag", `"bad"`)
+		_, _ = w.Write([]byte(broken))
+	})
+	if err := os.WriteFile(cachePath, []byte(fetchTestTemplate), 0o644); err != nil {
+		t.Fatalf("seed cache: %v", err)
+	}
+
+	changed, etag, err := fetchTemplate(context.Background(), server.Client(), server.URL, cachePath, `"v1"`)
+	if err == nil || !strings.Contains(err.Error(), "not valid YAML") {
+		t.Fatalf("err = %v, want a YAML parse rejection", err)
+	}
+	if changed || etag != `"v1"` {
+		t.Fatalf("changed=%v etag=%q, want no cache write and preserved etag", changed, etag)
+	}
+	cached, _ := os.ReadFile(cachePath)
+	if string(cached) != fetchTestTemplate {
+		t.Fatal("rejected download must not overwrite the previous cache")
+	}
+}
+
 func TestFetchTemplateUnexpectedStatus(t *testing.T) {
 	server, cachePath := newTemplateServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
