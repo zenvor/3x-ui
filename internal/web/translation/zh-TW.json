@@ -2093,6 +2093,13 @@
       "uaKeywords": "UA 關鍵詞",
       "uaKeywordsRequired": "請至少輸入一個 UA 關鍵詞",
       "uaRejectStatus": "拒絕狀態碼",
+      "template": "Mihomo 設定",
+      "templateNotCached": "尚未快取設定，訂閱暫不可用",
+      "templateUpdatedAt": "快取更新時間：{time}",
+      "templateRefresh": "立即重新整理",
+      "templateRefreshed": "設定已重新整理",
+      "templateUpToDate": "設定已是最新",
+      "templateRefreshFailed": "設定重新整理失敗",
       "accessLogs": "訪問日誌",
       "boundIps": "IP 綁定",
       "noBoundIps": "❗ 沒有IP綁定記錄！",
@@ -2116,7 +2123,8 @@
         "ip_limit_exceeded": "IP 超限",
         "subscription_disabled": "訂閱已停用",
         "ip_missing": "IP 缺失",
-        "internal_error": "內部錯誤"
+        "internal_error": "內部錯誤",
+        "template_unavailable": "設定不可用"
       }
     }
   },

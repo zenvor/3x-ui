@@ -12,6 +12,7 @@
     "xray-settings",
     "subscription-server",
     "subscription-balancers",
+    "subconverter",
     "hosts",
     "nodes",
     "backup",

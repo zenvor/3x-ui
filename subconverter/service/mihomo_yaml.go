@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml"
-
-	"github.com/mhsanaei/3x-ui/v3/subconverter/templates"
 )
 
 const (
@@ -14,17 +12,16 @@ const (
 	placeholderApiDomain = "__API_DOMAIN__"
 )
 
-// RenderMihomoYAML returns the full Mihomo subscription YAML with placeholders
-// resolved.
-//
-// apiDomain should be a scheme+host string such as "https://panel.example.com",
-// derived from the public request (X-Forwarded-{Proto,Host} when behind a
-// reverse proxy, otherwise the direct Host header).
-func RenderMihomoYAML(apiDomain, token string) string {
-	out := templates.MihomoTemplate
-	out = strings.ReplaceAll(out, placeholderApiDomain, apiDomain)
+// RenderMihomoYAML substitutes placeholders in the cached template (see template.go),
+// erroring when nothing is cached so the caller answers 503. apiDomain is the public scheme+host.
+func RenderMihomoYAML(apiDomain, token string) (string, error) {
+	tpl, err := ReadTemplate()
+	if err != nil {
+		return "", err
+	}
+	out := strings.ReplaceAll(tpl, placeholderApiDomain, apiDomain)
 	out = strings.ReplaceAll(out, placeholderToken, token)
-	return out
+	return out, nil
 }
 
 // RenderMihomoProviderYAML returns a Mihomo proxy-provider document (a single

@@ -2093,6 +2093,13 @@
       "uaKeywords": "UAキーワード",
       "uaKeywordsRequired": "少なくとも1つのUAキーワードを入力してください",
       "uaRejectStatus": "拒否ステータス",
+      "template": "Mihomo 設定",
+      "templateNotCached": "設定がまだキャッシュされていません。サブスクリプションは利用できません",
+      "templateUpdatedAt": "キャッシュ更新日時: {time}",
+      "templateRefresh": "今すぐ更新",
+      "templateRefreshed": "設定を更新しました",
+      "templateUpToDate": "設定は最新です",
+      "templateRefreshFailed": "設定の更新に失敗しました",
       "accessLogs": "アクセスログ",
       "boundIps": "IPバインド",
       "noBoundIps": "❗ IPバインド記録がありません！",
@@ -2116,7 +2123,8 @@
         "ip_limit_exceeded": "IP制限超過",
         "subscription_disabled": "サブスクリプション無効",
         "ip_missing": "IPなし",
-        "internal_error": "内部エラー"
+        "internal_error": "内部エラー",
+        "template_unavailable": "設定が利用できません"
       }
     }
   },

@@ -2093,6 +2093,13 @@
       "uaKeywords": "كلمات UA المفتاحية",
       "uaKeywordsRequired": "أدخل كلمة UA مفتاحية واحدة على الأقل",
       "uaRejectStatus": "حالة الرفض",
+      "template": "تهيئة Mihomo",
+      "templateNotCached": "لا توجد تهيئة مخزنة بعد؛ الاشتراكات غير متاحة",
+      "templateUpdatedAt": "آخر تحديث للتخزين المؤقت: {time}",
+      "templateRefresh": "تحديث الآن",
+      "templateRefreshed": "تم تحديث التهيئة",
+      "templateUpToDate": "التهيئة محدثة بالفعل",
+      "templateRefreshFailed": "فشل تحديث التهيئة",
       "accessLogs": "سجلات الوصول",
       "boundIps": "ربط IP",
       "noBoundIps": "❗ لا يوجد سجل ربط IP!",
@@ -2116,7 +2123,8 @@
         "ip_limit_exceeded": "تم تجاوز حد IP",
         "subscription_disabled": "الاشتراك معطل",
         "ip_missing": "عنوان IP مفقود",
-        "internal_error": "خطأ داخلي"
+        "internal_error": "خطأ داخلي",
+        "template_unavailable": "التهيئة غير متاحة"
       }
     }
   },

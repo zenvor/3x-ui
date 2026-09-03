@@ -2093,6 +2093,13 @@
       "uaKeywords": "UA 关键词",
       "uaKeywordsRequired": "请至少输入一个 UA 关键词",
       "uaRejectStatus": "拒绝状态码",
+      "template": "Mihomo 配置",
+      "templateNotCached": "尚未缓存配置，订阅暂不可用",
+      "templateUpdatedAt": "缓存更新时间：{time}",
+      "templateRefresh": "立即刷新",
+      "templateRefreshed": "配置已刷新",
+      "templateUpToDate": "配置已是最新",
+      "templateRefreshFailed": "配置刷新失败",
       "accessLogs": "访问日志",
       "boundIps": "IP 绑定",
       "noBoundIps": "❗ 没有IP绑定记录！",
@@ -2116,7 +2123,8 @@
         "ip_limit_exceeded": "IP 超限",
         "subscription_disabled": "订阅已禁用",
         "ip_missing": "IP 缺失",
-        "internal_error": "内部错误"
+        "internal_error": "内部错误",
+        "template_unavailable": "配置不可用"
       }
     }
   },

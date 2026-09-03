@@ -343,6 +343,12 @@ export const sections: readonly Section[] = [
             contentType: 'text/plain',
             description: 'Subscription lookup, IP enforcement, or user-agent policy check failed.',
           },
+          {
+            status: 503,
+            contentType: 'text/plain',
+            description:
+              'No Mihomo config is cached yet; the panel has not pulled one successfully.',
+          },
         ],
       },
       {
@@ -495,6 +501,18 @@ export const sections: readonly Section[] = [
         summary:
           'Generate a new token for one entry and clear its bound IP records, completed subscription stats, and access logs.',
         params: [{ name: 'id', in: 'path', type: 'number', desc: 'Subscription-conversion ID.' }],
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/subconverter/template',
+        summary:
+          'Read the cached Mihomo config status: source URL, whether a cache exists, and when it was last written.',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/subconverter/template/refresh',
+        summary:
+          'Pull the remote Mihomo config into the disk cache immediately (conditional request; a 304 still counts as success).',
       },
     ],
   },

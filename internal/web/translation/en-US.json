@@ -2093,6 +2093,13 @@
       "uaKeywords": "UA Keywords",
       "uaKeywordsRequired": "Enter at least one UA keyword",
       "uaRejectStatus": "Reject Status",
+      "template": "Mihomo Config",
+      "templateNotCached": "No cached config yet; subscriptions are unavailable",
+      "templateUpdatedAt": "Cache updated at {time}",
+      "templateRefresh": "Refresh Now",
+      "templateRefreshed": "Config refreshed",
+      "templateUpToDate": "Config is already up to date",
+      "templateRefreshFailed": "Failed to refresh config",
       "accessLogs": "Access Logs",
       "boundIps": "IP Bindings",
       "noBoundIps": "❗ No IP Binding Record!",
@@ -2116,7 +2123,8 @@
         "ip_limit_exceeded": "IP Limit Exceeded",
         "subscription_disabled": "Subscription Disabled",
         "ip_missing": "IP Missing",
-        "internal_error": "Internal Error"
+        "internal_error": "Internal Error",
+        "template_unavailable": "Config Unavailable"
       }
     }
   },

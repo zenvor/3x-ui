@@ -4722,6 +4722,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "No Mihomo config is cached yet; the panel has not pulled one successfully.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -5361,6 +5371,66 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/template": {
+      "get": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Read the cached Mihomo config status: source URL, whether a cache exists, and when it was last written.",
+        "operationId": "get_panel_api_subconverter_template",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/template/refresh": {
+      "post": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Pull the remote Mihomo config into the disk cache immediately (conditional request; a 304 still counts as success).",
+        "operationId": "post_panel_api_subconverter_template_refresh",
         "responses": {
           "200": {
             "description": "Successful response",

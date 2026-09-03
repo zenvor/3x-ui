@@ -25,6 +25,7 @@ const DEFAULT_RESULT_OPTIONS = [
   'subscription_disabled',
   'ip_missing',
   'internal_error',
+  'template_unavailable',
 ];
 const EMPTY_FILTER_VALUE = '__empty__';
 
@@ -125,6 +126,7 @@ export default function SubconverterAccessLogModal({
         case 'subscription_disabled':
         case 'ip_missing':
         case 'internal_error':
+        case 'template_unavailable':
           return t(`pages.subconverter.accessResult.${value}`);
         default:
           return value || '-';

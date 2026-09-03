@@ -29,6 +29,7 @@ import {
   fetchSubconverterSettings,
   useSubconverter,
   useSubconverterDetail,
+  useSubconverterTemplate,
 } from '@/api/queries/useSubconverter';
 import { LazyMount } from '@/components/utility';
 import AppSidebar from '@/layouts/AppSidebar';
@@ -78,6 +79,8 @@ export default function SubconverterPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [accessLogsOpen, setAccessLogsOpen] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
+  const template = useSubconverterTemplate(settingsOpen);
+  const { refresh: templateRefresh } = template;
   const [togglingId, setTogglingId] = useState<number | null>(null);
 
   const detailQuery = useSubconverterDetail(infoTarget?.id ?? null);
@@ -346,6 +349,22 @@ export default function SubconverterPage() {
     }
   }, [messageApi, settingsForm, subconverter, t]);
 
+  const refreshTemplate = useCallback(async () => {
+    try {
+      const msg = await templateRefresh();
+      if (!msg?.success) throw new Error(msg?.msg || t('pages.subconverter.templateRefreshFailed'));
+      messageApi.success(
+        msg.obj?.changed
+          ? t('pages.subconverter.templateRefreshed')
+          : t('pages.subconverter.templateUpToDate'),
+      );
+    } catch (error) {
+      messageApi.error(
+        error instanceof Error ? error.message : t('pages.subconverter.templateRefreshFailed'),
+      );
+    }
+  }, [messageApi, templateRefresh, t]);
+
   const remove = useCallback(
     (record: SubscriptionRecord) => {
       modal.confirm({
@@ -600,6 +619,11 @@ export default function SubconverterPage() {
               open={settingsOpen}
               saving={subconverter.settingsPending}
               form={settingsForm}
+              templateStatus={template.statusQuery.data}
+              templateStatusLoading={template.statusQuery.isPending}
+              templateStatusError={template.statusQuery.isError}
+              templateRefreshing={template.refreshPending}
+              onRefreshTemplate={refreshTemplate}
               onOk={saveSettings}
               onCancel={() => setSettingsOpen(false)}
             />

@@ -73,6 +73,15 @@ func (p *PublicController) full(c *gin.Context) {
 		c.String(http.StatusBadRequest, "cannot determine client ip")
 		return
 	}
+	// Render before IP enforcement so a missing template answers 503 without
+	// consuming a MaxIps slot.
+	body, err := service.RenderMihomoYAML(apiDomain(c), sub.Token)
+	if err != nil {
+		logger.Warning("subconverter template unavailable:", err)
+		p.recordAccess(sub, service.AccessEndpointFull, c, ip, http.StatusServiceUnavailable, service.AccessResultTemplateUnavailable)
+		c.String(http.StatusServiceUnavailable, "template unavailable")
+		return
+	}
 	if err := p.ipBindings.Enforce(sub.Id, sub.MaxIps, ip); err != nil {
 		if errors.Is(err, service.ErrIPLimitExceeded) {
 			p.recordAccess(sub, service.AccessEndpointFull, c, ip, http.StatusForbidden, service.AccessResultIPLimitExceeded)
@@ -87,7 +96,7 @@ func (p *PublicController) full(c *gin.Context) {
 	p.recordAccess(sub, service.AccessEndpointFull, c, ip, http.StatusOK, service.AccessResultSuccess)
 	c.Header("Content-Type", yamlContentType)
 	p.applySubscriptionUserinfoHeader(c, sub)
-	c.String(http.StatusOK, service.RenderMihomoYAML(apiDomain(c), sub.Token))
+	c.String(http.StatusOK, body)
 }
 
 // provider serves /feed/:token/nodes. It does not bind new IPs but it does

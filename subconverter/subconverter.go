@@ -17,6 +17,7 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/web/middleware"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/controller"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/database"
+	"github.com/mhsanaei/3x-ui/v3/subconverter/service"
 )
 
 // RegisterRoutes initializes the subconverter database and mounts every route
@@ -33,6 +34,10 @@ func RegisterRoutes(engine *gin.Engine, panelGroup *gin.RouterGroup) error {
 	if err := database.InitDB(); err != nil {
 		return err
 	}
+
+	// Starts the background template refresh after InitDB has created the
+	// folder the cache lives in.
+	service.StartTemplateRefresh()
 
 	api := panelGroup.Group("/panel/api/subconverter")
 	api.Use(controller.CheckAPIAuth)
