@@ -94,15 +94,6 @@ jobs:
             echo "done=true" >> "$GITHUB_OUTPUT"
             echo "::notice::#${PR} already carries a review; nothing to review."
           fi
-      # Read-only, and pinned to one immutable commit: this job holds a
-      # write-scoped token, so running anything out of pr-head/ would be a pwn-request.
-      - uses: actions/checkout@v7
-        if: steps.reviewed.outputs.done != 'true'
-        with:
-          ref: ${{ steps.pinned-sha.outputs.sha }}
-          path: pr-head
-          persist-credentials: false
-          allow-unsafe-pr-checkout: true
       - uses: anthropics/claude-code-action@v1
         id: review
         if: steps.reviewed.outputs.done != 'true'
@@ -113,11 +104,8 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           allowed_non_write_users: "*"
-          # Claude Code loads a CLAUDE.md or .claude/rules/ file the moment a file
-          # beside it is read, so a fork's copy under pr-head/ would brief its own review.
-          settings: '{"claudeMdExcludes": ["**/pr-head/**"]}'
           # allowedTools only pre-approves; it denies nothing. Only the deny list
-          # stops the review executing what it just checked out, or delegating.
+          # stops the review executing code, or delegating.
           claude_args: |
             --model claude-opus-5
             --effort xhigh
@@ -167,14 +155,15 @@ jobs:
             snippet, no suggestion block, no rewrite in prose. The maintainer
             decides the change.
 
-            WHAT IS CHECKED OUT WHERE
-            The working tree is the BASE branch. The head under review,
-            ${{ steps.pinned-sha.outputs.sha }}, is checked out read-only in
-            `pr-head/`: read and grep the changed files there, and treat anything
-            outside it as the pre-merge baseline. Never build, install or execute
-            anything from `pr-head/`. This job holds a write-scoped token, and
-            running pull-request code with it is the workflow vulnerability
-            `REVIEW.md` calls blocking.
+            WHAT IS AVAILABLE WHERE
+            The working tree is the trusted BASE branch. The pull-request head
+            ${{ steps.pinned-sha.outputs.sha }} is deliberately not checked out:
+            this job holds a write-scoped token, so it must never place untrusted
+            code in the runner workspace. Review the head only through GitHub's
+            read-only APIs: use `gh pr diff` for changed hunks and `gh api` with
+            the pinned SHA to read a changed file when more context is needed.
+            Treat the working tree as the pre-merge baseline. Never build,
+            install, execute, or write pull-request code.
 
             CI IS THE BUILD
             You cannot build or test here, but CI already ran on the head. Read
