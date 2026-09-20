@@ -546,6 +546,14 @@ func GetApiToken(getApiToken bool, tokenName string) {
 	fmt.Println("apiToken:", created.Token)
 }
 
+func hasIgnoredSettingArgs(rest []string) bool {
+	if len(rest) == 0 {
+		return false
+	}
+	fmt.Printf("refusing to ignore %q or any flags after it; put flags before positional arguments\n", strings.Join(rest, " "))
+	return true
+}
+
 // migrateDb performs database migration operations for the 3x-ui panel.
 func migrateDb() {
 	inboundService := service.InboundService{}
@@ -706,9 +714,10 @@ func main() {
 			return
 		}
 		// flag stops parsing at the first non-flag argument, so the `-getApiToken true`
-		// form drops every flag written after it. Say so instead of acting on a default.
-		if rest := settingCmd.Args(); len(rest) > 0 {
-			fmt.Printf("warning: ignored %q and any flags after it; put flags before positional arguments\n", strings.Join(rest, " "))
+		// form drops every flag written after it. Refuse the whole command before
+		// any setting mutation can act on a default value.
+		if hasIgnoredSettingArgs(settingCmd.Args()) {
+			return
 		}
 		if reset {
 			if err = resetSetting(); err != nil {

@@ -114,8 +114,9 @@ func TestGetApiTokenPreservesInstallTokenWhenRotating(t *testing.T) {
 }
 
 // `-getApiToken true -tokenName ci-bot` parses tokenName as "", because flag
-// stops at the positional. The command must not then rotate the shared slot.
-func TestGetApiTokenWarnsOnIgnoredPositionalArgs(t *testing.T) {
+// stops at the positional. The command must reject those leftovers rather than
+// rotating the shared cli-fallback slot with the missing name.
+func TestGetApiTokenRejectsIgnoredPositionalArgs(t *testing.T) {
 	set := flag.NewFlagSet("setting", flag.ContinueOnError)
 	var getApiToken bool
 	var tokenName string
@@ -129,7 +130,9 @@ func TestGetApiTokenWarnsOnIgnoredPositionalArgs(t *testing.T) {
 		t.Fatalf("tokenName = %q; this test guards the case where flag drops it", tokenName)
 	}
 	if got := set.Args(); len(got) == 0 {
-		t.Fatal("leftover arguments must be visible so the CLI can warn instead of silently rotating cli-fallback")
+		t.Fatal("leftover arguments must be visible so the CLI can reject the command before rotating cli-fallback")
+	} else if !hasIgnoredSettingArgs(got) {
+		t.Fatal("leftover arguments must reject the setting command")
 	}
 }
 
