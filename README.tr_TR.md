@@ -14,6 +14,7 @@
   <a href="https://github.com/zenvor/3x-ui/releases/latest"><img src="https://img.shields.io/github/downloads/zenvor/3x-ui/total.svg" alt="Downloads"></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0.en.html"><img src="https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true" alt="License"></a>
   <a href="https://pkg.go.dev/github.com/mhsanaei/3x-ui/v3"><img src="https://pkg.go.dev/badge/github.com/mhsanaei/3x-ui/v3.svg" alt="Go Reference"></a>
+  <a href="https://docs.sanaei.dev"><img src="https://img.shields.io/badge/docs-docs.sanaei.dev-22d3ee" alt="Documentation"></a>
 </p>
 
 **3X-UI**, [Xray-core](https://github.com/XTLS/Xray-core) sunucularını yönetmek için geliştirilmiş profesyonel, açık kaynaklı bir web kontrol panelidir. Tek bir sanal sunucudan (VPS) çok düğümlü (multi-node) dağıtımlara kadar çok çeşitli proxy ve VPN protokollerini kurmak, yapılandırmak ve izlemek için temiz, çok dilli bir arayüz sağlar.
@@ -25,17 +26,21 @@ Orijinal X-UI projesinin geliştirilmiş bir çatallaması (fork) olarak inşa e
 
 ## Özellikler
 
-- **Çoklu protokol destekli gelen bağlantılar (Inbounds)** — VLESS, VMess, Trojan, Shadowsocks, WireGuard, Hysteria2, HTTP, SOCKS (Karma), Dokodemo-door / Tunnel ve TUN.
+- **Çoklu protokol destekli gelen bağlantılar (Inbounds)** — VLESS, VMess, Trojan, Shadowsocks, WireGuard, AmneziaWG, TUIC v5, Hysteria2, MTProto, HTTP, SOCKS (Karma), Dokodemo-door / Tunnel ve TUN.
 - **Modern aktarımlar (transports) ve güvenlik** — TCP (Raw), mKCP, WebSocket, gRPC, HTTPUpgrade ve XHTTP; TLS, XTLS ve REALITY ile güvene alınmıştır.
+- **Dahili AmneziaWG** — DPI'ya dayanıklı WireGuard, panelin içinde bir kullanıcı alanı ağ yığını üzerinde çalışır; çekirdek modülü, DKMS veya ek paket kurulumu gerektirmez.
+- **Dahili TUIC v5** — Yerel UDP geçişi trafik ölçümü, 0-RTT el sıkışmaları ve BBR tıkanıklık kontrolü ile QUIC tabanlı yüksek performanslı proxy.
+- **MTProto proxy'leri** — İstemci başına FakeTLS gizli anahtarları, reklam etiketleri (ad-tag) ve kotalar, mevcut bağlantılar kopmadan anlık olarak uygulanır.
 - **Geri Dönüş (Fallbacks)** — Xray'in fallback desteğini kullanarak tek bir port üzerinde birden fazla protokole (ör. 443 üzerinde hem VLESS hem Trojan) hizmet verin.
-- **Kullanıcı başına yönetim** — Trafik kotaları, bitiş tarihleri, IP sınırları, canlı çevrimiçi (online) durumu ve tek tıkla paylaşım bağlantıları, QR kodları ve abonelikler.
+- **Kullanıcı başına yönetim** — Trafik kotaları, bitiş tarihleri, güvenilir adreslere muafiyet tanınabilen IP sınırları, HWID cihaz sınırları, zamanlanmış yenileme döngüleri, canlı çevrimiçi (online) durumu ve tek tıkla paylaşım bağlantıları, QR kodları ve abonelikler.
 - **Trafik istatistikleri** — Gelen bağlantı (Inbound), istemci ve giden bağlantı (Outbound) bazında istatistikler ve sıfırlama kontrolleri.
-- **Çoklu düğüm (Multi-node) desteği** — Tek bir panel üzerinden birden fazla sunucuyu yönetin ve ölçeklendirin.
-- **Giden bağlantı (Outbound) ve yönlendirme** — WARP, NordVPN, özel yönlendirme kuralları, yük dengeleyiciler (load balancers) ve giden bağlantı proxy zincirleme (proxy chaining).
-- **Dahili abonelik sunucusu** (Birden fazla çıktı formatı ve [özel sayfa şablonları](docs/custom-subscription-templates.md) ile).
 - **Subconverter** — Bu fork tarafından eklenen; gelen bağlantı/istemci seçimi, IP sınırları, User-Agent filtreleme ve erişim günlükleri sunan Mihomo abonelik dönüştürücü. Şu anda yalnızca **VLESS + TCP + REALITY**, **VLESS + XHTTP + REALITY**, **VLESS + XHTTP + TLS**, **VLESS + XHTTP** ve **VLESS + XHTTP + CDN TLS** desteklenir; diğer protokoller, taşıma yöntemleri ve güvenlik modları desteklenmez.
-- Uzaktan izleme ve yönetim için **Telegram botu**.
-- Panel içi Swagger dokümantasyonuna sahip **RESTful API**.
+- **Çoklu düğüm (Multi-node) desteği** — Tek bir panel üzerinden birden fazla sunucuyu yönetin ve ölçeklendirin; gelen bağlantıları diğer düğümlere klonlayın.
+- **Giden bağlantı (Outbound) ve yönlendirme** — WARP, NordVPN, PIA, özel yönlendirme kuralları, dengeleyiciler arası yük devretme destekli yük dengeleyiciler (load balancers) ve giden bağlantı proxy zincirleme (proxy chaining). Pakete dahil geosite ve geoip kategorileri doğrudan kural düzenleyicisinden taranabilir.
+- **Dahili abonelik sunucusu** — İstemcinin User-Agent bilgisine göre otomatik seçilen raw, JSON ve Clash çıktısı ve [özel sayfa şablonları](docs/custom-subscription-templates.md).
+- Uzaktan izleme ve yönetim için **Telegram ve Discord botları**.
+- Kapsamı sınırlanmış, isteğe bağlı olarak süresi dolan token'lar ve panel içi API referansı sunan **RESTful API**.
+- **Kurulabilir panel (PWA)** — 3X-UI'yi masaüstüne veya telefon ana ekranına sabitleyin.
 - **Esnek depolama** — SQLite (varsayılan) veya PostgreSQL.
 - Koyu ve açık tema seçenekleriyle **13 farklı UI dili**.
 - Kullanıcı başına IP limitlerini zorunlu kılmak için **Fail2ban entegrasyonu**.
@@ -73,10 +78,10 @@ Orijinal X-UI projesinin geliştirilmiş bir çatallaması (fork) olarak inşa e
 bash <(curl -Ls https://raw.githubusercontent.com/zenvor/3x-ui/main/install.sh)
 ```
 
-Belirli bir sürümü kurmak için, etiketini (ör. `v3.4.0`) ekleyin:
+Belirli bir sürümü kurmak için, etiketini (ör. `v3.8.5`) ekleyin:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/zenvor/3x-ui/main/install.sh) v3.4.0
+bash <(curl -Ls https://raw.githubusercontent.com/zenvor/3x-ui/main/install.sh) v3.8.5
 ```
 
 Sürekli güncellenen **dev** sürümünü (kararlı bir sürüm değil; `main` dalından her commit'te oluşturulan en son ön sürüm) kurmak için `dev-latest` değerini geçirin:
@@ -88,6 +93,9 @@ bash <(curl -Ls https://raw.githubusercontent.com/zenvor/3x-ui/main/install.sh) 
 Kurulum sırasında rastgele bir kullanıcı adı, şifre ve erişim yolu oluşturulur. Kurulumdan sonra, hizmeti başlatabileceğiniz/durdurabileceğiniz, giriş bilgilerinizi görüntüleyebileceğiniz veya sıfırlayabileceğiniz, SSL sertifikalarını yönetebileceğiniz ve çok daha fazlasını yapabileceğiniz yönetim menüsünü açmak için terminalde `x-ui` komutunu çalıştırın.
 
 Tam dokümantasyon için lütfen [proje Wiki sayfasını](https://github.com/zenvor/3x-ui/wiki) ziyaret edin.
+Her yayın dosyası, yanında bir `.sha256` sağlama toplamıyla birlikte yayımlanır. Hem `install.sh` hem de güncelleyici, arşivi bu toplama karşı doğrular ve uyuşmazlık halinde işlemi durdurur.
+
+Tam dokümantasyon — kurulum, yapılandırma, işletim ve eksiksiz API referansı — için **[docs.sanaei.dev](https://docs.sanaei.dev)** adresini ziyaret edin.
 
 ### Etkileşimsiz kurulum
 
@@ -163,6 +171,11 @@ docker run -d --cap-add=NET_ADMIN --cap-add=NET_RAW ... zenvorhub/3x-ui
 | `XUI_TUNNEL_HEALTH_TIMEOUT` | Yoklama başına zaman aşımı | `10s` |
 | `XUI_TUNNEL_HEALTH_FAILURES` | Yeniden başlatma tetiklenmeden önceki ardışık başarısızlık sayısı | `3` |
 | `XUI_TUNNEL_HEALTH_COOLDOWN` | Ardışık yeniden başlatmalar arasındaki minimum gecikme | `5m` |
+| `NODE_TOKEN_ENCRYPTION` | Düğüm API token'ları için beklemede şifreleme: `off`, `migration` veya `required` (`XUI_` öneki yoktur) | `off` |
+| `XUI_NODE_TOKEN_KEY_FILE` | Etkin anahtar kimliğini ve base64 kodlu 32 baytlık anahtarlarını içeren JSON anahtarlığı (mod `0600`) | `/etc/x-ui/node_token_key.json` |
+| `XUI_NODE_TOKEN_KEY` | Tek bir base64 kodlu 32 baytlık anahtar; yalnızca anahtar dosyası yüklenemediğinde kullanılır | — |
+
+Tam liste [ortam değişkenleri referansında](https://docs.sanaei.dev/docs/reference/env-vars) yer alır.
 
 ## Desteklenen Diller
 
@@ -188,6 +201,7 @@ Katkılarınızı her zaman bekliyoruz. Bir sorun (issue) açmadan veya pull req
 3x-ui çevresindeki topluluk tarafından oluşturulmuş araçlar ve entegrasyonlar.
 
 - [terraform-provider-3x-ui](https://github.com/batonogov/terraform-provider-threexui) (Lisans: **MIT**): _Gelen bağlantılarnı, kullanıcıları, panel ayarlarını ve Xray yapılandırmasını Terraform / OpenTofu ile kod olarak (as code) yönetin._
+- [3X-UI Manager](https://github.com/yukh975/3X-UI-Manager) (Lisans: **MIT**): _3x-ui için yerel Android istemcisi — kontrol paneli, gelen bağlantılar, QR ile paylaşımlı kullanıcılar, düğümler ve çoklu panel yönetimi. F-Droid'de mevcut._
 
 ## Projeyi Destekleyin
 
@@ -206,3 +220,18 @@ Katkılarınızı her zaman bekliyoruz. Bir sorun (issue) açmadan veya pull req
 ## Yıldız Tablosu
 
 [![Zaman içerisindeki yıldız sayısı](https://starchart.cc/zenvor/3x-ui.svg?variant=adaptive)](https://starchart.cc/zenvor/3x-ui)
+## Yıldız Geçmişi
+
+<a href="https://www.star-history.com/?repos=mhsanaei%2F3x-ui&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=mhsanaei/3x-ui&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=mhsanaei/3x-ui&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=mhsanaei/3x-ui&type=date&legend=top-left" />
+ </picture>
+</a>
+
+<p align="center">
+ <a href="https://www.star-history.com/mhsanaei/3x-ui">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/badge?repo=MHSanaei/3x-ui&type=rank&theme=dark" /><source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/badge?repo=MHSanaei/3x-ui&type=rank" /><img alt="Star History Rank" src="https://api.star-history.com/badge?repo=MHSanaei/3x-ui&type=rank" /></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/badge?repo=MHSanaei/3x-ui&type=trending&theme=dark" /><source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/badge?repo=MHSanaei/3x-ui&type=trending" /><img alt="GitHub Trending Repository of the Day" src="https://api.star-history.com/badge?repo=MHSanaei/3x-ui&type=trending" /></picture>
+ </a>
+</p>

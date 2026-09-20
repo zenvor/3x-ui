@@ -34,6 +34,7 @@ import { HttpUtil, IntlUtil, RandomUtil, Wireguard } from '@/utils';
 import { formatInboundLabel } from '@/lib/inbounds/label';
 import { generateMtprotoSecret } from '@/lib/xray/inbound-defaults';
 import { normalizeClientIps, type ClientIpInfo } from '@/lib/clients/ip-log';
+import { resolveExternalLinkExpiry } from '@/lib/clients/external-link';
 import { useDatepicker } from '@/hooks/useDatepicker';
 import { useClientHwids } from '@/hooks/useClientHwids';
 import { DateTimePicker, SelectAllClearButtons } from '@/components/form';
@@ -48,6 +49,7 @@ import type {
 } from '@/hooks/useClients';
 import { useFail2banStatusQuery, getLimitIpNotice } from '@/api/queries/useFail2banStatusQuery';
 import { ClientFormSchema, ClientCreateFormSchema, type ClientFormValues } from '@/schemas/client';
+import './ClientFormModal.css';
 
 const FLOW_OPTIONS = Object.values(TLS_FLOW_CONTROL);
 const VMESS_SECURITY_OPTIONS = ['auto', 'aes-128-gcm', 'chacha20-poly1305'] as const;
@@ -61,6 +63,7 @@ const MULTI_CLIENT_PROTOCOLS = new Set([
   'wireguard',
   'mtproto',
   'amneziawg',
+  'tuic',
 ]);
 
 const CLIENT_FORM_MODAL_Z_INDEX = 1000;
@@ -132,6 +135,7 @@ type Values = ClientFormValues & {
   wgAllowedIPs: string;
   awgAllowedIPs: string;
   awgForwardedPorts: string;
+  wgKeepAlive: number;
   secret: string;
   adTag: string;
 };
@@ -168,6 +172,7 @@ const EMPTY: Values = {
   wgAllowedIPs: '',
   awgAllowedIPs: '',
   awgForwardedPorts: '',
+  wgKeepAlive: 25,
   secret: '',
   adTag: '',
 };
@@ -378,6 +383,7 @@ export default function ClientFormModal({
         wgAllowedIPs: wgTunnelIPs ?? client.allowedIPs ?? '',
         awgAllowedIPs: awgTunnelIPs ?? client.allowedIPs ?? '',
         awgForwardedPorts: client.forwardedPorts || '',
+        wgKeepAlive: client.keepAlive ?? 0,
         secret: client.secret || '',
         adTag: client.adTag || '',
       };
@@ -442,6 +448,19 @@ export default function ClientFormModal({
     return ids;
   }, [inbounds]);
 
+  const tuicIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const row of inbounds || []) {
+      if (row && row.protocol === 'tuic') ids.add(row.id);
+    }
+    return ids;
+  }, [inbounds]);
+
+  const hasTuic = useMemo(
+    () => (inboundIds || []).some((id) => tuicIds.has(id)),
+    [inboundIds, tuicIds],
+  );
+
   const mtprotoDomain = useMemo(() => {
     for (const id of inboundIds || []) {
       const ib = (inbounds || []).find((row) => row.id === id);
@@ -502,6 +521,10 @@ export default function ClientFormModal({
     const kp = Wireguard.generateKeypair();
     methods.setValue('wgPrivateKey', kp.privateKey);
     methods.setValue('wgPublicKey', kp.publicKey);
+  }
+
+  function regenerateWireguardPresharedKey() {
+    methods.setValue('wgPreSharedKey', Wireguard.keyToBase64(Wireguard.generatePresharedKey()));
   }
 
   function regenerateMtprotoSecret() {
@@ -664,6 +687,7 @@ export default function ClientFormModal({
       email: values.email.trim(),
       subId: values.subId,
       id: values.uuid,
+      uuid: values.uuid,
       password: values.password,
       auth: values.auth,
       flow: showFlow ? values.flow || '' : '',
@@ -693,6 +717,7 @@ export default function ClientFormModal({
       // so both protocols share this one field set — see wgPrivateKey etc.
       // below and the AmneziaWG-labeled variants of the same inputs.
       clientPayload.privateKey = values.wgPrivateKey;
+      clientPayload.keepAlive = values.wgKeepAlive;
       clientPayload.publicKey = values.wgPublicKey;
       if (values.wgPreSharedKey) {
         clientPayload.preSharedKey = values.wgPreSharedKey;
@@ -779,6 +804,7 @@ export default function ClientFormModal({
         open={open}
         title={isEdit ? t('pages.clients.editClient') : t('pages.clients.addClient')}
         destroyOnHidden
+        className="client-form-modal"
         width={720}
         zIndex={CLIENT_FORM_MODAL_Z_INDEX}
         style={{ top: 20 }}
@@ -848,17 +874,21 @@ export default function ClientFormModal({
                             </Space.Compact>
                           </Form.Item>
                         </Col>
-                        <Col xs={24} md={6}>
+                        <Col xs={24} md={12}>
                           <FormField
                             name="totalGB"
                             label={t('pages.clients.totalGB')}
-                            tooltip={t('pages.clients.totalGBDesc')}
+                            tooltip={
+                              hasTuic
+                                ? t('pages.clients.tuicTotalGBDesc')
+                                : t('pages.clients.totalGBDesc')
+                            }
                             transform={{ output: (v) => Number(v) || 0 }}
                           >
                             <InputNumber min={0} step={1} style={{ width: '100%' }} />
                           </FormField>
                         </Col>
-                        <Col xs={24} md={6}>
+                        <Col xs={24} md={12}>
                           <Form.Item
                             label={t('pages.clients.limitIp')}
                             tooltip={t('pages.clients.limitIpDesc')}
@@ -893,7 +923,7 @@ export default function ClientFormModal({
                             </Tooltip>
                           </Form.Item>
                         </Col>
-                        <Col xs={24} md={6}>
+                        <Col xs={24} md={12}>
                           <Form.Item
                             label={t('pages.clients.limitHwid')}
                             tooltip={t('pages.clients.limitHwidDesc')}
@@ -1227,16 +1257,24 @@ export default function ClientFormModal({
                           >
                             <Input disabled />
                           </FormField>
-                          <FormField
-                            name="wgPreSharedKey"
+                          <Form.Item
                             label={t(
                               showAmneziawg
                                 ? 'pages.clients.amneziaWgPreSharedKey'
                                 : 'pages.clients.wireguardPreSharedKey',
                             )}
                           >
-                            <Input />
-                          </FormField>
+                            <Space.Compact style={{ display: 'flex' }}>
+                              <FormField name="wgPreSharedKey" noStyle>
+                                <Input style={{ flex: 1 }} />
+                              </FormField>
+                              <Button
+                                aria-label={t('regenerate')}
+                                icon={<ReloadOutlined />}
+                                onClick={regenerateWireguardPresharedKey}
+                              />
+                            </Space.Compact>
+                          </Form.Item>
                           {showWireguard && showAmneziawg ? (
                             <>
                               <FormField
@@ -1271,6 +1309,14 @@ export default function ClientFormModal({
                               <Input placeholder="10.8.1.2/32" />
                             </FormField>
                           )}
+                          <FormField
+                            name="wgKeepAlive"
+                            label={t('pages.clients.tunnelKeepAlive')}
+                            extra={t('pages.clients.tunnelKeepAliveHint')}
+                            transform={{ output: (v) => Number(v) || 0 }}
+                          >
+                            <InputNumber min={0} max={65535} style={{ width: '100%' }} />
+                          </FormField>
                           {showAmneziawg && (
                             <FormField
                               name="awgForwardedPorts"
@@ -1370,17 +1416,22 @@ export default function ClientFormModal({
                                 <Controller
                                   control={methods.control}
                                   name={`externalLinks.${index}.expiryTime`}
-                                  render={({ field: expiryField }) => (
-                                    <DateTimePicker
-                                      value={
-                                        Number(expiryField.value) > 0
-                                          ? dayjs(Number(expiryField.value))
-                                          : null
-                                      }
-                                      onChange={(v) => expiryField.onChange(v ? v.valueOf() : 0)}
-                                      placeholder={t('pages.inbounds.leaveBlankToNeverExpire')}
-                                    />
-                                  )}
+                                  render={({ field: expiryField }) => {
+                                    const displayedExpiry = resolveExternalLinkExpiry(
+                                      expiryField.value,
+                                      expiryDate,
+                                    );
+                                    const hasSpecificExpiry = Number(expiryField.value) > 0;
+                                    return (
+                                      <DateTimePicker
+                                        value={displayedExpiry > 0 ? dayjs(displayedExpiry) : null}
+                                        onChange={(v) => expiryField.onChange(v ? v.valueOf() : 0)}
+                                        placeholder={t('pages.inbounds.leaveBlankToNeverExpire')}
+                                        allowClear={hasSpecificExpiry}
+                                        maxDate={expiryDate > 0 ? dayjs(expiryDate) : undefined}
+                                      />
+                                    );
+                                  }}
                                 />
                               </div>
                             </div>
@@ -1442,17 +1493,22 @@ export default function ClientFormModal({
                                 <Controller
                                   control={methods.control}
                                   name={`externalLinks.${index}.expiryTime`}
-                                  render={({ field: expiryField }) => (
-                                    <DateTimePicker
-                                      value={
-                                        Number(expiryField.value) > 0
-                                          ? dayjs(Number(expiryField.value))
-                                          : null
-                                      }
-                                      onChange={(v) => expiryField.onChange(v ? v.valueOf() : 0)}
-                                      placeholder={t('pages.inbounds.leaveBlankToNeverExpire')}
-                                    />
-                                  )}
+                                  render={({ field: expiryField }) => {
+                                    const displayedExpiry = resolveExternalLinkExpiry(
+                                      expiryField.value,
+                                      expiryDate,
+                                    );
+                                    const hasSpecificExpiry = Number(expiryField.value) > 0;
+                                    return (
+                                      <DateTimePicker
+                                        value={displayedExpiry > 0 ? dayjs(displayedExpiry) : null}
+                                        onChange={(v) => expiryField.onChange(v ? v.valueOf() : 0)}
+                                        placeholder={t('pages.inbounds.leaveBlankToNeverExpire')}
+                                        allowClear={hasSpecificExpiry}
+                                        maxDate={expiryDate > 0 ? dayjs(expiryDate) : undefined}
+                                      />
+                                    );
+                                  }}
                                 />
                               </div>
                               <Typography.Text
