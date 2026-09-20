@@ -82,8 +82,9 @@ func CheckLogin(c *gin.Context) {
 }
 
 // CheckAPIAuth mirrors 3X-UI's /panel/api authentication behaviour: accept
-// panel sessions or Bearer API tokens, and hide API endpoints from
-// unauthenticated users with 404 instead of redirecting.
+// panel sessions or Bearer API tokens. A presented but invalid Bearer token
+// returns 401, while requests without credentials receive 404 to avoid
+// exposing API endpoints to anonymous scans.
 func CheckAPIAuth(c *gin.Context) {
 	auth := c.GetHeader("Authorization")
 	if after, ok := strings.CutPrefix(auth, "Bearer "); ok {
@@ -97,7 +98,11 @@ func CheckAPIAuth(c *gin.Context) {
 		}
 	}
 	if !session.IsLogin(c) {
-		c.AbortWithStatus(http.StatusNotFound)
+		if strings.HasPrefix(auth, "Bearer ") || c.GetHeader("X-Requested-With") == "XMLHttpRequest" {
+			c.AbortWithStatus(http.StatusUnauthorized)
+		} else {
+			c.AbortWithStatus(http.StatusNotFound)
+		}
 		return
 	}
 	c.Next()
