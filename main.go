@@ -546,12 +546,40 @@ func GetApiToken(getApiToken bool, tokenName string) {
 	fmt.Println("apiToken:", created.Token)
 }
 
-func hasIgnoredSettingArgs(rest []string) bool {
-	if len(rest) == 0 {
-		return false
+var legacySettingBoolFlags = map[string]struct{}{
+	"-reset":          {},
+	"-show":           {},
+	"-resetTwoFactor": {},
+	"-getListen":      {},
+	"-getCert":        {},
+	"-getApiToken":    {},
+	"-enabletgbot":    {},
+}
+
+// normalizeLegacySettingBoolArgs keeps old shell integrations working. The
+// standard flag package treats the value in "-show true" as a positional
+// argument and then stops parsing, so a following setting could be lost. Fold
+// an explicit boolean into its recognised flag before parsing instead.
+func normalizeLegacySettingBoolArgs(args []string) []string {
+	normalized := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if _, isBool := legacySettingBoolFlags[arg]; isBool && i+1 < len(args) && (args[i+1] == "true" || args[i+1] == "false") {
+			normalized = append(normalized, arg+"="+args[i+1])
+			i++
+			continue
+		}
+		normalized = append(normalized, arg)
 	}
-	fmt.Printf("refusing to ignore %q or any flags after it; put flags before positional arguments\n", strings.Join(rest, " "))
-	return true
+	return normalized
+}
+
+func hasIgnoredSettingArgs(rest []string) bool {
+	return len(rest) != 0
+}
+
+func reportIgnoredSettingArgs(rest []string) {
+	fmt.Fprintf(os.Stderr, "refusing to ignore %q or any flags after it; put flags before positional arguments\n", strings.Join(rest, " "))
 }
 
 // migrateDb performs database migration operations for the 3x-ui panel.
@@ -708,16 +736,16 @@ func main() {
 			fmt.Println("nothing to do: pass --dump <file>, --restore <file> --out <db>, or --dsn <postgres-dsn>")
 		}
 	case "setting":
-		err := settingCmd.Parse(os.Args[2:])
+		err := settingCmd.Parse(normalizeLegacySettingBoolArgs(os.Args[2:]))
 		if err != nil {
-			fmt.Println(err)
-			return
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
 		}
-		// flag stops parsing at the first non-flag argument, so the `-getApiToken true`
-		// form drops every flag written after it. Refuse the whole command before
-		// any setting mutation can act on a default value.
+		// Refuse positional arguments before any setting mutation can act on a
+		// default value. Legacy explicit bools were normalised before parsing.
 		if hasIgnoredSettingArgs(settingCmd.Args()) {
-			return
+			reportIgnoredSettingArgs(settingCmd.Args())
+			os.Exit(2)
 		}
 		if reset {
 			if err = resetSetting(); err != nil {
@@ -750,10 +778,14 @@ func main() {
 			updateTgbotEnableSts(enabletgbot)
 		}
 	case "cert":
-		err := settingCmd.Parse(os.Args[2:])
+		err := settingCmd.Parse(normalizeLegacySettingBoolArgs(os.Args[2:]))
 		if err != nil {
-			fmt.Println(err)
-			return
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		if hasIgnoredSettingArgs(settingCmd.Args()) {
+			reportIgnoredSettingArgs(settingCmd.Args())
+			os.Exit(2)
 		}
 		if reset {
 			updateCert("", "")

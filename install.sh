@@ -619,8 +619,8 @@ setup_ip_certificate() {
 
 # Comprehensive manual SSL certificate issuance via acme.sh
 ssl_cert_issue() {
-    local existing_webBasePath=$(${xui_folder}/x-ui setting -show true | grep 'webBasePath:' | awk -F': ' '{print $2}' | tr -d '[:space:]' | sed 's#^/##')
-    local existing_port=$(${xui_folder}/x-ui setting -show true | grep 'port:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
+    local existing_webBasePath=$(${xui_folder}/x-ui setting -show | grep 'webBasePath:' | awk -F': ' '{print $2}' | tr -d '[:space:]' | sed 's#^/##')
+    local existing_port=$(${xui_folder}/x-ui setting -show | grep 'port:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
 
     # check for acme.sh first
     if ! command -v ~/.acme.sh/acme.sh &> /dev/null; then
@@ -1044,11 +1044,29 @@ prompt_and_setup_ssl() {
 }
 
 config_after_install() {
-    local existing_hasDefaultCredential=$(${xui_folder}/x-ui setting -show true | grep -Eo 'hasDefaultCredential: .+' | awk '{print $2}')
-    local existing_webBasePath=$(${xui_folder}/x-ui setting -show true | grep -Eo 'webBasePath: .+' | awk '{print $2}' | sed 's#^/##')
-    local existing_port=$(${xui_folder}/x-ui setting -show true | grep -Eo 'port: .+' | awk '{print $2}')
-    # Properly detect empty cert by checking if cert: line exists and has content after it
-    local existing_cert=$(${xui_folder}/x-ui setting -getCert true | grep 'cert:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
+    local settings_output
+    if ! settings_output=$(${xui_folder}/x-ui setting -show); then
+        echo -e "${red}Unable to read panel settings; refusing to modify an existing installation.${plain}" >&2
+        return 1
+    fi
+    local existing_hasDefaultCredential=$(printf '%s\n' "$settings_output" | awk -F': ' '/^hasDefaultCredential:/{print $2; exit}')
+    local existing_webBasePath=$(printf '%s\n' "$settings_output" | awk -F': ' '/^webBasePath:/{print $2; exit}' | sed 's#^/##; s#/$##')
+    local existing_port=$(printf '%s\n' "$settings_output" | awk -F': ' '/^port:/{print $2; exit}')
+    if [[ "$existing_hasDefaultCredential" != "true" && "$existing_hasDefaultCredential" != "false" ]] || [[ ! "$existing_port" =~ ^[0-9]+$ ]]; then
+        echo -e "${red}Panel settings output is incomplete; refusing to modify an existing installation.${plain}" >&2
+        return 1
+    fi
+
+    local cert_output
+    if ! cert_output=$(${xui_folder}/x-ui setting -getCert); then
+        echo -e "${red}Unable to read certificate settings; refusing automatic certificate setup.${plain}" >&2
+        return 1
+    fi
+    if ! printf '%s\n' "$cert_output" | grep -q '^cert:'; then
+        echo -e "${red}Certificate settings output is incomplete; refusing automatic certificate setup.${plain}" >&2
+        return 1
+    fi
+    local existing_cert=$(printf '%s\n' "$cert_output" | awk -F': ' '/^cert:/{print $2; exit}' | tr -d '[:space:]')
     local URL_lists=(
         "https://api4.ipify.org"
         "https://ipv4.icanhazip.com"
@@ -1313,25 +1331,8 @@ EOF
             write_install_result "${config_username}" "${config_password}" "${config_port}" \
                 "${config_webBasePath}" "${SSL_SCHEME}" "${SSL_HOST}" "${config_apiToken}" "${db_type_out}"
         else
-            local config_webBasePath=$(gen_random_string 18)
-            echo -e "${yellow}WebBasePath is missing or too short. Generating a new one...${plain}"
-            ${xui_folder}/x-ui setting -webBasePath "${config_webBasePath}"
-            echo -e "${green}New WebBasePath: ${config_webBasePath}${plain}"
-
-            # If the panel is already installed but no certificate is configured, prompt for SSL now
-            if [[ -z "${existing_cert}" ]]; then
-                echo ""
-                echo -e "${green}═══════════════════════════════════════════${plain}"
-                echo -e "${green}     SSL Certificate Setup (RECOMMENDED)   ${plain}"
-                echo -e "${green}═══════════════════════════════════════════${plain}"
-                echo -e "${yellow}Let's Encrypt now supports both domains and IP addresses!${plain}"
-                echo ""
-                prompt_and_setup_ssl "${existing_port}" "${config_webBasePath}" "${server_ip}"
-                echo -e "${green}Access URL:  ${SSL_SCHEME}://${SSL_HOST}:${existing_port}/${config_webBasePath}${plain}"
-            else
-                # If a cert already exists, just show the access URL
-                echo -e "${green}Access URL: https://${server_ip}:${existing_port}/${config_webBasePath}${plain}"
-            fi
+            echo -e "${red}WebBasePath is missing or too short on an existing panel; refusing to generate a replacement during install/update.${plain}" >&2
+            return 1
         fi
     else
         if [[ "$existing_hasDefaultCredential" == "true" ]]; then
@@ -1357,9 +1358,8 @@ EOF
             echo -e "${green}Username, Password, and WebBasePath are properly set.${plain}"
         fi
 
-        # Existing install: if no cert configured, prompt user for SSL setup
-        # Properly detect empty cert by checking if cert: line exists and has content after it
-        existing_cert=$(${xui_folder}/x-ui setting -getCert true | grep 'cert:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
+        # Existing install: if no cert configured, prompt user for SSL setup.
+        # existing_cert was validated before any setting can be changed above.
         if [[ -z "$existing_cert" ]]; then
             echo ""
             echo -e "${green}═══════════════════════════════════════════${plain}"
@@ -1709,7 +1709,10 @@ install_x-ui() {
     fi
     chmod +x /usr/bin/x-ui
     mkdir -p /var/log/x-ui
-    config_after_install
+    if ! config_after_install; then
+        echo -e "${red}x-ui installation stopped before changing panel settings. Fix the reported settings issue and retry.${plain}" >&2
+        exit 1
+    fi
 
     # Etckeeper compatibility
     if [ -d "/etc/.git" ]; then

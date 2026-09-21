@@ -25,6 +25,14 @@ if ! command -v docker > /dev/null 2>&1; then
     exit 1
 fi
 
+legacy_bool_calls=$(grep -nE 'setting[[:space:]]+-(show|getCert|getListen|getApiToken)[[:space:]]+(true|false)' \
+    "${REPO_ROOT}/DockerEntrypoint.sh" "${REPO_ROOT}/install.sh" "${REPO_ROOT}/update.sh" "${REPO_ROOT}/x-ui.sh" || true)
+if [[ -n "$legacy_bool_calls" ]]; then
+    echo "ERROR: scripts must use canonical boolean flags without a positional true/false:" >&2
+    echo "$legacy_bool_calls" >&2
+    exit 1
+fi
+
 echo "== non-interactive install smoke test (image: $IMAGE, version: ${XUI_SMOKE_VERSION:-latest}) =="
 
 docker run --rm \
@@ -60,6 +68,8 @@ docker run --rm \
 
         # shellcheck disable=SC1090
         . "$RESULT"
+        initial_panel_port=$XUI_PANEL_PORT
+        initial_web_base_path=$XUI_WEB_BASE_PATH
         [ -n "${XUI_USERNAME:-}" ] && [ "$XUI_USERNAME" != "admin" ] \
             || { echo "FAIL: username missing or still admin"; exit 1; }
         [ -n "${XUI_PASSWORD:-}" ] && [ "$XUI_PASSWORD" != "admin" ] \
@@ -104,6 +114,15 @@ docker run --rm \
         geoip_sum_after=$(sha256sum /usr/local/x-ui/bin/geoip.dat | cut -d" " -f1)
         [ "$geoip_sum_after" = "$geoip_sum_before" ] \
             || { echo "FAIL: bundled geoip.dat changed across a same-version reinstall"; exit 1; }
+
+        # A reinstall must not reinterpret a failed/legacy settings query as a
+        # missing configuration and replace the panel URL or port.
+        # shellcheck disable=SC1090
+        . "$RESULT"
+        [ "$XUI_PANEL_PORT" = "$initial_panel_port" ] \
+            || { echo "FAIL: panel port changed across a second install"; exit 1; }
+        [ "$XUI_WEB_BASE_PATH" = "$initial_web_base_path" ] \
+            || { echo "FAIL: web base path changed across a second install"; exit 1; }
 
         echo "SMOKE_PASS: user=$XUI_USERNAME port=$XUI_PANEL_PORT path=$XUI_WEB_BASE_PATH"
     '

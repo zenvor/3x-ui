@@ -116,7 +116,7 @@ func TestGetApiTokenPreservesInstallTokenWhenRotating(t *testing.T) {
 // `-getApiToken true -tokenName ci-bot` parses tokenName as "", because flag
 // stops at the positional. The command must reject those leftovers rather than
 // rotating the shared cli-fallback slot with the missing name.
-func TestGetApiTokenRejectsIgnoredPositionalArgs(t *testing.T) {
+func TestGetApiTokenRawFlagParsingRejectsIgnoredPositionalArgs(t *testing.T) {
 	set := flag.NewFlagSet("setting", flag.ContinueOnError)
 	var getApiToken bool
 	var tokenName string

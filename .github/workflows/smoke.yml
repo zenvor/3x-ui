@@ -20,11 +20,17 @@ on:
       - "**"
     paths:
       - "install.sh"
+      - "update.sh"
+      - "x-ui.sh"
+      - "DockerEntrypoint.sh"
       - "deploy/**"
       - ".github/workflows/smoke.yml"
   pull_request:
     paths:
       - "install.sh"
+      - "update.sh"
+      - "x-ui.sh"
+      - "DockerEntrypoint.sh"
       - "deploy/**"
       - ".github/workflows/smoke.yml"
   workflow_run:
