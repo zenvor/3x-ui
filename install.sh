@@ -1050,9 +1050,10 @@ config_after_install() {
         return 1
     fi
     local existing_hasDefaultCredential=$(printf '%s\n' "$settings_output" | awk -F': ' '/^hasDefaultCredential:/{print $2; exit}')
-    local existing_webBasePath=$(printf '%s\n' "$settings_output" | awk -F': ' '/^webBasePath:/{print $2; exit}' | sed 's#^/##; s#/$##')
+    local existing_webBasePath_raw=$(printf '%s\n' "$settings_output" | awk -F': ' '/^webBasePath:/{print $2; exit}')
+    local existing_webBasePath=$(printf '%s\n' "$existing_webBasePath_raw" | sed 's#^/##; s#/$##')
     local existing_port=$(printf '%s\n' "$settings_output" | awk -F': ' '/^port:/{print $2; exit}')
-    if [[ "$existing_hasDefaultCredential" != "true" && "$existing_hasDefaultCredential" != "false" ]] || [[ ! "$existing_port" =~ ^[0-9]+$ ]]; then
+    if [[ "$existing_hasDefaultCredential" != "true" && "$existing_hasDefaultCredential" != "false" ]] || [[ ! "$existing_port" =~ ^[0-9]+$ ]] || [[ -z "$existing_webBasePath_raw" ]]; then
         echo -e "${red}Panel settings output is incomplete; refusing to modify an existing installation.${plain}" >&2
         return 1
     fi
@@ -1104,12 +1105,11 @@ config_after_install() {
         fi
     fi
 
-    if [[ ${#existing_webBasePath} -lt 4 ]]; then
-        if [[ "$existing_hasDefaultCredential" == "true" ]]; then
-            local config_webBasePath="${XUI_WEB_BASE_PATH:-$(gen_random_string 18)}"
-            local config_username="${XUI_USERNAME:-$(gen_random_string 10)}"
-            local config_password="${XUI_PASSWORD:-$(gen_random_string 10)}"
-            local config_port=""
+    if [[ "$existing_hasDefaultCredential" == "true" ]]; then
+        local config_webBasePath="${XUI_WEB_BASE_PATH:-$(gen_random_string 18)}"
+        local config_username="${XUI_USERNAME:-$(gen_random_string 10)}"
+        local config_password="${XUI_PASSWORD:-$(gen_random_string 10)}"
+        local config_port=""
 
             local db_label="SQLite (/etc/x-ui/x-ui.db)"
             echo ""
@@ -1330,33 +1330,8 @@ EOF
             [[ "$db_choice" == "2" ]] && db_type_out="postgres"
             write_install_result "${config_username}" "${config_password}" "${config_port}" \
                 "${config_webBasePath}" "${SSL_SCHEME}" "${SSL_HOST}" "${config_apiToken}" "${db_type_out}"
-        else
-            echo -e "${red}WebBasePath is missing or too short on an existing panel; refusing to generate a replacement during install/update.${plain}" >&2
-            return 1
-        fi
     else
-        if [[ "$existing_hasDefaultCredential" == "true" ]]; then
-            local config_username="${XUI_USERNAME:-$(gen_random_string 10)}"
-            local config_password="${XUI_PASSWORD:-$(gen_random_string 10)}"
-
-            echo -e "${yellow}Default credentials detected. Security update required...${plain}"
-            ${xui_folder}/x-ui setting -username "${config_username}" -password "${config_password}"
-            echo -e "Generated new random login credentials:"
-            echo -e "###############################################"
-            echo -e "${green}Username: ${config_username}${plain}"
-            echo -e "${green}Password: ${config_password}${plain}"
-            echo -e "###############################################"
-
-            # Persist a machine-parseable credentials file for cloud-init / MOTD.
-            local config_apiToken
-            config_apiToken=$(${xui_folder}/x-ui setting -getApiToken | grep -Eo 'apiToken: .+' | awk '{print $2}')
-            : "${SSL_SCHEME:=https}"
-            : "${SSL_HOST:=${server_ip}}"
-            write_install_result "${config_username}" "${config_password}" "${existing_port}" \
-                "${existing_webBasePath}" "${SSL_SCHEME}" "${SSL_HOST}" "${config_apiToken}" "${XUI_DB_TYPE:-sqlite}"
-        else
-            echo -e "${green}Username, Password, and WebBasePath are properly set.${plain}"
-        fi
+        echo -e "${green}Username, Password, and WebBasePath are properly set.${plain}"
 
         # Existing install: if no cert configured, prompt user for SSL setup.
         # existing_cert was validated before any setting can be changed above.

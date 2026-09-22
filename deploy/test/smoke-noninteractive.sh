@@ -101,6 +101,11 @@ docker run --rm \
         echo "custom-sentinel" > /usr/local/x-ui/bin/geoip_custom.dat
         geoip_sum_before=$(sha256sum /usr/local/x-ui/bin/geoip.dat | cut -d" " -f1)
 
+        # Root and short paths are valid panel settings. Exercise the branch
+        # that previously mistook them for missing configuration on reinstall.
+        /usr/local/x-ui/x-ui setting -webBasePath /
+        initial_web_base_path=""
+
         if [ -n "${XUI_SMOKE_VERSION:-}" ]; then
             cat /root/install.sh | bash -s -- "$XUI_SMOKE_VERSION"
         else
@@ -116,12 +121,15 @@ docker run --rm \
             || { echo "FAIL: bundled geoip.dat changed across a same-version reinstall"; exit 1; }
 
         # A reinstall must not reinterpret a failed/legacy settings query as a
-        # missing configuration and replace the panel URL or port.
-        # shellcheck disable=SC1090
-        . "$RESULT"
-        [ "$XUI_PANEL_PORT" = "$initial_panel_port" ] \
+        # missing configuration and replace the panel URL or port. Read the
+        # live database through the CLI; install-result.env is not rewritten
+        # for every valid existing installation.
+        current_settings=$(/usr/local/x-ui/x-ui setting -show)
+        current_panel_port=$(printf "%s\\n" "$current_settings" | awk -F": " "/^port:/{print \$2; exit}")
+        current_web_base_path=$(printf "%s\\n" "$current_settings" | awk -F": " "/^webBasePath:/{print \$2; exit}" | sed "s#^/##; s#/$##")
+        [ "$current_panel_port" = "$initial_panel_port" ] \
             || { echo "FAIL: panel port changed across a second install"; exit 1; }
-        [ "$XUI_WEB_BASE_PATH" = "$initial_web_base_path" ] \
+        [ "$current_web_base_path" = "$initial_web_base_path" ] \
             || { echo "FAIL: web base path changed across a second install"; exit 1; }
 
         echo "SMOKE_PASS: user=$XUI_USERNAME port=$XUI_PANEL_PORT path=$XUI_WEB_BASE_PATH"

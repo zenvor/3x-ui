@@ -825,16 +825,11 @@ config_after_update() {
 
     local existing_hasDefaultCredential=$(printf '%s\n' "$settings_output" | awk -F': ' '/^hasDefaultCredential:/{print $2; exit}')
     local existing_port=$(printf '%s\n' "$settings_output" | awk -F': ' '/^port:/{print $2; exit}')
-    local existing_webBasePath=$(printf '%s\n' "$settings_output" | awk -F': ' '/^webBasePath:/{print $2; exit}' | sed 's#^/##; s#/$##')
-    if [[ "$existing_hasDefaultCredential" != "true" && "$existing_hasDefaultCredential" != "false" ]] || [[ ! "$existing_port" =~ ^[0-9]+$ ]]; then
+    local existing_webBasePath_raw=$(printf '%s\n' "$settings_output" | awk -F': ' '/^webBasePath:/{print $2; exit}')
+    if [[ "$existing_hasDefaultCredential" != "true" && "$existing_hasDefaultCredential" != "false" ]] || [[ ! "$existing_port" =~ ^[0-9]+$ ]] || [[ -z "$existing_webBasePath_raw" ]]; then
         echo -e "${red}Panel settings output is incomplete; refusing to modify panel configuration during update.${plain}" >&2
         return 1
     fi
-    if [[ ${#existing_webBasePath} -lt 4 ]]; then
-        echo -e "${red}WebBasePath is missing or too short; refusing to generate one during an update. Set it explicitly with x-ui setting -webBasePath before retrying.${plain}" >&2
-        return 1
-    fi
-
     ${xui_folder}/x-ui migrate
 
     local cert_output
