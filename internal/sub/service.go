@@ -1624,6 +1624,14 @@ func (s *SubService) resolveInboundAddress(inbound *model.Inbound) string {
 	return s.address
 }
 
+// ResolveInboundAddress returns the public endpoint advertised for an inbound.
+// Callers that render a different subscription format must use this instead of
+// deriving an address from their own request context, so Node and share-address
+// policies stay consistent across all exports.
+func (s *SubService) ResolveInboundAddress(inbound *model.Inbound) string {
+	return s.resolveInboundAddress(inbound)
+}
+
 func findClientIndex(clients []model.Client, email string) int {
 	for i, client := range clients {
 		if client.Email == email {

@@ -186,10 +186,13 @@ func (p *PublicController) resolveProxies(sub *submodel.Subscription, c *gin.Con
 	if err != nil || len(sources) == 0 {
 		return nil
 	}
-	host := requestHostOnly(c)
+	// Reuse the panel subscription address policy. In particular, node-managed
+	// inbounds must advertise their Node address rather than the host serving
+	// this Mihomo profile.
+	linkSvc := p.subInfo.ForRequest(requestHostOnly(c))
 	proxies := make([]service.MihomoProxy, 0, len(sources))
 	for _, src := range sources {
-		proxy, convErr := service.ConvertInboundToProxy(src.Inbound, src.Client, host, service.ProxyOptionsFromSource(src))
+		proxy, convErr := service.ConvertInboundToProxy(src.Inbound, src.Client, linkSvc.ResolveInboundAddress(src.Inbound), service.ProxyOptionsFromSource(src))
 		if convErr != nil || proxy == nil {
 			continue
 		}
