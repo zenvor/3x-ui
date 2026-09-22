@@ -126,7 +126,7 @@ docker run --rm \
         # for every valid existing installation.
         current_settings=$(/usr/local/x-ui/x-ui setting -show)
         current_panel_port=$(printf "%s\\n" "$current_settings" | awk -F": " "/^port:/{print \$2; exit}")
-        current_web_base_path=$(printf "%s\\n" "$current_settings" | awk -F": " "/^webBasePath:/{print \$2; exit}" | sed "s#^/##; s#/$##")
+        current_web_base_path=$(printf "%s\\n" "$current_settings" | awk -F": " "/^webBasePath:/{print \$2; exit}" | sed "s#^/##; s#/\$##")
         [ "$current_panel_port" = "$initial_panel_port" ] \
             || { echo "FAIL: panel port changed across a second install"; exit 1; }
         [ "$current_web_base_path" = "$initial_web_base_path" ] \
