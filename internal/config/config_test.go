@@ -79,3 +79,19 @@ func TestGetPortOverride(t *testing.T) {
 		})
 	}
 }
+
+func TestEnvFilePathForDistro(t *testing.T) {
+	tests := map[string]string{
+		"ubuntu":  "/etc/default/x-ui",
+		"debian":  "/etc/default/x-ui",
+		"arch":    "/etc/conf.d/x-ui",
+		"alpine":  "/etc/conf.d/x-ui",
+		"fedora":  "/etc/sysconfig/x-ui",
+		"unknown": "/etc/sysconfig/x-ui",
+	}
+	for distro, want := range tests {
+		if got := envFilePathForDistro(distro); got != want {
+			t.Errorf("envFilePathForDistro(%q) = %q, want %q", distro, got, want)
+		}
+	}
+}

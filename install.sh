@@ -8,6 +8,18 @@ plain='\033[0m'
 
 xui_folder="${XUI_MAIN_FOLDER:=/usr/local/x-ui}"
 xui_service="${XUI_SERVICE:=/etc/systemd/system}"
+xui_db_folder="${XUI_DB_FOLDER:-/etc/x-ui}"
+
+# Capture this before install_x-ui replaces the program directory. Settings
+# values cannot tell a fresh database apart from a legitimate existing panel
+# that still has the stock address and credentials. Treat any persisted panel
+# executable, SQLite database, or service unit as an existing panel;
+# preserving that panel is safer than reinitializing its address.
+had_existing_panel=0
+if [[ -x "${xui_folder}/x-ui" || -f "${xui_db_folder}/x-ui.db" || \
+      -f "${xui_service}/x-ui.service" || -f /etc/init.d/x-ui ]]; then
+    had_existing_panel=1
+fi
 
 # check root
 [[ $EUID -ne 0 ]] && echo -e "${red}Fatal error: ${plain} Please run this script with root privilege \n " && exit 1
@@ -24,6 +36,46 @@ else
     exit 1
 fi
 echo "The OS release is: $release"
+
+# The service carries its database configuration in a distro-specific
+# EnvironmentFile. The panel CLI loads that file itself using the dotenv
+# parser, which is compatible with systemd's EnvironmentFile syntax. Do not
+# source it here: legal PostgreSQL DSNs can contain spaces, '$', or '&', which
+# a shell would expand or split before the CLI can read them.
+xui_env_file_path() {
+    case "${release}" in
+        ubuntu | debian | armbian)
+            echo "/etc/default/x-ui"
+            ;;
+        arch | manjaro | parch | alpine)
+            echo "/etc/conf.d/x-ui"
+            ;;
+        *)
+            echo "/etc/sysconfig/x-ui"
+            ;;
+    esac
+}
+
+existing_db_type="${XUI_DB_TYPE:-sqlite}"
+if [[ "$had_existing_panel" == "1" ]]; then
+    xui_env_file="$(xui_env_file_path)"
+    if [[ -r "$xui_env_file" ]]; then
+        while IFS= read -r xui_env_line; do
+            [[ "$xui_env_line" == XUI_DB_TYPE=* ]] || continue
+            existing_db_type="${xui_env_line#XUI_DB_TYPE=}"
+            existing_db_type="${existing_db_type%$'\r'}"
+            case "$existing_db_type" in
+                \"*\") existing_db_type="${existing_db_type#\"}"; existing_db_type="${existing_db_type%\"}" ;;
+                \'*\') existing_db_type="${existing_db_type#\'}"; existing_db_type="${existing_db_type%\'}" ;;
+            esac
+            break
+        done < "$xui_env_file"
+    fi
+fi
+case "${existing_db_type,,}" in
+    postgres | postgresql | pg) existing_db_type="postgres" ;;
+    *) existing_db_type="sqlite" ;;
+esac
 
 arch() {
     case "$(uname -m)" in
@@ -451,7 +503,10 @@ setup_ssl_certificate() {
     local webKeyFile="/root/cert/${domain}/privkey.pem"
 
     if [[ -f "$webCertFile" && -f "$webKeyFile" ]]; then
-        ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile" > /dev/null 2>&1
+        if ! ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile" > /dev/null 2>&1; then
+            echo -e "${yellow}Failed to configure the panel certificate paths${plain}"
+            return 1
+        fi
         echo -e "${green}SSL certificate installed and configured successfully!${plain}"
         return 0
     else
@@ -600,13 +655,12 @@ setup_ip_certificate() {
 
     # Configure panel to use the certificate
     echo -e "${green}Setting certificate paths for the panel...${plain}"
-    ${xui_folder}/x-ui cert -webCert "${certDir}/fullchain.pem" -webCertKey "${certDir}/privkey.pem"
-
-    if [ $? -ne 0 ]; then
+    if ! ${xui_folder}/x-ui cert -webCert "${certDir}/fullchain.pem" -webCertKey "${certDir}/privkey.pem"; then
         echo -e "${yellow}Warning: Could not set certificate paths automatically${plain}"
         echo -e "${yellow}Certificate files are at:${plain}"
         echo -e "  Cert: ${certDir}/fullchain.pem"
         echo -e "  Key:  ${certDir}/privkey.pem"
+        return 1
     else
         echo -e "${green}Certificate paths configured successfully${plain}"
     fi
@@ -619,8 +673,8 @@ setup_ip_certificate() {
 
 # Comprehensive manual SSL certificate issuance via acme.sh
 ssl_cert_issue() {
-    local existing_webBasePath=$(${xui_folder}/x-ui setting -show true | grep 'webBasePath:' | awk -F': ' '{print $2}' | tr -d '[:space:]' | sed 's#^/##')
-    local existing_port=$(${xui_folder}/x-ui setting -show true | grep 'port:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
+    local existing_webBasePath=$(${xui_folder}/x-ui setting -show | grep 'webBasePath:' | awk -F': ' '{print $2}' | tr -d '[:space:]' | sed 's#^/##')
+    local existing_port=$(${xui_folder}/x-ui setting -show | grep 'port:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
 
     # check for acme.sh first
     if ! command -v ~/.acme.sh/acme.sh &> /dev/null; then
@@ -816,7 +870,10 @@ ssl_cert_issue() {
         local webKeyFile="/root/cert/${domain}/privkey.pem"
 
         if [[ -f "$webCertFile" && -f "$webKeyFile" ]]; then
-            ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
+            if ! ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"; then
+                echo -e "${red}Failed to configure the panel certificate paths.${plain}"
+                return 1
+            fi
             echo -e "${green}Certificate paths set for the panel${plain}"
             echo -e "${green}Certificate File: $webCertFile${plain}"
             echo -e "${green}Private Key File: $webKeyFile${plain}"
@@ -826,9 +883,12 @@ ssl_cert_issue() {
             systemctl restart x-ui 2> /dev/null || rc-service x-ui restart 2> /dev/null
         else
             echo -e "${red}Error: Certificate or private key file not found for domain: $domain.${plain}"
+            return 1
         fi
     else
         echo -e "${yellow}Skipping panel path setting.${plain}"
+        SSL_SCHEME="http"
+        return 0
     fi
 
     return 0
@@ -881,7 +941,10 @@ prompt_and_setup_ssl() {
                     cert_domain=$(~/.acme.sh/acme.sh --list 2> /dev/null | tail -1 | awk '{print $1}')
                 fi
 
-                if [[ -n "${cert_domain}" ]]; then
+                if [[ "$SSL_SCHEME" == "http" ]]; then
+                    SSL_HOST="${cert_domain:-$server_ip}"
+                    echo -e "${yellow}Certificate was issued but was not attached to the panel; the panel remains HTTP-only.${plain}"
+                elif [[ -n "${cert_domain}" ]]; then
                     SSL_HOST="${cert_domain}"
                     echo -e "${green}✓ SSL certificate configured successfully with domain: ${cert_domain}${plain}"
                 else
@@ -891,6 +954,7 @@ prompt_and_setup_ssl() {
             else
                 echo -e "${red}SSL certificate setup failed for domain mode.${plain}"
                 SSL_HOST="${server_ip}"
+                return 1
             fi
             ;;
         2)
@@ -934,6 +998,7 @@ prompt_and_setup_ssl() {
             else
                 echo -e "${red}✗ IP certificate setup failed. Please check port 80 is open.${plain}"
                 SSL_HOST="${server_ip}"
+                return 1
             fi
             ;;
         3)
@@ -982,7 +1047,10 @@ prompt_and_setup_ssl() {
             done
 
             # 3.4 Apply Settings via x-ui binary
-            ${xui_folder}/x-ui cert -webCert "$custom_cert" -webCertKey "$custom_key" > /dev/null 2>&1
+            if ! ${xui_folder}/x-ui cert -webCert "$custom_cert" -webCertKey "$custom_key" > /dev/null 2>&1; then
+                echo -e "${red}Failed to configure the custom certificate paths.${plain}"
+                return 1
+            fi
 
             # Set SSL_HOST for composing Panel URL
             if [[ -n "$custom_domain" ]]; then
@@ -1016,7 +1084,10 @@ prompt_and_setup_ssl() {
                 read -rp "Bind the panel to 127.0.0.1 only? (recommended — forces SSH tunnel / reverse-proxy access) [y/N]: " bind_local
             fi
             if [[ "$bind_local" == "y" || "$bind_local" == "Y" ]]; then
-                ${xui_folder}/x-ui setting -listenIP "127.0.0.1" > /dev/null 2>&1
+                if ! ${xui_folder}/x-ui setting -listenIP "127.0.0.1" > /dev/null 2>&1; then
+                    echo -e "${red}Failed to bind the panel to 127.0.0.1.${plain}"
+                    return 1
+                fi
                 SSL_HOST="127.0.0.1"
                 echo -e "${green}✓ Panel bound to 127.0.0.1 only. It is now unreachable from the public internet.${plain}"
                 echo ""
@@ -1044,11 +1115,30 @@ prompt_and_setup_ssl() {
 }
 
 config_after_install() {
-    local existing_hasDefaultCredential=$(${xui_folder}/x-ui setting -show true | grep -Eo 'hasDefaultCredential: .+' | awk '{print $2}')
-    local existing_webBasePath=$(${xui_folder}/x-ui setting -show true | grep -Eo 'webBasePath: .+' | awk '{print $2}' | sed 's#^/##')
-    local existing_port=$(${xui_folder}/x-ui setting -show true | grep -Eo 'port: .+' | awk '{print $2}')
-    # Properly detect empty cert by checking if cert: line exists and has content after it
-    local existing_cert=$(${xui_folder}/x-ui setting -getCert true | grep 'cert:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
+    local settings_output
+    if ! settings_output=$(${xui_folder}/x-ui setting -show); then
+        echo -e "${red}Unable to read panel settings; refusing to modify an existing installation.${plain}" >&2
+        return 1
+    fi
+    local existing_hasDefaultCredential=$(printf '%s\n' "$settings_output" | awk -F': ' '/^hasDefaultCredential:/{print $2; exit}')
+    local existing_webBasePath_raw=$(printf '%s\n' "$settings_output" | awk -F': ' '/^webBasePath:/{print $2; exit}')
+    local existing_webBasePath=$(printf '%s\n' "$existing_webBasePath_raw" | sed 's#^/##; s#/$##')
+    local existing_port=$(printf '%s\n' "$settings_output" | awk -F': ' '/^port:/{print $2; exit}')
+    if [[ "$existing_hasDefaultCredential" != "true" && "$existing_hasDefaultCredential" != "false" ]] || [[ ! "$existing_port" =~ ^[0-9]+$ ]] || [[ -z "$existing_webBasePath_raw" ]]; then
+        echo -e "${red}Panel settings output is incomplete; refusing to modify an existing installation.${plain}" >&2
+        return 1
+    fi
+
+    local cert_output
+    if ! cert_output=$(${xui_folder}/x-ui setting -getCert); then
+        echo -e "${red}Unable to read certificate settings; refusing automatic certificate setup.${plain}" >&2
+        return 1
+    fi
+    if ! printf '%s\n' "$cert_output" | grep -q '^cert:' || ! printf '%s\n' "$cert_output" | grep -q '^key:'; then
+        echo -e "${red}Certificate settings output is incomplete; refusing automatic certificate setup.${plain}" >&2
+        return 1
+    fi
+    local existing_cert=$(printf '%s\n' "$cert_output" | awk -F': ' '/^cert:/{print $2; exit}' | tr -d '[:space:]')
     local URL_lists=(
         "https://api4.ipify.org"
         "https://ipv4.icanhazip.com"
@@ -1086,12 +1176,14 @@ config_after_install() {
         fi
     fi
 
-    if [[ ${#existing_webBasePath} -lt 4 ]]; then
-        if [[ "$existing_hasDefaultCredential" == "true" ]]; then
-            local config_webBasePath="${XUI_WEB_BASE_PATH:-$(gen_random_string 18)}"
-            local config_username="${XUI_USERNAME:-$(gen_random_string 10)}"
-            local config_password="${XUI_PASSWORD:-$(gen_random_string 10)}"
-            local config_port=""
+    # Only a process that had no panel state before extraction can be a first
+    # install. Existing panels may legitimately retain the stock credentials,
+    # root base path, and port, so never use those values as a proxy for age.
+    if [[ "$had_existing_panel" == "0" && "$existing_hasDefaultCredential" == "true" ]]; then
+        local config_webBasePath="${XUI_WEB_BASE_PATH:-$(gen_random_string 18)}"
+        local config_username="${XUI_USERNAME:-$(gen_random_string 10)}"
+        local config_password="${XUI_PASSWORD:-$(gen_random_string 10)}"
+        local config_port=""
 
             local db_label="SQLite (/etc/x-ui/x-ui.db)"
             echo ""
@@ -1112,17 +1204,7 @@ config_after_install() {
             fi
             if [[ "$db_choice" == "2" ]]; then
                 local xui_env_file
-                case "${release}" in
-                    ubuntu | debian | armbian)
-                        xui_env_file="/etc/default/x-ui"
-                        ;;
-                    arch | manjaro | parch | alpine)
-                        xui_env_file="/etc/conf.d/x-ui"
-                        ;;
-                    *)
-                        xui_env_file="/etc/sysconfig/x-ui"
-                        ;;
-                esac
+                xui_env_file="$(xui_env_file_path)"
 
                 local xui_dsn=""
                 local pg_mode=""
@@ -1240,7 +1322,23 @@ EOF
                 fi
             fi
 
-            ${xui_folder}/x-ui setting -username "${config_username}" -password "${config_password}" -port "${config_port}" -webBasePath "${config_webBasePath}"
+            if ! ${xui_folder}/x-ui setting -username "${config_username}" -password "${config_password}" -port "${config_port}" -webBasePath "${config_webBasePath}"; then
+                echo -e "${red}Unable to apply initial panel settings; refusing to continue.${plain}" >&2
+                return 1
+            fi
+            local configured_settings
+            if ! configured_settings=$(${xui_folder}/x-ui setting -show); then
+                echo -e "${red}Unable to verify initial panel settings; refusing to continue.${plain}" >&2
+                return 1
+            fi
+            local configured_has_default=$(printf '%s\n' "$configured_settings" | awk -F': ' '/^hasDefaultCredential:/{print $2; exit}')
+            local configured_port=$(printf '%s\n' "$configured_settings" | awk -F': ' '/^port:/{print $2; exit}')
+            local configured_path=$(printf '%s\n' "$configured_settings" | awk -F': ' '/^webBasePath:/{print $2; exit}' | sed 's#^/##; s#/$##')
+            local wanted_path=$(printf '%s' "$config_webBasePath" | sed 's#^/##; s#/$##')
+            if [[ "$configured_has_default" != "false" || "$configured_port" != "$config_port" || "$configured_path" != "$wanted_path" ]]; then
+                echo -e "${red}Initial panel settings did not persist as requested; refusing to continue.${plain}" >&2
+                return 1
+            fi
 
             echo ""
             echo -e "${green}═══════════════════════════════════════════${plain}"
@@ -1251,10 +1349,22 @@ EOF
             echo -e "${yellow}Let's Encrypt now supports both domains and IP addresses!${plain}"
             echo ""
 
-            prompt_and_setup_ssl "${config_port}" "${config_webBasePath}" "${server_ip}"
+            if ! prompt_and_setup_ssl "${config_port}" "${config_webBasePath}" "${server_ip}"; then
+                echo -e "${red}SSL setup failed; installation results were not written. Fix the certificate configuration and retry.${plain}" >&2
+                return 1
+            fi
 
             # Retrieve the API token for display
-            local config_apiToken=$(${xui_folder}/x-ui setting -getApiToken | grep -Eo 'apiToken: .+' | awk '{print $2}')
+            local token_output
+            if ! token_output=$(${xui_folder}/x-ui setting -getApiToken); then
+                echo -e "${red}Unable to create the installation API token.${plain}" >&2
+                return 1
+            fi
+            local config_apiToken=$(printf '%s\n' "$token_output" | awk -F': ' '/^apiToken:/{print $2; exit}')
+            if [[ -z "$config_apiToken" ]]; then
+                echo -e "${red}Installation API token was not returned; refusing to continue.${plain}" >&2
+                return 1
+            fi
 
             # Display final credentials and access information
             echo ""
@@ -1312,54 +1422,51 @@ EOF
             [[ "$db_choice" == "2" ]] && db_type_out="postgres"
             write_install_result "${config_username}" "${config_password}" "${config_port}" \
                 "${config_webBasePath}" "${SSL_SCHEME}" "${SSL_HOST}" "${config_apiToken}" "${db_type_out}"
-        else
-            local config_webBasePath=$(gen_random_string 18)
-            echo -e "${yellow}WebBasePath is missing or too short. Generating a new one...${plain}"
-            ${xui_folder}/x-ui setting -webBasePath "${config_webBasePath}"
-            echo -e "${green}New WebBasePath: ${config_webBasePath}${plain}"
-
-            # If the panel is already installed but no certificate is configured, prompt for SSL now
-            if [[ -z "${existing_cert}" ]]; then
-                echo ""
-                echo -e "${green}═══════════════════════════════════════════${plain}"
-                echo -e "${green}     SSL Certificate Setup (RECOMMENDED)   ${plain}"
-                echo -e "${green}═══════════════════════════════════════════${plain}"
-                echo -e "${yellow}Let's Encrypt now supports both domains and IP addresses!${plain}"
-                echo ""
-                prompt_and_setup_ssl "${existing_port}" "${config_webBasePath}" "${server_ip}"
-                echo -e "${green}Access URL:  ${SSL_SCHEME}://${SSL_HOST}:${existing_port}/${config_webBasePath}${plain}"
-            else
-                # If a cert already exists, just show the access URL
-                echo -e "${green}Access URL: https://${server_ip}:${existing_port}/${config_webBasePath}${plain}"
-            fi
-        fi
     else
         if [[ "$existing_hasDefaultCredential" == "true" ]]; then
             local config_username="${XUI_USERNAME:-$(gen_random_string 10)}"
             local config_password="${XUI_PASSWORD:-$(gen_random_string 10)}"
 
-            echo -e "${yellow}Default credentials detected. Security update required...${plain}"
-            ${xui_folder}/x-ui setting -username "${config_username}" -password "${config_password}"
+            echo -e "${yellow}Default credentials detected. Security update required; preserving the existing port and WebBasePath.${plain}"
+            if ! ${xui_folder}/x-ui setting -username "${config_username}" -password "${config_password}"; then
+                echo -e "${red}Unable to replace default credentials; refusing to continue.${plain}" >&2
+                return 1
+            fi
+            local rotated_settings
+            if ! rotated_settings=$(${xui_folder}/x-ui setting -show); then
+                echo -e "${red}Unable to verify replacement credentials; refusing to continue.${plain}" >&2
+                return 1
+            fi
+            if ! printf '%s\n' "$rotated_settings" | grep -q '^hasDefaultCredential: false$'; then
+                echo -e "${red}Default credentials remain active after replacement; refusing to continue.${plain}" >&2
+                return 1
+            fi
             echo -e "Generated new random login credentials:"
             echo -e "###############################################"
             echo -e "${green}Username: ${config_username}${plain}"
             echo -e "${green}Password: ${config_password}${plain}"
             echo -e "###############################################"
 
-            # Persist a machine-parseable credentials file for cloud-init / MOTD.
-            local config_apiToken
-            config_apiToken=$(${xui_folder}/x-ui setting -getApiToken | grep -Eo 'apiToken: .+' | awk '{print $2}')
+            local token_output
+            if ! token_output=$(${xui_folder}/x-ui setting -getApiToken); then
+                echo -e "${red}Unable to create the installation API token.${plain}" >&2
+                return 1
+            fi
+            local config_apiToken=$(printf '%s\n' "$token_output" | awk -F': ' '/^apiToken:/{print $2; exit}')
+            if [[ -z "$config_apiToken" ]]; then
+                echo -e "${red}Unable to create the installation API token.${plain}" >&2
+                return 1
+            fi
             : "${SSL_SCHEME:=https}"
             : "${SSL_HOST:=${server_ip}}"
             write_install_result "${config_username}" "${config_password}" "${existing_port}" \
-                "${existing_webBasePath}" "${SSL_SCHEME}" "${SSL_HOST}" "${config_apiToken}" "${XUI_DB_TYPE:-sqlite}"
+                "${existing_webBasePath}" "${SSL_SCHEME}" "${SSL_HOST}" "${config_apiToken}" "${existing_db_type}"
         else
             echo -e "${green}Username, Password, and WebBasePath are properly set.${plain}"
         fi
 
-        # Existing install: if no cert configured, prompt user for SSL setup
-        # Properly detect empty cert by checking if cert: line exists and has content after it
-        existing_cert=$(${xui_folder}/x-ui setting -getCert true | grep 'cert:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
+        # Existing install: if no cert configured, prompt user for SSL setup.
+        # existing_cert was validated before any setting can be changed above.
         if [[ -z "$existing_cert" ]]; then
             echo ""
             echo -e "${green}═══════════════════════════════════════════${plain}"
@@ -1367,7 +1474,10 @@ EOF
             echo -e "${green}═══════════════════════════════════════════${plain}"
             echo -e "${yellow}Let's Encrypt now supports both domains and IP addresses!${plain}"
             echo ""
-            prompt_and_setup_ssl "${existing_port}" "${existing_webBasePath}" "${server_ip}"
+            if ! prompt_and_setup_ssl "${existing_port}" "${existing_webBasePath}" "${server_ip}"; then
+                echo -e "${red}SSL setup failed; existing panel settings remain unchanged. Fix the certificate configuration and retry.${plain}" >&2
+                return 1
+            fi
             echo -e "${green}Access URL:  ${SSL_SCHEME}://${SSL_HOST}:${existing_port}/${existing_webBasePath}${plain}"
         else
             echo -e "${green}SSL certificate already configured. No action needed.${plain}"
@@ -1585,11 +1695,16 @@ install_x-ui() {
 
     # Stop x-ui service and remove old resources
     local custom_bin_backup=""
+    local xui_service_stopped=0
     if [[ -e ${xui_folder}/ ]]; then
         if [[ $release == "alpine" ]]; then
-            rc-service x-ui stop
+            if rc-service x-ui status > /dev/null 2>&1 && rc-service x-ui stop; then
+                xui_service_stopped=1
+            fi
         else
-            systemctl stop x-ui
+            if systemctl is-active --quiet x-ui && systemctl stop x-ui; then
+                xui_service_stopped=1
+            fi
         fi
         # Kill any leftover mtg (MTProto) sidecars. x-ui runs them outside its own
         # lifecycle, so on Linux a stale one can survive the stop and keep holding
@@ -1709,7 +1824,18 @@ install_x-ui() {
     fi
     chmod +x /usr/bin/x-ui
     mkdir -p /var/log/x-ui
-    config_after_install
+    if ! config_after_install; then
+        if [[ "$xui_service_stopped" == "1" ]]; then
+            echo -e "${yellow}Configuration did not complete; restarting the existing x-ui service with its current settings.${plain}" >&2
+            if [[ $release == "alpine" ]]; then
+                rc-service x-ui start || echo -e "${red}Unable to restart x-ui automatically; start it manually after resolving the reported error.${plain}" >&2
+            else
+                systemctl start x-ui || echo -e "${red}Unable to restart x-ui automatically; start it manually after resolving the reported error.${plain}" >&2
+            fi
+        fi
+        echo -e "${red}x-ui installation stopped before configuration completed. Review the reported settings and retry.${plain}" >&2
+        exit 1
+    fi
 
     # Etckeeper compatibility
     if [ -d "/etc/.git" ]; then

@@ -214,17 +214,42 @@ func GetNodeTokenKeyEnv() string {
 	return "XUI_NODE_TOKEN_KEY"
 }
 
-// GetEnvFilePaths returns the candidate service environment file paths (the file
-// systemd loads via EnvironmentFile) across the supported distro families.
+// GetEnvFilePaths returns the EnvironmentFile used by the installed service on
+// this distribution. Returning one distro-specific path avoids choosing a
+// stale environment file left behind by a previous distribution or migration.
 func GetEnvFilePaths() []string {
 	if runtime.GOOS == "windows" {
 		return nil
 	}
-	return []string{
-		"/etc/default/x-ui",
-		"/etc/conf.d/x-ui",
-		"/etc/sysconfig/x-ui",
+	return []string{envFilePathForDistro(linuxDistroID())}
+}
+
+func envFilePathForDistro(distro string) string {
+	switch strings.ToLower(strings.TrimSpace(distro)) {
+	case "ubuntu", "debian", "armbian":
+		return "/etc/default/x-ui"
+	case "arch", "manjaro", "parch", "alpine":
+		return "/etc/conf.d/x-ui"
+	default:
+		return "/etc/sysconfig/x-ui"
 	}
+}
+
+func linuxDistroID() string {
+	for _, path := range []string{"/etc/os-release", "/usr/lib/os-release"} {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(content), "\n") {
+			key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
+			if !ok || key != "ID" {
+				continue
+			}
+			return strings.Trim(strings.TrimSpace(value), "\"'")
+		}
+	}
+	return ""
 }
 
 // GetLogFolder returns the path to the log folder based on environment variables or platform defaults.

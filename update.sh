@@ -438,8 +438,8 @@ setup_ip_certificate() {
 
 # Comprehensive manual SSL certificate issuance via acme.sh
 ssl_cert_issue() {
-    local existing_webBasePath=$(${xui_folder}/x-ui setting -show true | grep 'webBasePath:' | awk -F': ' '{print $2}' | tr -d '[:space:]' | sed 's#^/##')
-    local existing_port=$(${xui_folder}/x-ui setting -show true | grep 'port:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
+    local existing_webBasePath=$(${xui_folder}/x-ui setting -show | grep 'webBasePath:' | awk -F': ' '{print $2}' | tr -d '[:space:]' | sed 's#^/##')
+    local existing_port=$(${xui_folder}/x-ui setting -show | grep 'port:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
 
     # check for acme.sh first
     if ! command -v ~/.acme.sh/acme.sh &> /dev/null; then
@@ -815,94 +815,37 @@ prompt_and_setup_ssl() {
 }
 
 config_after_update() {
-    local panel_needs_restart=0
-
     echo -e "${yellow}x-ui settings:${plain}"
-    ${xui_folder}/x-ui setting -show true
+    local settings_output
+    if ! settings_output=$(${xui_folder}/x-ui setting -show); then
+        echo -e "${red}Unable to read existing panel settings; refusing to modify panel configuration during update.${plain}" >&2
+        return 1
+    fi
+    printf '%s\n' "$settings_output"
+
+    local existing_hasDefaultCredential=$(printf '%s\n' "$settings_output" | awk -F': ' '/^hasDefaultCredential:/{print $2; exit}')
+    local existing_port=$(printf '%s\n' "$settings_output" | awk -F': ' '/^port:/{print $2; exit}')
+    local existing_webBasePath_raw=$(printf '%s\n' "$settings_output" | awk -F': ' '/^webBasePath:/{print $2; exit}')
+    if [[ "$existing_hasDefaultCredential" != "true" && "$existing_hasDefaultCredential" != "false" ]] || [[ ! "$existing_port" =~ ^[0-9]+$ ]] || [[ -z "$existing_webBasePath_raw" ]]; then
+        echo -e "${red}Panel settings output is incomplete; refusing to modify panel configuration during update.${plain}" >&2
+        return 1
+    fi
     ${xui_folder}/x-ui migrate
 
-    # Properly detect empty cert by checking if cert: line exists and has content after it
-    local existing_cert=$(${xui_folder}/x-ui setting -getCert true 2> /dev/null | grep 'cert:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
-    local existing_port=$(${xui_folder}/x-ui setting -show true | grep -Eo 'port: .+' | awk '{print $2}')
-    local existing_webBasePath=$(${xui_folder}/x-ui setting -show true | grep -Eo 'webBasePath: .+' | awk '{print $2}' | sed 's#^/##')
-
-    # Get server IP
-    local URL_lists=(
-        "https://api4.ipify.org"
-        "https://ipv4.icanhazip.com"
-        "https://v4.api.ipinfo.io/ip"
-        "https://ipv4.myexternalip.com/raw"
-        "https://4.ident.me"
-        "https://check-host.net/ip"
-    )
-    local server_ip=""
-    for ip_address in "${URL_lists[@]}"; do
-        local response=$(curl -s -w "\n%{http_code}" --max-time 3 "${ip_address}" 2> /dev/null)
-        local http_code=$(echo "$response" | tail -n1)
-        local ip_result=$(echo "$response" | head -n-1 | tr -d '[:space:]"')
-        if [[ "${http_code}" == "200" && "${ip_result}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            server_ip="${ip_result}"
-            break
-        fi
-    done
-
-    if [[ -z "$server_ip" ]]; then
-        echo -e "${yellow}Could not auto-detect server IP from any provider.${plain}"
-        while [[ -z "$server_ip" ]]; do
-            read -rp "Please enter your server's public IPv4 address: " server_ip
-            server_ip="${server_ip// /}"
-            if [[ ! "$server_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                echo -e "${red}Invalid IPv4 address. Please try again.${plain}"
-                server_ip=""
-            fi
-        done
+    local cert_output
+    if ! cert_output=$(${xui_folder}/x-ui setting -getCert); then
+        echo -e "${red}Unable to read existing certificate settings; refusing automatic certificate setup during update.${plain}" >&2
+        return 1
     fi
-
-    # Handle missing/short webBasePath
-    if [[ ${#existing_webBasePath} -lt 4 ]]; then
-        echo -e "${yellow}WebBasePath is missing or too short. Generating a new one...${plain}"
-        local config_webBasePath=$(gen_random_string 18)
-        ${xui_folder}/x-ui setting -webBasePath "${config_webBasePath}"
-        existing_webBasePath="${config_webBasePath}"
-        panel_needs_restart=1
-        echo -e "${green}New WebBasePath: ${config_webBasePath}${plain}"
+    if ! printf '%s\n' "$cert_output" | grep -q '^cert:' || ! printf '%s\n' "$cert_output" | grep -q '^key:'; then
+        echo -e "${red}Certificate settings output is incomplete; refusing automatic certificate setup during update.${plain}" >&2
+        return 1
     fi
-
-    # Check and prompt for SSL if missing
+    local existing_cert=$(printf '%s\n' "$cert_output" | awk -F': ' '/^cert:/{print $2; exit}' | tr -d '[:space:]')
     if [[ -z "$existing_cert" ]]; then
-        echo ""
-        echo -e "${red}═══════════════════════════════════════════${plain}"
-        echo -e "${red}      ⚠ NO SSL CERTIFICATE DETECTED ⚠     ${plain}"
-        echo -e "${red}═══════════════════════════════════════════${plain}"
-        echo -e "${yellow}For security, SSL certificate is MANDATORY for all panels.${plain}"
-        echo -e "${yellow}Let's Encrypt now supports both domains and IP addresses!${plain}"
-        echo ""
-
-        # Prompt and setup SSL (domain or IP)
-        prompt_and_setup_ssl "${existing_port}" "${existing_webBasePath}" "${server_ip}"
-
-        echo ""
-        echo -e "${green}═══════════════════════════════════════════${plain}"
-        echo -e "${green}     Panel Access Information              ${plain}"
-        echo -e "${green}═══════════════════════════════════════════${plain}"
-        echo -e "${green}Access URL: https://${SSL_HOST}:${existing_port}/${existing_webBasePath}${plain}"
-        echo -e "${green}═══════════════════════════════════════════${plain}"
-        echo -e "${yellow}⚠ SSL Certificate: Enabled and configured${plain}"
+        echo -e "${yellow}No panel certificate is configured. The update preserved all settings; configure SSL explicitly from the x-ui menu if needed.${plain}"
     else
-        echo -e "${green}SSL certificate is already configured${plain}"
-        # Show access URL with existing certificate
-        local cert_domain=$(basename "$(dirname "$existing_cert")")
-        echo ""
-        echo -e "${green}═══════════════════════════════════════════${plain}"
-        echo -e "${green}     Panel Access Information              ${plain}"
-        echo -e "${green}═══════════════════════════════════════════${plain}"
-        echo -e "${green}Access URL: https://${cert_domain}:${existing_port}/${existing_webBasePath}${plain}"
-        echo -e "${green}═══════════════════════════════════════════${plain}"
-    fi
-
-    if [[ "$panel_needs_restart" -eq 1 ]]; then
-        echo -e "${yellow}Restarting panel to apply the new web base path...${plain}"
-        systemctl restart x-ui 2> /dev/null || rc-service x-ui restart 2> /dev/null
+        echo -e "${green}Panel settings and certificate configuration were preserved.${plain}"
     fi
 }
 
@@ -1258,7 +1201,10 @@ update_x-ui() {
         systemctl start x-ui > /dev/null 2>&1
     fi
 
-    config_after_update
+    if ! config_after_update; then
+        echo -e "${red}x-ui update stopped before changing panel settings. Fix the reported settings issue and retry.${plain}" >&2
+        exit 1
+    fi
 
     # IP Limit relies on fail2ban; install + configure it now so the feature
     # works out of the box on update too (no-op when XUI_ENABLE_FAIL2BAN=false).

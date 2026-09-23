@@ -235,32 +235,32 @@ func resetSetting() error {
 }
 
 // showSetting displays the current panel settings if show is true.
-func showSetting(show bool) {
+func showSetting(show bool) error {
 	if show {
 		settingService := service.SettingService{}
 		port, err := settingService.GetPort()
 		if err != nil {
-			fmt.Println("get current port failed, error info:", err)
+			return fmt.Errorf("get current port: %w", err)
 		}
 
 		webBasePath, err := settingService.GetBasePath()
 		if err != nil {
-			fmt.Println("get webBasePath failed, error info:", err)
+			return fmt.Errorf("get webBasePath: %w", err)
 		}
 
 		certFile, err := settingService.GetCertFile()
 		if err != nil {
-			fmt.Println("get cert file failed, error info:", err)
+			return fmt.Errorf("get cert file: %w", err)
 		}
 		keyFile, err := settingService.GetKeyFile()
 		if err != nil {
-			fmt.Println("get key file failed, error info:", err)
+			return fmt.Errorf("get key file: %w", err)
 		}
 
 		userService := panel.UserService{}
 		userModel, err := userService.GetFirstUser()
 		if err != nil {
-			fmt.Println("get current user info failed, error info:", err)
+			return fmt.Errorf("get current user info: %w", err)
 		}
 
 		if userModel.Username == "" || userModel.Password == "" {
@@ -282,6 +282,7 @@ func showSetting(show bool) {
 		fmt.Println("port:", port)
 		fmt.Println("webBasePath:", webBasePath)
 	}
+	return nil
 }
 
 // updateTgbotEnableSts enables or disables the Telegram bot notifications based on the status parameter.
@@ -376,7 +377,7 @@ func updateSetting(port int, username string, password string, webBasePath strin
 	if port > 0 {
 		err := settingService.SetPort(port)
 		if err != nil {
-			fmt.Println("Failed to set port:", err)
+			return fmt.Errorf("set port: %w", err)
 		} else {
 			fmt.Printf("Port set successfully: %v\n", port)
 		}
@@ -385,7 +386,7 @@ func updateSetting(port int, username string, password string, webBasePath strin
 	if username != "" || password != "" {
 		err := userService.UpdateFirstUser(username, password)
 		if err != nil {
-			fmt.Println("Failed to update username and password:", err)
+			return fmt.Errorf("update username and password: %w", err)
 		} else {
 			fmt.Println("Username and password updated successfully")
 		}
@@ -394,7 +395,7 @@ func updateSetting(port int, username string, password string, webBasePath strin
 	if webBasePath != "" {
 		err := settingService.SetBasePath(webBasePath)
 		if err != nil {
-			fmt.Println("Failed to set base URI path:", err)
+			return fmt.Errorf("set base URI path: %w", err)
 		} else {
 			fmt.Println("Base URI path set successfully")
 		}
@@ -404,9 +405,11 @@ func updateSetting(port int, username string, password string, webBasePath strin
 		err := settingService.SetTwoFactorEnable(false)
 
 		if err != nil {
-			fmt.Println("Failed to reset two-factor authentication:", err)
+			return fmt.Errorf("reset two-factor authentication: %w", err)
 		} else {
-			_ = settingService.SetTwoFactorToken("")
+			if err := settingService.SetTwoFactorToken(""); err != nil {
+				return fmt.Errorf("clear two-factor token: %w", err)
+			}
 			fmt.Println("Two-factor authentication reset successfully")
 		}
 	}
@@ -414,7 +417,7 @@ func updateSetting(port int, username string, password string, webBasePath strin
 	if listenIP != "" {
 		err := settingService.SetListen(listenIP)
 		if err != nil {
-			fmt.Println("Failed to set listen IP:", err)
+			return fmt.Errorf("set listen IP: %w", err)
 		} else {
 			fmt.Printf("listen %v set successfully\n", listenIP)
 		}
@@ -424,63 +427,59 @@ func updateSetting(port int, username string, password string, webBasePath strin
 }
 
 // updateCert updates the SSL certificate files for the panel.
-func updateCert(publicKey string, privateKey string) {
-	err := database.InitDB(config.GetDBPath())
-	if err != nil {
-		fmt.Println(err)
-		return
+func updateCert(publicKey string, privateKey string) error {
+	if err := database.InitDB(config.GetDBPath()); err != nil {
+		return err
 	}
 
 	if (privateKey != "" && publicKey != "") || (privateKey == "" && publicKey == "") {
 		settingService := service.SettingService{}
-		err = settingService.SetCertFile(publicKey)
-		if err != nil {
-			fmt.Println("set certificate public key failed:", err)
-		} else {
-			fmt.Println("set certificate public key success")
+		if err := settingService.SetCertFile(publicKey); err != nil {
+			return fmt.Errorf("set certificate public key: %w", err)
 		}
+		fmt.Println("set certificate public key success")
 
-		err = settingService.SetKeyFile(privateKey)
-		if err != nil {
-			fmt.Println("set certificate private key failed:", err)
-		} else {
-			fmt.Println("set certificate private key success")
+		if err := settingService.SetKeyFile(privateKey); err != nil {
+			return fmt.Errorf("set certificate private key: %w", err)
 		}
+		fmt.Println("set certificate private key success")
 
-		err = settingService.SetSubCertFile(publicKey)
-		if err != nil {
-			fmt.Println("set certificate for subscription public key failed:", err)
-		} else {
-			fmt.Println("set certificate for subscription public key success")
+		if err := settingService.SetSubCertFile(publicKey); err != nil {
+			return fmt.Errorf("set subscription certificate public key: %w", err)
 		}
+		fmt.Println("set certificate for subscription public key success")
 
-		err = settingService.SetSubKeyFile(privateKey)
-		if err != nil {
-			fmt.Println("set certificate for subscription private key failed:", err)
-		} else {
-			fmt.Println("set certificate for subscription private key success")
+		if err := settingService.SetSubKeyFile(privateKey); err != nil {
+			return fmt.Errorf("set subscription certificate private key: %w", err)
 		}
+		fmt.Println("set certificate for subscription private key success")
 	} else {
-		fmt.Println("both public and private key should be entered.")
+		return fmt.Errorf("both public and private key should be entered")
 	}
+	return nil
 }
 
 // GetCertificate displays the current SSL certificate settings if getCert is true.
-func GetCertificate(getCert bool) {
-	if getCert {
-		settingService := service.SettingService{}
-		certFile, err := settingService.GetCertFile()
-		if err != nil {
-			fmt.Println("get cert file failed, error info:", err)
-		}
-		keyFile, err := settingService.GetKeyFile()
-		if err != nil {
-			fmt.Println("get key file failed, error info:", err)
-		}
-
-		fmt.Println("cert:", certFile)
-		fmt.Println("key:", keyFile)
+// It returns an error rather than printing an empty value on a failed read, so
+// installers cannot mistake a database error for an intentionally unset cert.
+func GetCertificate(getCert bool) error {
+	if !getCert {
+		return nil
 	}
+
+	settingService := service.SettingService{}
+	certFile, err := settingService.GetCertFile()
+	if err != nil {
+		return fmt.Errorf("get cert file: %w", err)
+	}
+	keyFile, err := settingService.GetKeyFile()
+	if err != nil {
+		return fmt.Errorf("get key file: %w", err)
+	}
+
+	fmt.Println("cert:", certFile)
+	fmt.Println("key:", keyFile)
+	return nil
 }
 
 // GetListenIP displays the current panel listen IP address if getListen is true.
@@ -498,23 +497,21 @@ func GetListenIP(getListen bool) {
 	}
 }
 
-func GetApiToken(getApiToken bool, tokenName string) {
+func GetApiToken(getApiToken bool, tokenName string) error {
 	if !getApiToken {
-		return
+		return nil
 	}
 	// An explicit name applies to both branches below; without one each keeps
 	// the name it already used, so every existing invocation is unaffected.
 	name := strings.TrimSpace(tokenName)
 	err := database.InitDB(config.GetDBPath())
 	if err != nil {
-		fmt.Println("open database failed, error info:", err)
-		return
+		return fmt.Errorf("open database: %w", err)
 	}
 	apiTokenService := panel.ApiTokenService{}
 	tokens, err := apiTokenService.List()
 	if err != nil {
-		fmt.Println("get apiToken failed, error info:", err)
-		return
+		return fmt.Errorf("get apiToken: %w", err)
 	}
 	if len(tokens) > 0 {
 		fmt.Printf("There are %d API token(s) configured. Existing tokens cannot be retrieved in plaintext because only hashes are stored.\n", len(tokens))
@@ -528,30 +525,57 @@ func GetApiToken(getApiToken bool, tokenName string) {
 		}
 		created, err := apiTokenService.RecreateByName(rotated)
 		if err != nil {
-			fmt.Println("Failed to create a fallback API token:", err)
-			return
+			return fmt.Errorf("create fallback API token: %w", err)
 		}
 		fmt.Printf("\nThe API token %q has been regenerated (any previous one is now invalid):\n", rotated)
 		fmt.Println("apiToken:", created.Token)
-		return
+		return nil
 	}
 	if name == "" {
 		name = installTokenName
 	}
 	created, err := apiTokenService.Create(name, "", 0)
 	if err != nil {
-		fmt.Println("create apiToken failed, error info:", err)
-		return
+		return fmt.Errorf("create apiToken: %w", err)
 	}
 	fmt.Println("apiToken:", created.Token)
+	return nil
+}
+
+var legacySettingBoolFlags = map[string]struct{}{
+	"-reset":          {},
+	"-show":           {},
+	"-resetTwoFactor": {},
+	"-getListen":      {},
+	"-getCert":        {},
+	"-getApiToken":    {},
+	"-enabletgbot":    {},
+}
+
+// normalizeLegacySettingBoolArgs keeps old shell integrations working. The
+// standard flag package treats the value in "-show true" as a positional
+// argument and then stops parsing, so a following setting could be lost. Fold
+// an explicit boolean into its recognised flag before parsing instead.
+func normalizeLegacySettingBoolArgs(args []string) []string {
+	normalized := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if _, isBool := legacySettingBoolFlags[arg]; isBool && i+1 < len(args) && (args[i+1] == "true" || args[i+1] == "false") {
+			normalized = append(normalized, arg+"="+args[i+1])
+			i++
+			continue
+		}
+		normalized = append(normalized, arg)
+	}
+	return normalized
 }
 
 func hasIgnoredSettingArgs(rest []string) bool {
-	if len(rest) == 0 {
-		return false
-	}
-	fmt.Printf("refusing to ignore %q or any flags after it; put flags before positional arguments\n", strings.Join(rest, " "))
-	return true
+	return len(rest) != 0
+}
+
+func reportIgnoredSettingArgs(rest []string) {
+	fmt.Fprintf(os.Stderr, "refusing to ignore %q or any flags after it; put flags before positional arguments\n", strings.Join(rest, " "))
 }
 
 // migrateDb performs database migration operations for the 3x-ui panel.
@@ -568,17 +592,77 @@ func migrateDb() {
 	fmt.Println("Migration done!")
 }
 
-// loadServiceEnvFile loads the systemd EnvironmentFile so CLI subcommands like
-// "x-ui setting" hit the same database backend as the panel. godotenv.Load does
-// not override variables already in the environment, so it is a no-op for the
-// systemd-managed service.
-func loadServiceEnvFile() {
-	for _, path := range config.GetEnvFilePaths() {
-		if _, err := os.Stat(path); err != nil {
+// parseServiceEnvFile reads the simple KEY=VALUE records used by the service
+// EnvironmentFile without evaluating shell syntax or expanding $variables.
+// That is important for PostgreSQL DSNs, where spaces and dollar signs are
+// valid credential characters and systemd preserves them literally.
+func parseServiceEnvFile(content string) map[string]string {
+	values := make(map[string]string)
+	for _, rawLine := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(strings.TrimSuffix(rawLine, "\r"))
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
 			continue
 		}
-		if err := godotenv.Load(path); err != nil {
-			log.Printf("warning: failed to load env file %s: %v", path, err)
+		key, value, ok := strings.Cut(line, "=")
+		key = strings.TrimSpace(key)
+		if !ok || key == "" {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		quote := byte(0)
+		if len(value) >= 2 && ((value[0] == '\'' && value[len(value)-1] == '\'') || (value[0] == '"' && value[len(value)-1] == '"')) {
+			quote = value[0]
+			value = value[1 : len(value)-1]
+		}
+		values[key] = unescapeServiceEnvValue(value, quote)
+	}
+	return values
+}
+
+func unescapeServiceEnvValue(value string, quote byte) string {
+	if quote == '\'' {
+		return value
+	}
+	var builder strings.Builder
+	builder.Grow(len(value))
+	escaped := false
+	for i := 0; i < len(value); i++ {
+		if escaped {
+			if quote == '"' && value[i] != '"' && value[i] != '\\' && value[i] != '$' && value[i] != '`' {
+				builder.WriteByte('\\')
+			}
+			builder.WriteByte(value[i])
+			escaped = false
+			continue
+		}
+		if value[i] == '\\' {
+			escaped = true
+			continue
+		}
+		builder.WriteByte(value[i])
+	}
+	if escaped {
+		builder.WriteByte('\\')
+	}
+	return builder.String()
+}
+
+// loadServiceEnvFile loads the systemd EnvironmentFile so CLI subcommands like
+// "x-ui setting" hit the same database backend as the panel. It follows the
+// distro-specific unit path and preserves systemd values verbatim rather than
+// parsing the file as a dotenv or shell program.
+func loadServiceEnvFile() {
+	for _, path := range config.GetEnvFilePaths() {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		for key, value := range parseServiceEnvFile(string(content)) {
+			if _, exists := os.LookupEnv(key); !exists {
+				if err := os.Setenv(key, value); err != nil {
+					log.Printf("warning: failed to set environment variable %s from %s: %v", key, path, err)
+				}
+			}
 		}
 		return
 	}
@@ -708,40 +792,54 @@ func main() {
 			fmt.Println("nothing to do: pass --dump <file>, --restore <file> --out <db>, or --dsn <postgres-dsn>")
 		}
 	case "setting":
-		err := settingCmd.Parse(os.Args[2:])
+		err := settingCmd.Parse(normalizeLegacySettingBoolArgs(os.Args[2:]))
 		if err != nil {
-			fmt.Println(err)
-			return
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
 		}
-		// flag stops parsing at the first non-flag argument, so the `-getApiToken true`
-		// form drops every flag written after it. Refuse the whole command before
-		// any setting mutation can act on a default value.
+		// Refuse positional arguments before any setting mutation can act on a
+		// default value. Legacy explicit bools were normalised before parsing.
 		if hasIgnoredSettingArgs(settingCmd.Args()) {
-			return
+			reportIgnoredSettingArgs(settingCmd.Args())
+			os.Exit(2)
 		}
 		if reset {
 			if err = resetSetting(); err != nil {
-				return
+				fmt.Fprintln(os.Stderr, "failed to reset settings:", err)
+				os.Exit(1)
 			}
 		} else {
 			if err = updateSetting(port, username, password, webBasePath, listenIP, resetTwoFactor); err != nil {
-				return
+				fmt.Fprintln(os.Stderr, "failed to update settings:", err)
+				os.Exit(1)
 			}
 		}
 		if webCertFile != "" || webKeyFile != "" {
-			updateCert(webCertFile, webKeyFile)
+			if err := updateCert(webCertFile, webKeyFile); err != nil {
+				fmt.Fprintln(os.Stderr, "failed to update certificate settings:", err)
+				os.Exit(1)
+			}
 		}
 		if show {
-			showSetting(show)
+			if err := showSetting(show); err != nil {
+				fmt.Fprintln(os.Stderr, "failed to show settings:", err)
+				os.Exit(1)
+			}
 		}
 		if getListen {
 			GetListenIP(getListen)
 		}
 		if getCert {
-			GetCertificate(getCert)
+			if err := GetCertificate(getCert); err != nil {
+				fmt.Fprintln(os.Stderr, "failed to get certificate settings:", err)
+				os.Exit(1)
+			}
 		}
 		if getApiToken {
-			GetApiToken(getApiToken, tokenName)
+			if err := GetApiToken(getApiToken, tokenName); err != nil {
+				fmt.Fprintln(os.Stderr, "failed to get API token:", err)
+				os.Exit(1)
+			}
 		}
 		if (tgbottoken != "") || (tgbotchatid != "") || (tgbotRuntime != "") {
 			updateTgbotSetting(tgbottoken, tgbotchatid, tgbotRuntime)
@@ -750,15 +848,25 @@ func main() {
 			updateTgbotEnableSts(enabletgbot)
 		}
 	case "cert":
-		err := settingCmd.Parse(os.Args[2:])
+		err := settingCmd.Parse(normalizeLegacySettingBoolArgs(os.Args[2:]))
 		if err != nil {
-			fmt.Println(err)
-			return
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		if hasIgnoredSettingArgs(settingCmd.Args()) {
+			reportIgnoredSettingArgs(settingCmd.Args())
+			os.Exit(2)
 		}
 		if reset {
-			updateCert("", "")
+			if err := updateCert("", ""); err != nil {
+				fmt.Fprintln(os.Stderr, "failed to reset certificate settings:", err)
+				os.Exit(1)
+			}
 		} else {
-			updateCert(webCertFile, webKeyFile)
+			if err := updateCert(webCertFile, webKeyFile); err != nil {
+				fmt.Fprintln(os.Stderr, "failed to update certificate settings:", err)
+				os.Exit(1)
+			}
 		}
 	default:
 		fmt.Println("Invalid subcommands")
