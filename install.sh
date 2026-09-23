@@ -503,7 +503,10 @@ setup_ssl_certificate() {
     local webKeyFile="/root/cert/${domain}/privkey.pem"
 
     if [[ -f "$webCertFile" && -f "$webKeyFile" ]]; then
-        ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile" > /dev/null 2>&1
+        if ! ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile" > /dev/null 2>&1; then
+            echo -e "${yellow}Failed to configure the panel certificate paths${plain}"
+            return 1
+        fi
         echo -e "${green}SSL certificate installed and configured successfully!${plain}"
         return 0
     else
@@ -943,6 +946,7 @@ prompt_and_setup_ssl() {
             else
                 echo -e "${red}SSL certificate setup failed for domain mode.${plain}"
                 SSL_HOST="${server_ip}"
+                return 1
             fi
             ;;
         2)
@@ -986,6 +990,7 @@ prompt_and_setup_ssl() {
             else
                 echo -e "${red}✗ IP certificate setup failed. Please check port 80 is open.${plain}"
                 SSL_HOST="${server_ip}"
+                return 1
             fi
             ;;
         3)
@@ -1034,7 +1039,10 @@ prompt_and_setup_ssl() {
             done
 
             # 3.4 Apply Settings via x-ui binary
-            ${xui_folder}/x-ui cert -webCert "$custom_cert" -webCertKey "$custom_key" > /dev/null 2>&1
+            if ! ${xui_folder}/x-ui cert -webCert "$custom_cert" -webCertKey "$custom_key" > /dev/null 2>&1; then
+                echo -e "${red}Failed to configure the custom certificate paths.${plain}"
+                return 1
+            fi
 
             # Set SSL_HOST for composing Panel URL
             if [[ -n "$custom_domain" ]]; then
@@ -1068,7 +1076,10 @@ prompt_and_setup_ssl() {
                 read -rp "Bind the panel to 127.0.0.1 only? (recommended — forces SSH tunnel / reverse-proxy access) [y/N]: " bind_local
             fi
             if [[ "$bind_local" == "y" || "$bind_local" == "Y" ]]; then
-                ${xui_folder}/x-ui setting -listenIP "127.0.0.1" > /dev/null 2>&1
+                if ! ${xui_folder}/x-ui setting -listenIP "127.0.0.1" > /dev/null 2>&1; then
+                    echo -e "${red}Failed to bind the panel to 127.0.0.1.${plain}"
+                    return 1
+                fi
                 SSL_HOST="127.0.0.1"
                 echo -e "${green}✓ Panel bound to 127.0.0.1 only. It is now unreachable from the public internet.${plain}"
                 echo ""
@@ -1330,7 +1341,10 @@ EOF
             echo -e "${yellow}Let's Encrypt now supports both domains and IP addresses!${plain}"
             echo ""
 
-            prompt_and_setup_ssl "${config_port}" "${config_webBasePath}" "${server_ip}"
+            if ! prompt_and_setup_ssl "${config_port}" "${config_webBasePath}" "${server_ip}"; then
+                echo -e "${red}SSL setup failed; installation results were not written. Fix the certificate configuration and retry.${plain}" >&2
+                return 1
+            fi
 
             # Retrieve the API token for display
             local token_output
@@ -1452,7 +1466,10 @@ EOF
             echo -e "${green}═══════════════════════════════════════════${plain}"
             echo -e "${yellow}Let's Encrypt now supports both domains and IP addresses!${plain}"
             echo ""
-            prompt_and_setup_ssl "${existing_port}" "${existing_webBasePath}" "${server_ip}"
+            if ! prompt_and_setup_ssl "${existing_port}" "${existing_webBasePath}" "${server_ip}"; then
+                echo -e "${red}SSL setup failed; existing panel settings remain unchanged. Fix the certificate configuration and retry.${plain}" >&2
+                return 1
+            fi
             echo -e "${green}Access URL:  ${SSL_SCHEME}://${SSL_HOST}:${existing_port}/${existing_webBasePath}${plain}"
         else
             echo -e "${green}SSL certificate already configured. No action needed.${plain}"

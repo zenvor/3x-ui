@@ -592,17 +592,47 @@ func migrateDb() {
 	fmt.Println("Migration done!")
 }
 
-// loadServiceEnvFile loads the systemd EnvironmentFile so CLI subcommands like
-// "x-ui setting" hit the same database backend as the panel. godotenv.Load does
-// not override variables already in the environment, so it is a no-op for the
-// systemd-managed service.
-func loadServiceEnvFile() {
-	for _, path := range config.GetEnvFilePaths() {
-		if _, err := os.Stat(path); err != nil {
+// parseServiceEnvFile reads the simple KEY=VALUE records used by the service
+// EnvironmentFile without evaluating shell syntax or expanding $variables.
+// That is important for PostgreSQL DSNs, where spaces and dollar signs are
+// valid credential characters and systemd preserves them literally.
+func parseServiceEnvFile(content string) map[string]string {
+	values := make(map[string]string)
+	for _, rawLine := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(strings.TrimSuffix(rawLine, "\r"))
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
 			continue
 		}
-		if err := godotenv.Load(path); err != nil {
-			log.Printf("warning: failed to load env file %s: %v", path, err)
+		key, value, ok := strings.Cut(line, "=")
+		key = strings.TrimSpace(key)
+		if !ok || key == "" {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		if len(value) >= 2 && ((value[0] == '\'' && value[len(value)-1] == '\'') || (value[0] == '"' && value[len(value)-1] == '"')) {
+			value = value[1 : len(value)-1]
+		}
+		values[key] = value
+	}
+	return values
+}
+
+// loadServiceEnvFile loads the systemd EnvironmentFile so CLI subcommands like
+// "x-ui setting" hit the same database backend as the panel. It follows the
+// distro-specific unit path and preserves systemd values verbatim rather than
+// parsing the file as a dotenv or shell program.
+func loadServiceEnvFile() {
+	for _, path := range config.GetEnvFilePaths() {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		for key, value := range parseServiceEnvFile(string(content)) {
+			if _, exists := os.LookupEnv(key); !exists {
+				if err := os.Setenv(key, value); err != nil {
+					log.Printf("warning: failed to set environment variable %s from %s: %v", key, path, err)
+				}
+			}
 		}
 		return
 	}
