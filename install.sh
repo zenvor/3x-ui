@@ -8,6 +8,18 @@ plain='\033[0m'
 
 xui_folder="${XUI_MAIN_FOLDER:=/usr/local/x-ui}"
 xui_service="${XUI_SERVICE:=/etc/systemd/system}"
+xui_db_folder="${XUI_DB_FOLDER:-/etc/x-ui}"
+
+# Capture this before install_x-ui replaces the program directory. Settings
+# values cannot tell a fresh database apart from a legitimate existing panel
+# that still has the stock address and credentials. Treat any persisted panel
+# executable, SQLite database, or service unit as an existing panel;
+# preserving that panel is safer than reinitializing its address.
+had_existing_panel=0
+if [[ -x "${xui_folder}/x-ui" || -f "${xui_db_folder}/x-ui.db" || \
+      -f "${xui_service}/x-ui.service" || -f /etc/init.d/x-ui ]]; then
+    had_existing_panel=1
+fi
 
 # check root
 [[ $EUID -ne 0 ]] && echo -e "${red}Fatal error: ${plain} Please run this script with root privilege \n " && exit 1
@@ -1063,7 +1075,7 @@ config_after_install() {
         echo -e "${red}Unable to read certificate settings; refusing automatic certificate setup.${plain}" >&2
         return 1
     fi
-    if ! printf '%s\n' "$cert_output" | grep -q '^cert:'; then
+    if ! printf '%s\n' "$cert_output" | grep -q '^cert:' || ! printf '%s\n' "$cert_output" | grep -q '^key:'; then
         echo -e "${red}Certificate settings output is incomplete; refusing automatic certificate setup.${plain}" >&2
         return 1
     fi
@@ -1105,7 +1117,10 @@ config_after_install() {
         fi
     fi
 
-    if [[ "$existing_hasDefaultCredential" == "true" ]]; then
+    # Only a process that had no panel state before extraction can be a first
+    # install. Existing panels may legitimately retain the stock credentials,
+    # root base path, and port, so never use those values as a proxy for age.
+    if [[ "$had_existing_panel" == "0" && "$existing_hasDefaultCredential" == "true" ]]; then
         local config_webBasePath="${XUI_WEB_BASE_PATH:-$(gen_random_string 18)}"
         local config_username="${XUI_USERNAME:-$(gen_random_string 10)}"
         local config_password="${XUI_PASSWORD:-$(gen_random_string 10)}"
@@ -1331,7 +1346,34 @@ EOF
             write_install_result "${config_username}" "${config_password}" "${config_port}" \
                 "${config_webBasePath}" "${SSL_SCHEME}" "${SSL_HOST}" "${config_apiToken}" "${db_type_out}"
     else
-        echo -e "${green}Username, Password, and WebBasePath are properly set.${plain}"
+        if [[ "$existing_hasDefaultCredential" == "true" ]]; then
+            local config_username="${XUI_USERNAME:-$(gen_random_string 10)}"
+            local config_password="${XUI_PASSWORD:-$(gen_random_string 10)}"
+
+            echo -e "${yellow}Default credentials detected. Security update required; preserving the existing port and WebBasePath.${plain}"
+            if ! ${xui_folder}/x-ui setting -username "${config_username}" -password "${config_password}"; then
+                echo -e "${red}Unable to replace default credentials; refusing to continue.${plain}" >&2
+                return 1
+            fi
+            echo -e "Generated new random login credentials:"
+            echo -e "###############################################"
+            echo -e "${green}Username: ${config_username}${plain}"
+            echo -e "${green}Password: ${config_password}${plain}"
+            echo -e "###############################################"
+
+            local config_apiToken
+            config_apiToken=$(${xui_folder}/x-ui setting -getApiToken | awk -F': ' '/^apiToken:/{print $2; exit}')
+            if [[ -z "$config_apiToken" ]]; then
+                echo -e "${red}Unable to create the installation API token.${plain}" >&2
+                return 1
+            fi
+            : "${SSL_SCHEME:=https}"
+            : "${SSL_HOST:=${server_ip}}"
+            write_install_result "${config_username}" "${config_password}" "${existing_port}" \
+                "${existing_webBasePath}" "${SSL_SCHEME}" "${SSL_HOST}" "${config_apiToken}" "${XUI_DB_TYPE:-sqlite}"
+        else
+            echo -e "${green}Username, Password, and WebBasePath are properly set.${plain}"
+        fi
 
         # Existing install: if no cert configured, prompt user for SSL setup.
         # existing_cert was validated before any setting can be changed above.

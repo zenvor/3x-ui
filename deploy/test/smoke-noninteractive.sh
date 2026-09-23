@@ -101,9 +101,37 @@ docker run --rm \
         echo "custom-sentinel" > /usr/local/x-ui/bin/geoip_custom.dat
         geoip_sum_before=$(sha256sum /usr/local/x-ui/bin/geoip.dat | cut -d" " -f1)
 
+        # An existing panel may have retained admin/admin while deliberately
+        # choosing its own address. Reinstalling must rotate only the unsafe
+        # credentials, not reinterpret that panel as a fresh installation.
+        compat_panel_port=24567
+        compat_web_base_path=legacy-panel
+        /usr/local/x-ui/x-ui setting -username admin -password admin \
+            -port "$compat_panel_port" -webBasePath "$compat_web_base_path"
+
+        if [ -n "${XUI_SMOKE_VERSION:-}" ]; then
+            cat /root/install.sh | bash -s -- "$XUI_SMOKE_VERSION"
+        else
+            cat /root/install.sh | bash
+        fi
+
+        compat_settings=$(/usr/local/x-ui/x-ui setting -show)
+        compat_has_default=$(printf "%s\\n" "$compat_settings" | awk -F": " "/^hasDefaultCredential:/{print \$2; exit}")
+        compat_port=$(printf "%s\\n" "$compat_settings" | awk -F": " "/^port:/{print \$2; exit}")
+        compat_path=$(printf "%s\\n" "$compat_settings" | awk -F": " "/^webBasePath:/{print \$2; exit}" | sed "s#^/##; s#/$##")
+        [ "$compat_has_default" = "false" ] \
+            || { echo "FAIL: default credentials were not rotated on reinstall"; exit 1; }
+        [ "$compat_port" = "$compat_panel_port" ] \
+            || { echo "FAIL: custom panel port changed while rotating credentials"; exit 1; }
+        [ "$compat_path" = "$compat_web_base_path" ] \
+            || { echo "FAIL: custom web base path changed while rotating credentials"; exit 1; }
+
         # Root and short paths are valid panel settings. Exercise the branch
-        # that previously mistook them for missing configuration on reinstall.
-        /usr/local/x-ui/x-ui setting -webBasePath /
+        # that previously mistook a fully stock-looking existing configuration
+        # for a new panel and overwrote its address.
+        /usr/local/x-ui/x-ui setting -username admin -password admin \
+            -port 2053 -webBasePath /
+        initial_panel_port=2053
         initial_web_base_path=""
 
         if [ -n "${XUI_SMOKE_VERSION:-}" ]; then
@@ -127,10 +155,13 @@ docker run --rm \
         current_settings=$(/usr/local/x-ui/x-ui setting -show)
         current_panel_port=$(printf "%s\\n" "$current_settings" | awk -F": " "/^port:/{print \$2; exit}")
         current_web_base_path=$(printf "%s\\n" "$current_settings" | awk -F": " "/^webBasePath:/{print \$2; exit}" | sed "s#^/##; s#/\$##")
+        current_has_default=$(printf "%s\\n" "$current_settings" | awk -F": " "/^hasDefaultCredential:/{print \$2; exit}")
         [ "$current_panel_port" = "$initial_panel_port" ] \
             || { echo "FAIL: panel port changed across a second install"; exit 1; }
         [ "$current_web_base_path" = "$initial_web_base_path" ] \
             || { echo "FAIL: web base path changed across a second install"; exit 1; }
+        [ "$current_has_default" = "false" ] \
+            || { echo "FAIL: default credentials were not rotated on a stock-looking reinstall"; exit 1; }
 
         echo "SMOKE_PASS: user=$XUI_USERNAME port=$XUI_PANEL_PORT path=$XUI_WEB_BASE_PATH"
     '

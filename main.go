@@ -466,21 +466,26 @@ func updateCert(publicKey string, privateKey string) {
 }
 
 // GetCertificate displays the current SSL certificate settings if getCert is true.
-func GetCertificate(getCert bool) {
-	if getCert {
-		settingService := service.SettingService{}
-		certFile, err := settingService.GetCertFile()
-		if err != nil {
-			fmt.Println("get cert file failed, error info:", err)
-		}
-		keyFile, err := settingService.GetKeyFile()
-		if err != nil {
-			fmt.Println("get key file failed, error info:", err)
-		}
-
-		fmt.Println("cert:", certFile)
-		fmt.Println("key:", keyFile)
+// It returns an error rather than printing an empty value on a failed read, so
+// installers cannot mistake a database error for an intentionally unset cert.
+func GetCertificate(getCert bool) error {
+	if !getCert {
+		return nil
 	}
+
+	settingService := service.SettingService{}
+	certFile, err := settingService.GetCertFile()
+	if err != nil {
+		return fmt.Errorf("get cert file: %w", err)
+	}
+	keyFile, err := settingService.GetKeyFile()
+	if err != nil {
+		return fmt.Errorf("get key file: %w", err)
+	}
+
+	fmt.Println("cert:", certFile)
+	fmt.Println("key:", keyFile)
+	return nil
 }
 
 // GetListenIP displays the current panel listen IP address if getListen is true.
@@ -766,7 +771,10 @@ func main() {
 			GetListenIP(getListen)
 		}
 		if getCert {
-			GetCertificate(getCert)
+			if err := GetCertificate(getCert); err != nil {
+				fmt.Fprintln(os.Stderr, "failed to get certificate settings:", err)
+				os.Exit(1)
+			}
 		}
 		if getApiToken {
 			GetApiToken(getApiToken, tokenName)

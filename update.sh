@@ -837,7 +837,7 @@ config_after_update() {
         echo -e "${red}Unable to read existing certificate settings; refusing automatic certificate setup during update.${plain}" >&2
         return 1
     fi
-    if ! printf '%s\n' "$cert_output" | grep -q '^cert:'; then
+    if ! printf '%s\n' "$cert_output" | grep -q '^cert:' || ! printf '%s\n' "$cert_output" | grep -q '^key:'; then
         echo -e "${red}Certificate settings output is incomplete; refusing automatic certificate setup during update.${plain}" >&2
         return 1
     fi
