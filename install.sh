@@ -1698,11 +1698,11 @@ install_x-ui() {
     local xui_service_stopped=0
     if [[ -e ${xui_folder}/ ]]; then
         if [[ $release == "alpine" ]]; then
-            if rc-service x-ui stop; then
+            if rc-service x-ui status > /dev/null 2>&1 && rc-service x-ui stop; then
                 xui_service_stopped=1
             fi
         else
-            if systemctl stop x-ui; then
+            if systemctl is-active --quiet x-ui && systemctl stop x-ui; then
                 xui_service_stopped=1
             fi
         fi
