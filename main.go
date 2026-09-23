@@ -235,32 +235,32 @@ func resetSetting() error {
 }
 
 // showSetting displays the current panel settings if show is true.
-func showSetting(show bool) {
+func showSetting(show bool) error {
 	if show {
 		settingService := service.SettingService{}
 		port, err := settingService.GetPort()
 		if err != nil {
-			fmt.Println("get current port failed, error info:", err)
+			return fmt.Errorf("get current port: %w", err)
 		}
 
 		webBasePath, err := settingService.GetBasePath()
 		if err != nil {
-			fmt.Println("get webBasePath failed, error info:", err)
+			return fmt.Errorf("get webBasePath: %w", err)
 		}
 
 		certFile, err := settingService.GetCertFile()
 		if err != nil {
-			fmt.Println("get cert file failed, error info:", err)
+			return fmt.Errorf("get cert file: %w", err)
 		}
 		keyFile, err := settingService.GetKeyFile()
 		if err != nil {
-			fmt.Println("get key file failed, error info:", err)
+			return fmt.Errorf("get key file: %w", err)
 		}
 
 		userService := panel.UserService{}
 		userModel, err := userService.GetFirstUser()
 		if err != nil {
-			fmt.Println("get current user info failed, error info:", err)
+			return fmt.Errorf("get current user info: %w", err)
 		}
 
 		if userModel.Username == "" || userModel.Password == "" {
@@ -282,6 +282,7 @@ func showSetting(show bool) {
 		fmt.Println("port:", port)
 		fmt.Println("webBasePath:", webBasePath)
 	}
+	return nil
 }
 
 // updateTgbotEnableSts enables or disables the Telegram bot notifications based on the status parameter.
@@ -376,7 +377,7 @@ func updateSetting(port int, username string, password string, webBasePath strin
 	if port > 0 {
 		err := settingService.SetPort(port)
 		if err != nil {
-			fmt.Println("Failed to set port:", err)
+			return fmt.Errorf("set port: %w", err)
 		} else {
 			fmt.Printf("Port set successfully: %v\n", port)
 		}
@@ -385,7 +386,7 @@ func updateSetting(port int, username string, password string, webBasePath strin
 	if username != "" || password != "" {
 		err := userService.UpdateFirstUser(username, password)
 		if err != nil {
-			fmt.Println("Failed to update username and password:", err)
+			return fmt.Errorf("update username and password: %w", err)
 		} else {
 			fmt.Println("Username and password updated successfully")
 		}
@@ -394,7 +395,7 @@ func updateSetting(port int, username string, password string, webBasePath strin
 	if webBasePath != "" {
 		err := settingService.SetBasePath(webBasePath)
 		if err != nil {
-			fmt.Println("Failed to set base URI path:", err)
+			return fmt.Errorf("set base URI path: %w", err)
 		} else {
 			fmt.Println("Base URI path set successfully")
 		}
@@ -404,9 +405,11 @@ func updateSetting(port int, username string, password string, webBasePath strin
 		err := settingService.SetTwoFactorEnable(false)
 
 		if err != nil {
-			fmt.Println("Failed to reset two-factor authentication:", err)
+			return fmt.Errorf("reset two-factor authentication: %w", err)
 		} else {
-			_ = settingService.SetTwoFactorToken("")
+			if err := settingService.SetTwoFactorToken(""); err != nil {
+				return fmt.Errorf("clear two-factor token: %w", err)
+			}
 			fmt.Println("Two-factor authentication reset successfully")
 		}
 	}
@@ -414,7 +417,7 @@ func updateSetting(port int, username string, password string, webBasePath strin
 	if listenIP != "" {
 		err := settingService.SetListen(listenIP)
 		if err != nil {
-			fmt.Println("Failed to set listen IP:", err)
+			return fmt.Errorf("set listen IP: %w", err)
 		} else {
 			fmt.Printf("listen %v set successfully\n", listenIP)
 		}
@@ -754,18 +757,23 @@ func main() {
 		}
 		if reset {
 			if err = resetSetting(); err != nil {
-				return
+				fmt.Fprintln(os.Stderr, "failed to reset settings:", err)
+				os.Exit(1)
 			}
 		} else {
 			if err = updateSetting(port, username, password, webBasePath, listenIP, resetTwoFactor); err != nil {
-				return
+				fmt.Fprintln(os.Stderr, "failed to update settings:", err)
+				os.Exit(1)
 			}
 		}
 		if webCertFile != "" || webKeyFile != "" {
 			updateCert(webCertFile, webKeyFile)
 		}
 		if show {
-			showSetting(show)
+			if err := showSetting(show); err != nil {
+				fmt.Fprintln(os.Stderr, "failed to show settings:", err)
+				os.Exit(1)
+			}
 		}
 		if getListen {
 			GetListenIP(getListen)

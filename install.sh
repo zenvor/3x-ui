@@ -37,6 +37,39 @@ else
 fi
 echo "The OS release is: $release"
 
+# The service carries its database configuration in a distro-specific
+# EnvironmentFile. Reuse it before any CLI command reads or mutates an
+# existing panel; otherwise an existing PostgreSQL (or custom SQLite-folder)
+# installation would silently be opened as the default SQLite database.
+xui_env_file_path() {
+    case "${release}" in
+        ubuntu | debian | armbian)
+            echo "/etc/default/x-ui"
+            ;;
+        arch | manjaro | parch | alpine)
+            echo "/etc/conf.d/x-ui"
+            ;;
+        *)
+            echo "/etc/sysconfig/x-ui"
+            ;;
+    esac
+}
+
+load_xui_env() {
+    local env_file
+    env_file="$(xui_env_file_path)"
+    if [[ -r "$env_file" ]]; then
+        set -a
+        # shellcheck disable=SC1090
+        source "$env_file"
+        set +a
+    fi
+}
+
+if [[ "$had_existing_panel" == "1" ]]; then
+    load_xui_env
+fi
+
 arch() {
     case "$(uname -m)" in
         x86_64 | x64 | amd64) echo 'amd64' ;;
@@ -1145,17 +1178,7 @@ config_after_install() {
             fi
             if [[ "$db_choice" == "2" ]]; then
                 local xui_env_file
-                case "${release}" in
-                    ubuntu | debian | armbian)
-                        xui_env_file="/etc/default/x-ui"
-                        ;;
-                    arch | manjaro | parch | alpine)
-                        xui_env_file="/etc/conf.d/x-ui"
-                        ;;
-                    *)
-                        xui_env_file="/etc/sysconfig/x-ui"
-                        ;;
-                esac
+                xui_env_file="$(xui_env_file_path)"
 
                 local xui_dsn=""
                 local pg_mode=""
@@ -1353,6 +1376,15 @@ EOF
             echo -e "${yellow}Default credentials detected. Security update required; preserving the existing port and WebBasePath.${plain}"
             if ! ${xui_folder}/x-ui setting -username "${config_username}" -password "${config_password}"; then
                 echo -e "${red}Unable to replace default credentials; refusing to continue.${plain}" >&2
+                return 1
+            fi
+            local rotated_settings
+            if ! rotated_settings=$(${xui_folder}/x-ui setting -show); then
+                echo -e "${red}Unable to verify replacement credentials; refusing to continue.${plain}" >&2
+                return 1
+            fi
+            if ! printf '%s\n' "$rotated_settings" | grep -q '^hasDefaultCredential: false$'; then
+                echo -e "${red}Default credentials remain active after replacement; refusing to continue.${plain}" >&2
                 return 1
             fi
             echo -e "Generated new random login credentials:"
