@@ -220,9 +220,11 @@ func TestProviderUsesPanelInboundAddressResolution(t *testing.T) {
 	}
 	nodeInbound := publicTestInbound(3, []xmodel.Client{{ID: "uuid-node", Email: "alice@x", Enable: true}})
 	nodeInbound.NodeID = &node.Id
+	nodeInbound.Listen = "203.0.113.5"
 	customInbound := publicTestInbound(4, []xmodel.Client{{ID: "uuid-custom", Email: "alice@x", Enable: true}})
 	customInbound.ShareAddrStrategy = "custom"
 	customInbound.ShareAddr = "reality.example.com"
+	customInbound.Listen = "203.0.113.6"
 	for _, inbound := range []*xmodel.Inbound{nodeInbound, customInbound} {
 		if err := xdatabase.GetDB().Create(inbound).Error; err != nil {
 			t.Fatalf("create inbound %d: %v", inbound.Id, err)
@@ -249,6 +251,36 @@ func TestProviderUsesPanelInboundAddressResolution(t *testing.T) {
 	}
 	if strings.Contains(body, "server: profile.example.com") {
 		t.Fatalf("provider host leaked into explicitly addressed inbounds:\n%s", body)
+	}
+	for _, listen := range []string{nodeInbound.Listen, customInbound.Listen} {
+		if strings.Contains(body, "server: "+listen) {
+			t.Fatalf("inbound listen %q replaced the public address:\n%s", listen, body)
+		}
+	}
+}
+
+func TestProviderDoesNotExposeLoopbackListen(t *testing.T) {
+	engine := setupPublicControllerTest(t)
+	setupPublicControllerMainDB(t)
+	inbound := publicTestInbound(3, []xmodel.Client{{ID: "uuid-loopback", Email: "alice@x", Enable: true}})
+	inbound.Listen = "127.0.0.1"
+	if err := xdatabase.GetDB().Create(inbound).Error; err != nil {
+		t.Fatalf("create inbound: %v", err)
+	}
+	sub := createPublicTestSubscriptionWithInbounds(t, "alice@x", inbound.Id)
+	req := httptest.NewRequest(http.MethodGet, "/feed/"+sub.Token+"/nodes", nil)
+	req.Host = "profile.example.com"
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Real-IP", "1.1.1.1")
+	req.Header.Set("User-Agent", "mihomo-test")
+	resp := httptest.NewRecorder()
+	engine.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("provider status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+	}
+	body := resp.Body.String()
+	if !strings.Contains(body, "server: profile.example.com") || strings.Contains(body, "server: 127.0.0.1") {
+		t.Fatalf("loopback listen leaked into provider node:\n%s", body)
 	}
 }
 

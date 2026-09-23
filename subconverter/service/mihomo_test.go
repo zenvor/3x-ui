@@ -24,8 +24,8 @@ func client(uuid, email, flow string) *xmodel.Client {
 	return &xmodel.Client{ID: uuid, Email: email, Flow: flow, Enable: true}
 }
 
-func convertForTest(inbound *xmodel.Inbound, client *xmodel.Client, hostFallback string) (*MihomoProxy, error) {
-	return ConvertInboundToProxy(inbound, client, hostFallback, ProxyOptions{})
+func convertForTest(inbound *xmodel.Inbound, client *xmodel.Client, serverAddress string) (*MihomoProxy, error) {
+	return ConvertInboundToProxy(inbound, client, serverAddress, ProxyOptions{})
 }
 
 func realityStream() string {
@@ -98,7 +98,7 @@ func TestConvertVlessTCPReality(t *testing.T) {
 	in := vlessInbound("home", "203.0.113.5", 443, realityStream())
 	cl := client("uuid-1", "alice@x", "xtls-rprx-vision")
 
-	proxy, err := convertForTest(in, cl, "fallback.example.com")
+	proxy, err := convertForTest(in, cl, "203.0.113.5")
 	if err != nil {
 		t.Fatalf("convert: %v", err)
 	}
@@ -507,7 +507,7 @@ func TestConvertVlessGRPCRejected(t *testing.T) {
 	}
 }
 
-func TestConvertListenWildcardUsesFallback(t *testing.T) {
+func TestConvertUsesResolvedAddressForWildcardListen(t *testing.T) {
 	for _, listen := range []string{"", "0.0.0.0", "::", "::0"} {
 		in := vlessInbound("r", listen, 443, realityStream())
 		cl := client("u", "e", "")
@@ -516,7 +516,7 @@ func TestConvertListenWildcardUsesFallback(t *testing.T) {
 			t.Fatalf("listen=%q: %v", listen, err)
 		}
 		if proxy.Server != "panel.example.com" {
-			t.Errorf("listen=%q: server = %q, want fallback", listen, proxy.Server)
+			t.Errorf("listen=%q: server = %q, want resolved address", listen, proxy.Server)
 		}
 		if !proxy.TLS {
 			t.Errorf("listen=%q: TLS should be true for reality", listen)
