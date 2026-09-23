@@ -118,7 +118,7 @@ docker run --rm \
         compat_settings=$(/usr/local/x-ui/x-ui setting -show)
         compat_has_default=$(printf "%s\\n" "$compat_settings" | awk -F": " "/^hasDefaultCredential:/{print \$2; exit}")
         compat_port=$(printf "%s\\n" "$compat_settings" | awk -F": " "/^port:/{print \$2; exit}")
-        compat_path=$(printf "%s\\n" "$compat_settings" | awk -F": " "/^webBasePath:/{print \$2; exit}" | sed "s#^/##; s#/$##")
+        compat_path=$(printf "%s\\n" "$compat_settings" | awk -F": " "/^webBasePath:/{print \$2; exit}" | sed "s#^/##; s#/\$##")
         [ "$compat_has_default" = "false" ] \
             || { echo "FAIL: default credentials were not rotated on reinstall"; exit 1; }
         [ "$compat_port" = "$compat_panel_port" ] \
