@@ -111,9 +111,8 @@ func IsVlessSupportedInbound(inbound *model.Inbound, opts ProxyOptions) bool {
 }
 
 // ConvertInboundToProxy 将一个 (inbound, client) 组合转换成 Mihomo 节点。
-//
-//   - 当 inbound.Listen 为空或通配地址时，hostFallback 作为对外地址。
-func ConvertInboundToProxy(inbound *model.Inbound, client *model.Client, hostFallback string, opts ProxyOptions) (*MihomoProxy, error) {
+// serverAddress 由调用方按面板的入站公开地址规则解析。
+func ConvertInboundToProxy(inbound *model.Inbound, client *model.Client, serverAddress string, opts ProxyOptions) (*MihomoProxy, error) {
 	if inbound == nil || client == nil {
 		return nil, errors.New("inbound and client must be non-nil")
 	}
@@ -125,7 +124,7 @@ func ConvertInboundToProxy(inbound *model.Inbound, client *model.Client, hostFal
 	proxy := &MihomoProxy{
 		Name:              buildProxyName(inbound, client),
 		Type:              "vless",
-		Server:            resolveServerAddress(inbound.Listen, hostFallback),
+		Server:            serverAddress,
 		Port:              inbound.Port,
 		UUID:              client.ID,
 		TLS:               transport.Security == "reality" || transport.Security == "tls",
@@ -523,17 +522,6 @@ func hasExternalProxy(stream map[string]any) bool {
 	}
 	items, ok := v.([]any)
 	return !ok || len(items) > 0
-}
-
-// resolveServerAddress 对齐 3X-UI 分享链接的地址兜底规则：
-// 非通配 Listen 优先，否则使用当前订阅请求的 host。
-func resolveServerAddress(listen, hostFallback string) string {
-	switch listen {
-	case "", "0.0.0.0", "::", "::0":
-		return hostFallback
-	default:
-		return listen
-	}
 }
 
 func buildProxyName(inbound *model.Inbound, client *model.Client) string {
