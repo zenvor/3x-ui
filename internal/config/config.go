@@ -236,16 +236,18 @@ func envFilePathForDistro(distro string) string {
 }
 
 func linuxDistroID() string {
-	content, err := os.ReadFile("/etc/os-release")
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(content), "\n") {
-		key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
-		if !ok || key != "ID" {
+	for _, path := range []string{"/etc/os-release", "/usr/lib/os-release"} {
+		content, err := os.ReadFile(path)
+		if err != nil {
 			continue
 		}
-		return strings.Trim(strings.TrimSpace(value), "\"'")
+		for _, line := range strings.Split(string(content), "\n") {
+			key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
+			if !ok || key != "ID" {
+				continue
+			}
+			return strings.Trim(strings.TrimSpace(value), "\"'")
+		}
 	}
 	return ""
 }

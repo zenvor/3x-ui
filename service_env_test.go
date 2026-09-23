@@ -18,3 +18,17 @@ func TestParseServiceEnvFileKeepsQuotedLiteralValue(t *testing.T) {
 		t.Fatalf("XUI_DB_DSN = %q, want %q", got, want)
 	}
 }
+
+func TestParseServiceEnvFileUnescapesSystemdValue(t *testing.T) {
+	values := parseServiceEnvFile(`XUI_DB_DSN=host=db password=pa\\WORD\$TOKEN`)
+	if got, want := values["XUI_DB_DSN"], `host=db password=pa\WORD$TOKEN`; got != want {
+		t.Fatalf("XUI_DB_DSN = %q, want %q", got, want)
+	}
+}
+
+func TestParseServiceEnvFilePreservesSingleQuotedBackslash(t *testing.T) {
+	values := parseServiceEnvFile(`XUI_DB_DSN='host=db password=pa\\WORD'`)
+	if got, want := values["XUI_DB_DSN"], `host=db password=pa\\WORD`; got != want {
+		t.Fatalf("XUI_DB_DSN = %q, want %q", got, want)
+	}
+}

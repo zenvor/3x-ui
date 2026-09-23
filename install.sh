@@ -655,13 +655,12 @@ setup_ip_certificate() {
 
     # Configure panel to use the certificate
     echo -e "${green}Setting certificate paths for the panel...${plain}"
-    ${xui_folder}/x-ui cert -webCert "${certDir}/fullchain.pem" -webCertKey "${certDir}/privkey.pem"
-
-    if [ $? -ne 0 ]; then
+    if ! ${xui_folder}/x-ui cert -webCert "${certDir}/fullchain.pem" -webCertKey "${certDir}/privkey.pem"; then
         echo -e "${yellow}Warning: Could not set certificate paths automatically${plain}"
         echo -e "${yellow}Certificate files are at:${plain}"
         echo -e "  Cert: ${certDir}/fullchain.pem"
         echo -e "  Key:  ${certDir}/privkey.pem"
+        return 1
     else
         echo -e "${green}Certificate paths configured successfully${plain}"
     fi
@@ -871,7 +870,10 @@ ssl_cert_issue() {
         local webKeyFile="/root/cert/${domain}/privkey.pem"
 
         if [[ -f "$webCertFile" && -f "$webKeyFile" ]]; then
-            ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
+            if ! ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"; then
+                echo -e "${red}Failed to configure the panel certificate paths.${plain}"
+                return 1
+            fi
             echo -e "${green}Certificate paths set for the panel${plain}"
             echo -e "${green}Certificate File: $webCertFile${plain}"
             echo -e "${green}Private Key File: $webKeyFile${plain}"
@@ -881,9 +883,12 @@ ssl_cert_issue() {
             systemctl restart x-ui 2> /dev/null || rc-service x-ui restart 2> /dev/null
         else
             echo -e "${red}Error: Certificate or private key file not found for domain: $domain.${plain}"
+            return 1
         fi
     else
         echo -e "${yellow}Skipping panel path setting.${plain}"
+        SSL_SCHEME="http"
+        return 1
     fi
 
     return 0

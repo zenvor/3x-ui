@@ -609,12 +609,42 @@ func parseServiceEnvFile(content string) map[string]string {
 			continue
 		}
 		value = strings.TrimSpace(value)
+		quote := byte(0)
 		if len(value) >= 2 && ((value[0] == '\'' && value[len(value)-1] == '\'') || (value[0] == '"' && value[len(value)-1] == '"')) {
+			quote = value[0]
 			value = value[1 : len(value)-1]
 		}
-		values[key] = value
+		values[key] = unescapeServiceEnvValue(value, quote)
 	}
 	return values
+}
+
+func unescapeServiceEnvValue(value string, quote byte) string {
+	if quote == '\'' {
+		return value
+	}
+	var builder strings.Builder
+	builder.Grow(len(value))
+	escaped := false
+	for i := 0; i < len(value); i++ {
+		if escaped {
+			if quote == '"' && value[i] != '"' && value[i] != '\\' && value[i] != '$' && value[i] != '`' {
+				builder.WriteByte('\\')
+			}
+			builder.WriteByte(value[i])
+			escaped = false
+			continue
+		}
+		if value[i] == '\\' {
+			escaped = true
+			continue
+		}
+		builder.WriteByte(value[i])
+	}
+	if escaped {
+		builder.WriteByte('\\')
+	}
+	return builder.String()
 }
 
 // loadServiceEnvFile loads the systemd EnvironmentFile so CLI subcommands like
