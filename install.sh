@@ -888,7 +888,7 @@ ssl_cert_issue() {
     else
         echo -e "${yellow}Skipping panel path setting.${plain}"
         SSL_SCHEME="http"
-        return 1
+        return 0
     fi
 
     return 0
@@ -941,7 +941,10 @@ prompt_and_setup_ssl() {
                     cert_domain=$(~/.acme.sh/acme.sh --list 2> /dev/null | tail -1 | awk '{print $1}')
                 fi
 
-                if [[ -n "${cert_domain}" ]]; then
+                if [[ "$SSL_SCHEME" == "http" ]]; then
+                    SSL_HOST="${cert_domain:-$server_ip}"
+                    echo -e "${yellow}Certificate was issued but was not attached to the panel; the panel remains HTTP-only.${plain}"
+                elif [[ -n "${cert_domain}" ]]; then
                     SSL_HOST="${cert_domain}"
                     echo -e "${green}✓ SSL certificate configured successfully with domain: ${cert_domain}${plain}"
                 else
@@ -1692,11 +1695,16 @@ install_x-ui() {
 
     # Stop x-ui service and remove old resources
     local custom_bin_backup=""
+    local xui_service_stopped=0
     if [[ -e ${xui_folder}/ ]]; then
         if [[ $release == "alpine" ]]; then
-            rc-service x-ui stop
+            if rc-service x-ui stop; then
+                xui_service_stopped=1
+            fi
         else
-            systemctl stop x-ui
+            if systemctl stop x-ui; then
+                xui_service_stopped=1
+            fi
         fi
         # Kill any leftover mtg (MTProto) sidecars. x-ui runs them outside its own
         # lifecycle, so on Linux a stale one can survive the stop and keep holding
@@ -1817,7 +1825,15 @@ install_x-ui() {
     chmod +x /usr/bin/x-ui
     mkdir -p /var/log/x-ui
     if ! config_after_install; then
-        echo -e "${red}x-ui installation stopped before changing panel settings. Fix the reported settings issue and retry.${plain}" >&2
+        if [[ "$xui_service_stopped" == "1" ]]; then
+            echo -e "${yellow}Configuration did not complete; restarting the existing x-ui service with its current settings.${plain}" >&2
+            if [[ $release == "alpine" ]]; then
+                rc-service x-ui start || echo -e "${red}Unable to restart x-ui automatically; start it manually after resolving the reported error.${plain}" >&2
+            else
+                systemctl start x-ui || echo -e "${red}Unable to restart x-ui automatically; start it manually after resolving the reported error.${plain}" >&2
+            fi
+        fi
+        echo -e "${red}x-ui installation stopped before configuration completed. Review the reported settings and retry.${plain}" >&2
         exit 1
     fi
 
