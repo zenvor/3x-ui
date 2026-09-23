@@ -64,7 +64,9 @@ func TestGetApiTokenRotatesOnlyTheNamedToken(t *testing.T) {
 		t.Fatalf("seed weekly-report: %v", err)
 	}
 
-	GetApiToken(true, "ci-bot")
+	if err := GetApiToken(true, "ci-bot"); err != nil {
+		t.Fatalf("get API token: %v", err)
+	}
 
 	names := tokenNames(t)
 	if !hasName(names, "ci-bot") {
@@ -80,7 +82,9 @@ func TestGetApiTokenRotatesOnlyTheNamedToken(t *testing.T) {
 func TestGetApiTokenUsesGivenNameOnEmptyDatabase(t *testing.T) {
 	newTokenCLIEnv(t)
 
-	GetApiToken(true, "ci-bot")
+	if err := GetApiToken(true, "ci-bot"); err != nil {
+		t.Fatalf("get API token: %v", err)
+	}
 
 	names := tokenNames(t)
 	if !hasName(names, "ci-bot") {
@@ -96,10 +100,14 @@ func TestGetApiTokenUsesGivenNameOnEmptyDatabase(t *testing.T) {
 func TestGetApiTokenPreservesInstallTokenWhenRotating(t *testing.T) {
 	newTokenCLIEnv(t)
 
-	GetApiToken(true, "")
+	if err := GetApiToken(true, ""); err != nil {
+		t.Fatalf("create install token: %v", err)
+	}
 	installed := tokenRow(t, installTokenName)
 
-	GetApiToken(true, "")
+	if err := GetApiToken(true, ""); err != nil {
+		t.Fatalf("rotate fallback token: %v", err)
+	}
 
 	names := tokenNames(t)
 	if !hasName(names, cliFallbackTokenName) {
@@ -142,7 +150,9 @@ func TestGetApiTokenTrimsName(t *testing.T) {
 	if _, err := (&panel.ApiTokenService{}).RecreateByName("seed"); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	GetApiToken(true, "   ")
+	if err := GetApiToken(true, "   "); err != nil {
+		t.Fatalf("get API token: %v", err)
+	}
 
 	names := tokenNames(t)
 	if !hasName(names, cliFallbackTokenName) {

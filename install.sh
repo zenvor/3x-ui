@@ -38,9 +38,10 @@ fi
 echo "The OS release is: $release"
 
 # The service carries its database configuration in a distro-specific
-# EnvironmentFile. Reuse it before any CLI command reads or mutates an
-# existing panel; otherwise an existing PostgreSQL (or custom SQLite-folder)
-# installation would silently be opened as the default SQLite database.
+# EnvironmentFile. The panel CLI loads that file itself using the dotenv
+# parser, which is compatible with systemd's EnvironmentFile syntax. Do not
+# source it here: legal PostgreSQL DSNs can contain spaces, '$', or '&', which
+# a shell would expand or split before the CLI can read them.
 xui_env_file_path() {
     case "${release}" in
         ubuntu | debian | armbian)
@@ -55,20 +56,26 @@ xui_env_file_path() {
     esac
 }
 
-load_xui_env() {
-    local env_file
-    env_file="$(xui_env_file_path)"
-    if [[ -r "$env_file" ]]; then
-        set -a
-        # shellcheck disable=SC1090
-        source "$env_file"
-        set +a
-    fi
-}
-
+existing_db_type="${XUI_DB_TYPE:-sqlite}"
 if [[ "$had_existing_panel" == "1" ]]; then
-    load_xui_env
+    xui_env_file="$(xui_env_file_path)"
+    if [[ -r "$xui_env_file" ]]; then
+        while IFS= read -r xui_env_line; do
+            [[ "$xui_env_line" == XUI_DB_TYPE=* ]] || continue
+            existing_db_type="${xui_env_line#XUI_DB_TYPE=}"
+            existing_db_type="${existing_db_type%$'\r'}"
+            case "$existing_db_type" in
+                \"*\") existing_db_type="${existing_db_type#\"}"; existing_db_type="${existing_db_type%\"}" ;;
+                \'*\') existing_db_type="${existing_db_type#\'}"; existing_db_type="${existing_db_type%\'}" ;;
+            esac
+            break
+        done < "$xui_env_file"
+    fi
 fi
+case "${existing_db_type,,}" in
+    postgres | postgresql | pg) existing_db_type="postgres" ;;
+    *) existing_db_type="sqlite" ;;
+esac
 
 arch() {
     case "$(uname -m)" in
@@ -1296,7 +1303,23 @@ EOF
                 fi
             fi
 
-            ${xui_folder}/x-ui setting -username "${config_username}" -password "${config_password}" -port "${config_port}" -webBasePath "${config_webBasePath}"
+            if ! ${xui_folder}/x-ui setting -username "${config_username}" -password "${config_password}" -port "${config_port}" -webBasePath "${config_webBasePath}"; then
+                echo -e "${red}Unable to apply initial panel settings; refusing to continue.${plain}" >&2
+                return 1
+            fi
+            local configured_settings
+            if ! configured_settings=$(${xui_folder}/x-ui setting -show); then
+                echo -e "${red}Unable to verify initial panel settings; refusing to continue.${plain}" >&2
+                return 1
+            fi
+            local configured_has_default=$(printf '%s\n' "$configured_settings" | awk -F': ' '/^hasDefaultCredential:/{print $2; exit}')
+            local configured_port=$(printf '%s\n' "$configured_settings" | awk -F': ' '/^port:/{print $2; exit}')
+            local configured_path=$(printf '%s\n' "$configured_settings" | awk -F': ' '/^webBasePath:/{print $2; exit}' | sed 's#^/##; s#/$##')
+            local wanted_path=$(printf '%s' "$config_webBasePath" | sed 's#^/##; s#/$##')
+            if [[ "$configured_has_default" != "false" || "$configured_port" != "$config_port" || "$configured_path" != "$wanted_path" ]]; then
+                echo -e "${red}Initial panel settings did not persist as requested; refusing to continue.${plain}" >&2
+                return 1
+            fi
 
             echo ""
             echo -e "${green}═══════════════════════════════════════════${plain}"
@@ -1310,7 +1333,16 @@ EOF
             prompt_and_setup_ssl "${config_port}" "${config_webBasePath}" "${server_ip}"
 
             # Retrieve the API token for display
-            local config_apiToken=$(${xui_folder}/x-ui setting -getApiToken | grep -Eo 'apiToken: .+' | awk '{print $2}')
+            local token_output
+            if ! token_output=$(${xui_folder}/x-ui setting -getApiToken); then
+                echo -e "${red}Unable to create the installation API token.${plain}" >&2
+                return 1
+            fi
+            local config_apiToken=$(printf '%s\n' "$token_output" | awk -F': ' '/^apiToken:/{print $2; exit}')
+            if [[ -z "$config_apiToken" ]]; then
+                echo -e "${red}Installation API token was not returned; refusing to continue.${plain}" >&2
+                return 1
+            fi
 
             # Display final credentials and access information
             echo ""
@@ -1393,8 +1425,12 @@ EOF
             echo -e "${green}Password: ${config_password}${plain}"
             echo -e "###############################################"
 
-            local config_apiToken
-            config_apiToken=$(${xui_folder}/x-ui setting -getApiToken | awk -F': ' '/^apiToken:/{print $2; exit}')
+            local token_output
+            if ! token_output=$(${xui_folder}/x-ui setting -getApiToken); then
+                echo -e "${red}Unable to create the installation API token.${plain}" >&2
+                return 1
+            fi
+            local config_apiToken=$(printf '%s\n' "$token_output" | awk -F': ' '/^apiToken:/{print $2; exit}')
             if [[ -z "$config_apiToken" ]]; then
                 echo -e "${red}Unable to create the installation API token.${plain}" >&2
                 return 1
@@ -1402,7 +1438,7 @@ EOF
             : "${SSL_SCHEME:=https}"
             : "${SSL_HOST:=${server_ip}}"
             write_install_result "${config_username}" "${config_password}" "${existing_port}" \
-                "${existing_webBasePath}" "${SSL_SCHEME}" "${SSL_HOST}" "${config_apiToken}" "${XUI_DB_TYPE:-sqlite}"
+                "${existing_webBasePath}" "${SSL_SCHEME}" "${SSL_HOST}" "${config_apiToken}" "${existing_db_type}"
         else
             echo -e "${green}Username, Password, and WebBasePath are properly set.${plain}"
         fi

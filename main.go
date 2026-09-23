@@ -427,45 +427,36 @@ func updateSetting(port int, username string, password string, webBasePath strin
 }
 
 // updateCert updates the SSL certificate files for the panel.
-func updateCert(publicKey string, privateKey string) {
-	err := database.InitDB(config.GetDBPath())
-	if err != nil {
-		fmt.Println(err)
-		return
+func updateCert(publicKey string, privateKey string) error {
+	if err := database.InitDB(config.GetDBPath()); err != nil {
+		return err
 	}
 
 	if (privateKey != "" && publicKey != "") || (privateKey == "" && publicKey == "") {
 		settingService := service.SettingService{}
-		err = settingService.SetCertFile(publicKey)
-		if err != nil {
-			fmt.Println("set certificate public key failed:", err)
-		} else {
-			fmt.Println("set certificate public key success")
+		if err := settingService.SetCertFile(publicKey); err != nil {
+			return fmt.Errorf("set certificate public key: %w", err)
 		}
+		fmt.Println("set certificate public key success")
 
-		err = settingService.SetKeyFile(privateKey)
-		if err != nil {
-			fmt.Println("set certificate private key failed:", err)
-		} else {
-			fmt.Println("set certificate private key success")
+		if err := settingService.SetKeyFile(privateKey); err != nil {
+			return fmt.Errorf("set certificate private key: %w", err)
 		}
+		fmt.Println("set certificate private key success")
 
-		err = settingService.SetSubCertFile(publicKey)
-		if err != nil {
-			fmt.Println("set certificate for subscription public key failed:", err)
-		} else {
-			fmt.Println("set certificate for subscription public key success")
+		if err := settingService.SetSubCertFile(publicKey); err != nil {
+			return fmt.Errorf("set subscription certificate public key: %w", err)
 		}
+		fmt.Println("set certificate for subscription public key success")
 
-		err = settingService.SetSubKeyFile(privateKey)
-		if err != nil {
-			fmt.Println("set certificate for subscription private key failed:", err)
-		} else {
-			fmt.Println("set certificate for subscription private key success")
+		if err := settingService.SetSubKeyFile(privateKey); err != nil {
+			return fmt.Errorf("set subscription certificate private key: %w", err)
 		}
+		fmt.Println("set certificate for subscription private key success")
 	} else {
-		fmt.Println("both public and private key should be entered.")
+		return fmt.Errorf("both public and private key should be entered")
 	}
+	return nil
 }
 
 // GetCertificate displays the current SSL certificate settings if getCert is true.
@@ -506,23 +497,21 @@ func GetListenIP(getListen bool) {
 	}
 }
 
-func GetApiToken(getApiToken bool, tokenName string) {
+func GetApiToken(getApiToken bool, tokenName string) error {
 	if !getApiToken {
-		return
+		return nil
 	}
 	// An explicit name applies to both branches below; without one each keeps
 	// the name it already used, so every existing invocation is unaffected.
 	name := strings.TrimSpace(tokenName)
 	err := database.InitDB(config.GetDBPath())
 	if err != nil {
-		fmt.Println("open database failed, error info:", err)
-		return
+		return fmt.Errorf("open database: %w", err)
 	}
 	apiTokenService := panel.ApiTokenService{}
 	tokens, err := apiTokenService.List()
 	if err != nil {
-		fmt.Println("get apiToken failed, error info:", err)
-		return
+		return fmt.Errorf("get apiToken: %w", err)
 	}
 	if len(tokens) > 0 {
 		fmt.Printf("There are %d API token(s) configured. Existing tokens cannot be retrieved in plaintext because only hashes are stored.\n", len(tokens))
@@ -536,22 +525,21 @@ func GetApiToken(getApiToken bool, tokenName string) {
 		}
 		created, err := apiTokenService.RecreateByName(rotated)
 		if err != nil {
-			fmt.Println("Failed to create a fallback API token:", err)
-			return
+			return fmt.Errorf("create fallback API token: %w", err)
 		}
 		fmt.Printf("\nThe API token %q has been regenerated (any previous one is now invalid):\n", rotated)
 		fmt.Println("apiToken:", created.Token)
-		return
+		return nil
 	}
 	if name == "" {
 		name = installTokenName
 	}
 	created, err := apiTokenService.Create(name, "", 0)
 	if err != nil {
-		fmt.Println("create apiToken failed, error info:", err)
-		return
+		return fmt.Errorf("create apiToken: %w", err)
 	}
 	fmt.Println("apiToken:", created.Token)
+	return nil
 }
 
 var legacySettingBoolFlags = map[string]struct{}{
@@ -767,7 +755,10 @@ func main() {
 			}
 		}
 		if webCertFile != "" || webKeyFile != "" {
-			updateCert(webCertFile, webKeyFile)
+			if err := updateCert(webCertFile, webKeyFile); err != nil {
+				fmt.Fprintln(os.Stderr, "failed to update certificate settings:", err)
+				os.Exit(1)
+			}
 		}
 		if show {
 			if err := showSetting(show); err != nil {
@@ -785,7 +776,10 @@ func main() {
 			}
 		}
 		if getApiToken {
-			GetApiToken(getApiToken, tokenName)
+			if err := GetApiToken(getApiToken, tokenName); err != nil {
+				fmt.Fprintln(os.Stderr, "failed to get API token:", err)
+				os.Exit(1)
+			}
 		}
 		if (tgbottoken != "") || (tgbotchatid != "") || (tgbotRuntime != "") {
 			updateTgbotSetting(tgbottoken, tgbotchatid, tgbotRuntime)
@@ -804,9 +798,15 @@ func main() {
 			os.Exit(2)
 		}
 		if reset {
-			updateCert("", "")
+			if err := updateCert("", ""); err != nil {
+				fmt.Fprintln(os.Stderr, "failed to reset certificate settings:", err)
+				os.Exit(1)
+			}
 		} else {
-			updateCert(webCertFile, webKeyFile)
+			if err := updateCert(webCertFile, webKeyFile); err != nil {
+				fmt.Fprintln(os.Stderr, "failed to update certificate settings:", err)
+				os.Exit(1)
+			}
 		}
 	default:
 		fmt.Println("Invalid subcommands")

@@ -33,6 +33,11 @@ if [[ -n "$legacy_bool_calls" ]]; then
     exit 1
 fi
 
+if grep -qF 'source "$env_file"' "${REPO_ROOT}/install.sh"; then
+    echo "ERROR: install.sh must not source the systemd EnvironmentFile; DSNs are not shell input." >&2
+    exit 1
+fi
+
 echo "== non-interactive install smoke test (image: $IMAGE, version: ${XUI_SMOKE_VERSION:-latest}) =="
 
 docker run --rm \
@@ -77,8 +82,15 @@ docker run --rm \
         [ -n "${XUI_PANEL_PORT:-}" ] || { echo "FAIL: port missing"; exit 1; }
 
         # No default admin in the DB.
-        /usr/local/x-ui/x-ui setting -show | grep -q "hasDefaultCredential: false" \
+        initial_settings=$(/usr/local/x-ui/x-ui setting -show)
+        printf "%s\\n" "$initial_settings" | grep -q "hasDefaultCredential: false" \
             || { echo "FAIL: hasDefaultCredential is not false"; exit 1; }
+        initial_db_port=$(printf "%s\\n" "$initial_settings" | awk -F": " "/^port:/{print \$2; exit}")
+        initial_db_path=$(printf "%s\\n" "$initial_settings" | awk -F": " "/^webBasePath:/{print \$2; exit}" | sed "s#^/##; s#/\$##")
+        [ "$initial_db_port" = "$XUI_PANEL_PORT" ] \
+            || { echo "FAIL: initial panel port was not persisted"; exit 1; }
+        [ "$initial_db_path" = "$XUI_WEB_BASE_PATH" ] \
+            || { echo "FAIL: initial web base path was not persisted"; exit 1; }
 
         echo "--- verifying the panel serves HTTP ---"
         cd /usr/local/x-ui

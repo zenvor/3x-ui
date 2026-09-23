@@ -35,3 +35,11 @@ func TestUpdateSettingPropagatesCredentialErrors(t *testing.T) {
 		t.Fatal("updateSetting succeeded with an empty username")
 	}
 }
+
+func TestUpdateCertRejectsIncompletePair(t *testing.T) {
+	newTokenCLIEnv(t)
+
+	if err := updateCert("/root/cert/fullchain.pem", ""); err == nil {
+		t.Fatal("updateCert succeeded with an incomplete certificate pair")
+	}
+}
