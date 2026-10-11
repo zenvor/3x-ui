@@ -1064,7 +1064,7 @@ func amneziaWGConfigText(server *amneziawg.ServerSettings, client *model.Client,
 		fmt.Fprintf(&b, "PresharedKey = %s\n", client.PreSharedKey)
 	}
 	b.WriteString("AllowedIPs = 0.0.0.0/0, ::/0\n")
-	fmt.Fprintf(&b, "Endpoint = %s:%d", host, port)
+	fmt.Fprintf(&b, "Endpoint = %s", net.JoinHostPort(strings.Trim(host, "[]"), strconv.Itoa(port)))
 	if ka := client.KeepAliveSeconds(); ka > 0 {
 		fmt.Fprintf(&b, "\nPersistentKeepalive = %d", ka)
 	}
