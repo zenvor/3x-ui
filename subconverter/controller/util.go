@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/entity"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/locale"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
@@ -82,13 +83,18 @@ func CheckLogin(c *gin.Context) {
 }
 
 // CheckAPIAuth mirrors 3X-UI's /panel/api authentication behaviour: accept
-// panel sessions or Bearer API tokens. A presented but invalid Bearer token
+// panel sessions or admin Bearer API tokens. Restricted token scopes return
+// 403 before any management handler runs. A presented but invalid Bearer token
 // returns 401, while requests without credentials receive 404 to avoid
 // exposing API endpoints to anonymous scans.
 func CheckAPIAuth(c *gin.Context) {
 	auth := c.GetHeader("Authorization")
 	if after, ok := strings.CutPrefix(auth, "Bearer "); ok {
-		if (&panelservice.ApiTokenService{}).Match(after) {
+		if token, valid := (&panelservice.ApiTokenService{}).MatchToken(after); valid {
+			if token.Scope != model.ApiScopeAdmin {
+				c.AbortWithStatus(http.StatusForbidden)
+				return
+			}
 			if u, err := (&panelservice.UserService{}).GetFirstUser(); err == nil {
 				session.SetAPIAuthUser(c, u)
 			}
