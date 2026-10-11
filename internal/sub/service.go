@@ -486,6 +486,9 @@ func (s *SubService) getSubs(subId string) ([]string, []string, int64, xray.Clie
 			continue
 		}
 		if inbound.ExcludeFromSub {
+			if result == nil {
+				result = []string{}
+			}
 			if countHiddenClients(clients, seenEmails) {
 				hasEnabledClient = true
 			}
