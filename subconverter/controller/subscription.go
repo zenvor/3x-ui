@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"errors"
+	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -68,6 +70,48 @@ func (a *SubscriptionController) initRouter(g *gin.RouterGroup) {
 	g.POST("/reset-token/:id", a.resetToken)
 	g.POST("/settings", a.updateSettings)
 	g.POST("/template/refresh", a.refreshTemplate)
+	g.GET("/templates", a.templates)
+	g.POST("/templates", a.addTemplate)
+	g.POST("/templates/:templateId", a.updateTemplate)
+	g.POST("/templates/:templateId/delete", a.deleteTemplate)
+	g.POST("/templates/:templateId/refresh", a.refreshNamedTemplate)
+}
+
+func (a *SubscriptionController) templates(c *gin.Context) {
+	records, err := service.ListTemplates()
+	a.templateResult(c, records, err, "pages.subconverter.templateListFailed")
+}
+
+func (a *SubscriptionController) templateResult(c *gin.Context, result any, err error, key string) {
+	if err != nil {
+		jsonMsg(c, i18nWeb(c, key), err)
+		return
+	}
+	jsonObj(c, result, nil)
+}
+
+func (a *SubscriptionController) saveTemplate(c *gin.Context, id string) {
+	var input service.TemplateInput
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	if err := c.ShouldBindJSON(&input); err != nil {
+		jsonMsg(c, i18nWeb(c, "pages.subconverter.templateManageFailed"), err)
+		return
+	}
+	record, err := service.SaveTemplate(id, input)
+	a.templateResult(c, record, err, "pages.subconverter.templateManageFailed")
+}
+
+func (a *SubscriptionController) addTemplate(c *gin.Context) { a.saveTemplate(c, "") }
+func (a *SubscriptionController) updateTemplate(c *gin.Context) {
+	a.saveTemplate(c, c.Param("templateId"))
+}
+func (a *SubscriptionController) deleteTemplate(c *gin.Context) {
+	err := service.DeleteTemplate(c.Param("templateId"))
+	a.templateResult(c, nil, err, "pages.subconverter.templateManageFailed")
+}
+func (a *SubscriptionController) refreshNamedTemplate(c *gin.Context) {
+	result, err := service.RefreshTemplateByID(c.Param("templateId"))
+	a.templateResult(c, result, err, "pages.subconverter.templateRefreshFailed")
 }
 
 func (a *SubscriptionController) list(c *gin.Context) {
@@ -103,16 +147,17 @@ func (a *SubscriptionController) settings(c *gin.Context) {
 }
 
 func (a *SubscriptionController) templateStatus(c *gin.Context) {
-	jsonObj(c, service.GetTemplateStatus(), nil)
+	status, err := service.GetTemplateStatus()
+	jsonMsgObj(c, "", status, err)
 }
 
 func (a *SubscriptionController) refreshTemplate(c *gin.Context) {
-	changed, err := service.FetchTemplate()
+	result, err := service.RefreshTemplate()
 	if err != nil {
 		jsonMsg(c, "refresh template failed", err)
 		return
 	}
-	jsonObj(c, service.TemplateRefreshResult{TemplateStatus: service.GetTemplateStatus(), Changed: changed}, nil)
+	jsonObj(c, result, nil)
 }
 
 func (a *SubscriptionController) inbounds(c *gin.Context) {
@@ -179,7 +224,13 @@ func (a *SubscriptionController) updateSettings(c *gin.Context) {
 	}
 	settings, err := a.settingsSvc.Update(form)
 	if err != nil {
-		jsonMsg(c, "update settings failed", err)
+		message := "update settings failed"
+		if errors.Is(err, service.ErrTemplatePreparation) {
+			message = i18nWeb(c, "pages.subconverter.templateSwitchFailed")
+		} else if errors.Is(err, service.ErrInvalidTemplateVariant) {
+			message = i18nWeb(c, "pages.subconverter.templateInvalidVariant")
+		}
+		jsonMsg(c, message, err)
 		return
 	}
 	jsonObj(c, settings, nil)

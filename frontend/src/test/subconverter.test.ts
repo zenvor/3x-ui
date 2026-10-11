@@ -200,6 +200,23 @@ describe('subconverter schemas', () => {
     });
   });
 
+  it('defaults older settings to general, accepts catalog IDs, and rejects URLs as IDs', () => {
+    const legacy = { uaFilterEnabled: true, uaKeywords: ['clash'], uaRejectStatus: 403 };
+    expect(SettingsValuesSchema.parse(legacy).templateVariant).toBe('general');
+    expect(
+      SettingsValuesSchema.parse({
+        ...legacy,
+        templateVariant: 'remote-12345678-1234-1234-1234-123456789abc',
+      }).templateVariant,
+    ).toBe('remote-12345678-1234-1234-1234-123456789abc');
+    expect(
+      SettingsValuesSchema.parse({ ...legacy, templateVariant: 'aggressive' }).templateVariant,
+    ).toBe('aggressive');
+    expect(
+      SettingsValuesSchema.safeParse({ ...legacy, templateVariant: 'https://example.com' }).success,
+    ).toBe(false);
+  });
+
   it('validates settings payload shape', () => {
     expect(
       SettingsValuesSchema.safeParse({
@@ -229,13 +246,15 @@ describe('subconverter invalidation', () => {
     expect(spy).toHaveBeenCalledWith({ queryKey: keys.subconverter.detail(7) });
   });
 
-  it('invalidates only settings after settings mutation', async () => {
+  it('invalidates settings, active status, and template catalog after settings mutation', async () => {
     const queryClient = new QueryClient();
     const spy = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue(undefined);
 
     await invalidateSubconverterSettings(queryClient);
 
-    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledTimes(3);
     expect(spy).toHaveBeenCalledWith({ queryKey: keys.subconverter.settings() });
+    expect(spy).toHaveBeenCalledWith({ queryKey: keys.subconverter.template() });
+    expect(spy).toHaveBeenCalledWith({ queryKey: keys.subconverter.templates() });
   });
 });

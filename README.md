@@ -45,6 +45,29 @@ Built as an enhanced fork of the original X-UI project, 3X-UI adds broader proto
 - **13 UI languages** with dark and light themes.
 - **Fail2ban integration** for enforcing per-client IP limits.
 
+## Mihomo template catalog
+
+Open **Subconverter → Settings → Mihomo Config → Active template**, choose built-in **General (default)**, **Aggressive**, or a custom template, and click **Save**. This global setting applies to all `/feed/:token` Mihomo configurations; provider nodes and other subscription formats are unchanged.
+
+- [General](https://raw.githubusercontent.com/zenvor/mihomo-config/main/mihomo.yaml): unmatched domains use Ali DoH directly.
+- [Aggressive](https://raw.githubusercontent.com/zenvor/mihomo-config/main/mihomo-aggressive.yaml): unmatched domains use Cloudflare DoH through `PROXY`.
+
+Both use Cloudflare for known proxy domains and Ali for domestic direct domains; routing rules and other settings are identical. Existing installations keep General. Saving a switch downloads and validates the target before persisting the selection in `subconverter.db`; it survives restarts. Failed downloads or validation leave the current selection, UA settings and valid caches intact.
+
+The displayed active template, URL and cache time refer to the saved selection. Save a pending selection before using **Refresh Now**. The active refresh button and 10-minute background job use the saved selection; catalog entries can also be refreshed individually. Each template has its own cache file, ETag and check history; failures retain its valid cache without falling back to another template. A missing valid cache returns 503 for the main feed. `__API_DOMAIN__` and `__TOKEN__` are still substituted when rendering.
+
+The **last successful check** advances on every successful check, including HTTP 304. The **cache update time** advances only when new template bytes are written. Identical content returned with HTTP 200 also preserves the cache time and shows “template unchanged”. Failed checks do not advance successful-check records. Records are stored separately for each template and survive restarts; older caches show “not recorded” until a successful check.
+
+Use **Template catalog → Add template** to enter a configuration name and HTTPS URL, then **Validate and save**. Names may contain up to 100 characters. Remote content must be valid YAML up to 1 MiB, with both `__API_DOMAIN__` and `__TOKEN__` in at least one `proxy-providers` URL. Adding and editing save the catalog immediately; choose the entry and save settings separately to activate it. Closing settings does not undo saved catalog changes.
+
+Built-in templates cannot be edited or deleted. Custom entries can be renamed, have their URLs changed, or be deleted. Renaming preserves cache and check times. URL changes are downloaded and validated before replacing the source; failures preserve the original source and active feed. Switch away from an active entry before deleting it. Stable IDs keep caches independent even for entries with identical names or URLs. Old cache files are retained after deletion or source edits for concurrent subscription readers; IDs are never reused. Existing General/Aggressive selections and caches remain compatible.
+
+Custom sources require public HTTPS hosts. The downloader checks every DNS answer and redirect, rejects private, loopback and reserved addresses, and connects directly without environment proxies. The data model reserves an `upload` source; no upload UI or API is included yet.
+
+**Update the subscription in your client and load the updated configuration after saving or refreshing to apply the change.** This setting does not operate the client's running proxy switches.
+
+New UI hints are localized in Simplified Chinese, Traditional Chinese and English; other locales currently use English for these new hints.
+
 ## Screenshots
 
 <details>

@@ -27,7 +27,7 @@ func seedTemplateCache(t *testing.T) {
 }
 
 func TestRenderMihomoYAMLSubstitutesPlaceholders(t *testing.T) {
-	t.Setenv("XUI_DB_FOLDER", t.TempDir())
+	setupTemplateTestDB(t)
 	seedTemplateCache(t)
 
 	out, err := RenderMihomoYAML("https://panel.example.com", "abc123")
@@ -44,7 +44,7 @@ func TestRenderMihomoYAMLSubstitutesPlaceholders(t *testing.T) {
 }
 
 func TestRenderMihomoYAMLWithoutCacheFails(t *testing.T) {
-	t.Setenv("XUI_DB_FOLDER", t.TempDir())
+	setupTemplateTestDB(t)
 
 	if _, err := RenderMihomoYAML("https://x", "tok"); err == nil {
 		t.Fatal("expected error when no template is cached")

@@ -39,6 +39,16 @@ function requestBody(path: string): OpenApiRequestBody {
 }
 
 describe('generated OpenAPI request bodies', () => {
+  it('documents matching JSON input for template creation and editing', () => {
+    const create = requestBody('/panel/api/subconverter/templates');
+    const edit = requestBody('/panel/api/subconverter/templates/{templateId}');
+    expect(Object.keys(create.content)).toEqual(['application/json']);
+    expect(edit).toEqual(create);
+    const schema = create.content['application/json'].schema;
+    expect(schema.required).toEqual(['name', 'url']);
+    expect(schema.properties).toHaveProperty('source');
+  });
+
   it('preserves JSON, form, and multipart parameter declarations', () => {
     const login = requestBody('/login').content['application/json'];
     expect(login.schema.properties).toHaveProperty('username');

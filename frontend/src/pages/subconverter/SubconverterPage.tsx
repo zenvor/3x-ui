@@ -25,11 +25,13 @@ import {
 } from 'antd';
 
 import { keys } from '@/api/queryKeys';
+import type { TemplateVariant } from '@/schemas/subconverter';
 import {
   fetchSubconverterSettings,
   useSubconverter,
   useSubconverterDetail,
   useSubconverterTemplate,
+  useSubconverterTemplates,
 } from '@/api/queries/useSubconverter';
 import { LazyMount } from '@/components/utility';
 import AppSidebar from '@/layouts/AppSidebar';
@@ -79,8 +81,10 @@ export default function SubconverterPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [accessLogsOpen, setAccessLogsOpen] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
+  const [savedTemplateVariant, setSavedTemplateVariant] = useState<TemplateVariant>('general');
   const template = useSubconverterTemplate(settingsOpen);
   const { refresh: templateRefresh } = template;
+  const templateCatalog = useSubconverterTemplates(settingsOpen);
   const [togglingId, setTogglingId] = useState<number | null>(null);
 
   const detailQuery = useSubconverterDetail(infoTarget?.id ?? null);
@@ -227,7 +231,9 @@ export default function SubconverterPage() {
         uaFilterEnabled: settings.uaFilterEnabled,
         uaKeywords: settings.uaKeywords || [],
         uaRejectStatus: settings.uaRejectStatus || 403,
+        templateVariant: settings.templateVariant,
       });
+      setSavedTemplateVariant(settings.templateVariant);
       setSettingsOpen(true);
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : t('pages.subconverter.loadFailed'));
@@ -338,6 +344,7 @@ export default function SubconverterPage() {
       uaFilterEnabled: !!values.uaFilterEnabled,
       uaKeywords: normalizeUAKeywords(values.uaKeywords),
       uaRejectStatus: values.uaRejectStatus || 403,
+      templateVariant: values.templateVariant || 'general',
     };
     try {
       const msg = await subconverter.saveSettings(payload);
@@ -619,11 +626,23 @@ export default function SubconverterPage() {
               open={settingsOpen}
               saving={subconverter.settingsPending}
               form={settingsForm}
+              savedTemplateVariant={savedTemplateVariant}
               templateStatus={template.statusQuery.data}
-              templateStatusLoading={template.statusQuery.isPending}
+              templateStatusLoading={
+                template.statusQuery.isPending || template.statusQuery.isFetching
+              }
               templateStatusError={template.statusQuery.isError}
               templateRefreshing={template.refreshPending}
               onRefreshTemplate={refreshTemplate}
+              templates={templateCatalog.listQuery.data ?? []}
+              templatesLoading={
+                templateCatalog.listQuery.isPending || templateCatalog.listQuery.isFetching
+              }
+              templatesError={templateCatalog.listQuery.isError}
+              catalogPending={templateCatalog.pending}
+              onSaveTemplate={(id, input) => templateCatalog.save({ id, input })}
+              onDeleteTemplate={templateCatalog.remove}
+              onRefreshNamedTemplate={templateCatalog.refresh}
               onOk={saveSettings}
               onCancel={() => setSettingsOpen(false)}
             />

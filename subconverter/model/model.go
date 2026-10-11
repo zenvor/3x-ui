@@ -86,6 +86,19 @@ type Settings struct {
 	UAFilterEnabled bool      `json:"uaFilterEnabled" gorm:"default:true"`
 	UAKeywords      string    `json:"uaKeywords" gorm:"not null;type:text"`
 	UARejectStatus  int       `json:"uaRejectStatus" gorm:"default:403"`
+	TemplateVariant string    `json:"templateVariant" gorm:"not null;default:general"`
 	CreatedAt       time.Time `json:"createdAt"`
 	UpdatedAt       time.Time `json:"updatedAt"`
+}
+
+// Template stores user-defined sources. Built-in templates are immutable and
+// are supplied by the service catalog. Source also reserves an upload variant
+// for a future file importer; this release only accepts remote sources.
+type Template struct {
+	ID        string    `json:"id" gorm:"primaryKey;size:64"`
+	Name      string    `json:"name" gorm:"not null;size:100"`
+	Source    string    `json:"source" gorm:"not null;size:16"`
+	URL       string    `json:"url" gorm:"not null;type:text"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }

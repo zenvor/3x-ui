@@ -100,6 +100,7 @@ func autoMigrate() error {
 		&model.AccessLog{},
 		&model.SubscriptionStats{},
 		&model.Settings{},
+		&model.Template{},
 	}
 	for _, m := range models {
 		if err := db.AutoMigrate(m); err != nil {

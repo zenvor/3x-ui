@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -314,4 +315,102 @@ func performAPIRequest(engine http.Handler, method string, path string, body *st
 	resp := httptest.NewRecorder()
 	engine.ServeHTTP(resp, req)
 	return resp
+}
+
+type variantRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f variantRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestTemplateSelectionAPIControlsStatusRefreshAndPublicFeed(t *testing.T) {
+	engine := setupPublicControllerTest(t)
+	NewSubscriptionController(engine.Group("/panel/api/subconverter"))
+	sub := createPublicTestSubscription(t, 1)
+	failed := false
+	var downloads []string
+	original := http.DefaultTransport
+	http.DefaultTransport = variantRoundTripper(func(r *http.Request) (*http.Response, error) {
+		downloads = append(downloads, r.URL.String())
+		status, content := http.StatusOK, publicTestTemplate+"profile-version: aggressive\n"
+		if r.URL.String() != service.AggressiveTemplateURL && r.URL.String() != service.DefaultTemplateURL {
+			t.Errorf("unexpected template URL %s", r.URL)
+		}
+		if failed {
+			status, content = http.StatusBadGateway, "failed"
+		}
+		return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(content))}, nil
+	})
+	t.Cleanup(func() { http.DefaultTransport = original })
+
+	getStatus := func() service.TemplateStatus {
+		t.Helper()
+		resp := performAPIRequest(engine, http.MethodGet, "/panel/api/subconverter/template", nil)
+		var payload struct {
+			Success bool
+			Obj     service.TemplateStatus
+		}
+		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil || !payload.Success {
+			t.Fatalf("status response: %s %v", resp.Body.String(), err)
+		}
+		return payload.Obj
+	}
+	save := func(variant string) bool {
+		t.Helper()
+		body := fmt.Sprintf(`{"uaFilterEnabled":true,"uaKeywords":["clash","mihomo","shadowrocket"],"uaRejectStatus":403,"templateVariant":%q}`, variant)
+		req := httptest.NewRequest(http.MethodPost, "/panel/api/subconverter/settings", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+		engine.ServeHTTP(resp, req)
+		var payload struct{ Success bool }
+		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		return payload.Success
+	}
+	if status := getStatus(); status.Variant != service.TemplateVariantGeneral || status.URL != service.DefaultTemplateURL || !status.Cached {
+		t.Fatalf("default status: %+v", status)
+	}
+	if !save(service.TemplateVariantAggressive) {
+		t.Fatal("switch failed")
+	}
+	if status := getStatus(); status.Variant != service.TemplateVariantAggressive || status.URL != service.AggressiveTemplateURL || !status.Cached || status.UpdatedAt <= 0 {
+		t.Fatalf("selected status: %+v", status)
+	}
+	resp := performFeedRequest(engine, "/feed/"+sub.Token, "1.1.1.1")
+	if resp.Code != 200 || !strings.Contains(resp.Body.String(), "profile-version: aggressive") || strings.Contains(resp.Body.String(), "__TOKEN__") || strings.Contains(resp.Body.String(), "__API_DOMAIN__") {
+		t.Fatalf("selected feed: %d %s", resp.Code, resp.Body.String())
+	}
+	refreshed := performAPIRequest(engine, http.MethodPost, "/panel/api/subconverter/template/refresh", nil)
+	var result struct {
+		Success bool
+		Obj     service.TemplateRefreshResult
+	}
+	if err := json.Unmarshal(refreshed.Body.Bytes(), &result); err != nil || !result.Success || result.Obj.Changed || result.Obj.CheckResult != "unchanged" || result.Obj.CheckedAt <= 0 || result.Obj.Variant != service.TemplateVariantAggressive || result.Obj.URL != service.AggressiveTemplateURL {
+		t.Fatalf("refresh response: %s %v", refreshed.Body.String(), err)
+	}
+	if len(downloads) != 2 || downloads[0] != service.AggressiveTemplateURL || downloads[1] != service.AggressiveTemplateURL {
+		t.Fatalf("wrong refresh source: %v", downloads)
+	}
+	if err := database.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.InitDB(); err != nil {
+		t.Fatal(err)
+	}
+	if status := getStatus(); status.Variant != service.TemplateVariantAggressive {
+		t.Fatalf("lost selection after restart: %+v", status)
+	}
+	failed = true
+	if save(service.TemplateVariantGeneral) {
+		t.Fatal("failed switch succeeded")
+	}
+	if save("https://example.com/template.yaml") {
+		t.Fatal("accepted arbitrary URL")
+	}
+	if status := getStatus(); status.Variant != service.TemplateVariantAggressive || !status.Cached {
+		t.Fatalf("failed switch changed active status: %+v", status)
+	}
+	resp = performFeedRequest(engine, "/feed/"+sub.Token, "1.1.1.1")
+	if resp.Code != 200 || !strings.Contains(resp.Body.String(), "profile-version: aggressive") {
+		t.Fatalf("failed switch changed feed: %d %s", resp.Code, resp.Body.String())
+	}
 }
