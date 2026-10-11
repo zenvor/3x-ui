@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -204,30 +205,116 @@ func TestLegacyCorruptOrMismatchedCheckMetadataRemainsUnknown(t *testing.T) {
 	}
 }
 
-func TestFailedCheckRecordWriteDoesNotClaimSuccessOrTouchUnchangedCache(t *testing.T) {
-	setupTemplateTestDB(t)
-	if err := os.WriteFile(TemplateCachePath(), []byte(fetchTestTemplate), 0o644); err != nil {
-		t.Fatal(err)
+func TestFailedCheckRecordWritePreservesCache(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		cached bool
+		body   string
+	}{
+		{"unchanged", true, fetchTestTemplate},
+		{"changed", true, fetchTestTemplate + "mixed-port: 7891\n"},
+		{"first download", false, fetchTestTemplate},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setupTemplateTestDB(t)
+			if tc.cached {
+				if err := os.WriteFile(TemplateCachePath(), []byte(fetchTestTemplate), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				oldTime := time.Unix(1234567890, 0)
+				if err := os.Chtimes(TemplateCachePath(), oldTime, oldTime); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before, err := GetTemplateStatus()
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Renaming the metadata file over a directory must fail on all platforms.
+			if err := os.Mkdir(TemplateCachePath()+".check.json", 0o755); err != nil {
+				t.Fatal(err)
+			}
+			mockTemplateDownloads(t, func(r *http.Request) (*http.Response, error) {
+				return templateResponse(200, tc.body, `"new"`), nil
+			})
+			templateState.etags[TemplateCachePath()] = `"old"`
+			if _, err := RefreshTemplate(); err == nil {
+				t.Fatal("metadata write failure claimed success")
+			}
+			after, err := GetTemplateStatus()
+			if err != nil || after != before {
+				t.Fatalf("failed record write changed status: %+v %v", after, err)
+			}
+			if templateState.etags[TemplateCachePath()] != `"old"` {
+				t.Fatal("failed record write advanced ETag")
+			}
+			content, _, err := readTemplateCache(TemplateCachePath())
+			if tc.cached {
+				if err != nil || string(content) != fetchTestTemplate {
+					t.Fatalf("failed record write published downloaded template: %q %v", content, err)
+				}
+			} else if !os.IsNotExist(err) {
+				t.Fatalf("failed first download published a cache: %v", err)
+			}
+			assertNoTemplateTemps(t)
+		})
 	}
-	before, err := GetTemplateStatus()
-	if err != nil {
-		t.Fatal(err)
+}
+
+func TestFailedCachePublishRestoresCheckRecord(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		t.Run(fmt.Sprintf("existing=%t", existing), func(t *testing.T) {
+			setupTemplateTestDB(t)
+			cachePath := TemplateCachePath()
+			// Staging succeeds, but publishing YAML over a directory must fail.
+			if err := os.Mkdir(cachePath, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			checkPath := cachePath + ".check.json"
+			oldTime := time.Unix(1234567890, 0)
+			var original []byte
+			if existing {
+				seedTemplateCheck(t, TemplateVariantGeneral, DefaultTemplateURL, fetchTestTemplate, 1000, "updated")
+				var err error
+				original, err = os.ReadFile(checkPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chtimes(checkPath, oldTime, oldTime); err != nil {
+					t.Fatal(err)
+				}
+			}
+			mockTemplateDownloads(t, func(r *http.Request) (*http.Response, error) {
+				return templateResponse(200, fetchTestTemplate+"mixed-port: 7891\n", `"new"`), nil
+			})
+			templateState.etags[cachePath] = `"old"`
+			if _, err := RefreshTemplate(); err == nil {
+				t.Fatal("cache publish failure claimed success")
+			}
+			restored, err := os.ReadFile(checkPath)
+			if existing {
+				if err != nil || string(restored) != string(original) {
+					t.Fatalf("check record was not restored: %q %v", restored, err)
+				}
+				info, err := os.Stat(checkPath)
+				if err != nil || !info.ModTime().Equal(oldTime) {
+					t.Fatalf("rollback changed record mtime: %v %v", info, err)
+				}
+			} else if !os.IsNotExist(err) {
+				t.Fatalf("failed first publish left a successful check record: %v", err)
+			}
+			if templateState.etags[cachePath] != `"old"` {
+				t.Fatal("failed cache publish advanced ETag")
+			}
+			assertNoTemplateTemps(t)
+		})
 	}
-	// Renaming the metadata file over a directory must fail on all platforms.
-	if err := os.Mkdir(TemplateCachePath()+".check.json", 0o755); err != nil {
-		t.Fatal(err)
-	}
-	mockTemplateDownloads(t, func(r *http.Request) (*http.Response, error) {
-		return templateResponse(200, fetchTestTemplate, `"new"`), nil
-	})
-	if _, err := RefreshTemplate(); err == nil {
-		t.Fatal("metadata write failure claimed success")
-	}
-	after, err := GetTemplateStatus()
-	if err != nil || after != before {
-		t.Fatalf("failed record write changed status: %+v %v", after, err)
-	}
-	if templateState.etags[TemplateCachePath()] != "" {
-		t.Fatal("failed record write advanced ETag")
+}
+
+func assertNoTemplateTemps(t *testing.T) {
+	t.Helper()
+	files, err := filepath.Glob(TemplateCachePath() + ".*.tmp*")
+	if err != nil || len(files) != 0 {
+		t.Fatalf("staged files were not cleaned up: %v %v", files, err)
 	}
 }

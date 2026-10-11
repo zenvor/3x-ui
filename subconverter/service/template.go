@@ -256,13 +256,9 @@ func fetchTemplateWithClientLocked(url, cachePath string, client *http.Client) (
 	if _, _, err := readTemplateCache(cachePath); err != nil {
 		etag = ""
 	}
-	changed, etag, err := fetchTemplate(context.Background(), client, url, cachePath, etag)
+	cached, changed, etag, err := downloadTemplate(context.Background(), client, url, cachePath, etag)
 	if err != nil {
 		return false, err
-	}
-	cached, _, err := readTemplateCache(cachePath)
-	if err != nil {
-		return false, fmt.Errorf("record template check: %w", err)
 	}
 	result := "unchanged"
 	if changed {
@@ -275,62 +271,74 @@ func fetchTemplateWithClientLocked(url, cachePath string, client *http.Client) (
 	if err != nil {
 		return false, fmt.Errorf("encode template check: %w", err)
 	}
-	if err := atomicWriteFile(cachePath+".check.json", metadata); err != nil {
-		return false, fmt.Errorf("record template check: %w", err)
+	if err := publishTemplateCheck(cachePath, cached, metadata, changed); err != nil {
+		return false, err
 	}
 	templateState.etags[cachePath] = etag
 	return changed, nil
 }
 
-// fetchTemplate is the pure core of FetchTemplate: conditional GET, validate,
-// atomic replace. ETag goes in and out so tests stay free of package state.
+// fetchTemplate downloads and atomically replaces the YAML without recording a
+// check. The production path stages both files through publishTemplateCheck.
 func fetchTemplate(ctx context.Context, client *http.Client, url, cachePath, etag string) (bool, string, error) {
+	body, changed, nextETag, err := downloadTemplate(ctx, client, url, cachePath, etag)
+	if err != nil {
+		return false, etag, err
+	}
+	if changed {
+		if err := atomicWriteFile(cachePath, body); err != nil {
+			return false, etag, fmt.Errorf("write template cache: %w", err)
+		}
+	}
+	return changed, nextETag, nil
+}
+
+// downloadTemplate validates the response without publishing downloaded bytes.
+func downloadTemplate(ctx context.Context, client *http.Client, url, cachePath, etag string) ([]byte, bool, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return false, etag, fmt.Errorf("build template request: %w", err)
+		return nil, false, etag, fmt.Errorf("build template request: %w", err)
 	}
 	if etag != "" {
 		req.Header.Set("If-None-Match", etag)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return false, etag, fmt.Errorf("download template: %w", err)
+		return nil, false, etag, fmt.Errorf("download template: %w", err)
 	}
 	defer resp.Body.Close()
 
 	switch resp.StatusCode {
 	case http.StatusNotModified:
 		if etag == "" {
-			return false, etag, errors.New("unexpected 304 without a conditional request")
+			return nil, false, etag, errors.New("unexpected 304 without a conditional request")
 		}
-		if _, _, err := readTemplateCache(cachePath); err != nil {
-			return false, etag, fmt.Errorf("304 without a valid template cache: %w", err)
+		cached, _, err := readTemplateCache(cachePath)
+		if err != nil {
+			return nil, false, etag, fmt.Errorf("304 without a valid template cache: %w", err)
 		}
-		return false, etag, nil
+		return cached, false, etag, nil
 	case http.StatusOK:
 	default:
-		return false, etag, fmt.Errorf("download template: unexpected status %d", resp.StatusCode)
+		return nil, false, etag, fmt.Errorf("download template: unexpected status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, templateMaxBytes+1))
 	if err != nil {
-		return false, etag, fmt.Errorf("read template body: %w", err)
+		return nil, false, etag, fmt.Errorf("read template body: %w", err)
 	}
 	if len(body) > templateMaxBytes {
-		return false, etag, fmt.Errorf("template exceeds %d bytes", templateMaxBytes)
+		return nil, false, etag, fmt.Errorf("template exceeds %d bytes", templateMaxBytes)
 	}
 	if err := validateTemplate(string(body)); err != nil {
-		return false, etag, fmt.Errorf("template rejected: %w", err)
+		return nil, false, etag, fmt.Errorf("template rejected: %w", err)
 	}
 	// ETags may be unavailable (e.g. after restarting). A 200 containing the
 	// same bytes is still an unchanged template and must preserve its mtime.
 	if cached, _, err := readTemplateCache(cachePath); err == nil && bytes.Equal(cached, body) {
-		return false, resp.Header.Get("ETag"), nil
+		return body, false, resp.Header.Get("ETag"), nil
 	}
-	if err := atomicWriteFile(cachePath, body); err != nil {
-		return false, etag, fmt.Errorf("write template cache: %w", err)
-	}
-	return true, resp.Header.Get("ETag"), nil
+	return body, true, resp.Header.Get("ETag"), nil
 }
 
 // validateTemplate rejects downloads that would break every rendered
@@ -359,25 +367,79 @@ func validateTemplate(content string) error {
 	return errors.New("template has no provider URL with both placeholders")
 }
 
+// publishTemplateCheck stages both files before replacing either. Publish the
+// check first so a failed metadata write never exposes new subscription bytes.
+// If publishing the YAML fails, restore the previous metadata as well.
+func publishTemplateCheck(cachePath string, body, metadata []byte, changed bool) error {
+	if !changed {
+		if err := atomicWriteFile(cachePath+".check.json", metadata); err != nil {
+			return fmt.Errorf("record template check: %w", err)
+		}
+		return nil
+	}
+	cacheTemp, err := stageFile(cachePath, body)
+	if err != nil {
+		return fmt.Errorf("write template cache: %w", err)
+	}
+	defer os.Remove(cacheTemp)
+	checkPath := cachePath + ".check.json"
+	checkTemp, err := stageFile(checkPath, metadata)
+	if err != nil {
+		return fmt.Errorf("record template check: %w", err)
+	}
+	defer os.Remove(checkTemp)
+	// A hard link preserves the old record (including its mtime) for rollback;
+	// using a sibling temp file keeps all renames on the same filesystem.
+	backup := checkTemp + ".previous"
+	if err := os.Link(checkPath, backup); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("back up template check: %w", err)
+	}
+	defer os.Remove(backup)
+	if err := os.Rename(checkTemp, checkPath); err != nil {
+		return fmt.Errorf("record template check: %w", err)
+	}
+	if err := os.Rename(cacheTemp, cachePath); err != nil {
+		restoreErr := os.Rename(backup, checkPath)
+		if os.IsNotExist(restoreErr) {
+			restoreErr = os.Remove(checkPath)
+		}
+		return errors.Join(fmt.Errorf("write template cache: %w", err), restoreErr)
+	}
+	return nil
+}
+
 // atomicWriteFile writes via a sibling temp file + rename so concurrent
 // readers of the cache never see a truncated template.
 func atomicWriteFile(path string, data []byte) error {
-	file, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	temp, err := stageFile(path, data)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(file.Name())
-	defer file.Close()
+	defer os.Remove(temp)
+	return os.Rename(temp, path)
+}
+
+func stageFile(path string, data []byte) (name string, err error) {
+	file, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = file.Close()
+		if err != nil {
+			_ = os.Remove(file.Name())
+		}
+	}()
 	if err := file.Chmod(0o644); err != nil {
-		return err
+		return "", err
 	}
 	if _, err := file.Write(data); err != nil {
-		return err
+		return "", err
 	}
 	if err := file.Close(); err != nil {
-		return err
+		return "", err
 	}
-	return os.Rename(file.Name(), path)
+	return file.Name(), nil
 }
 
 // StartTemplateRefresh starts the background fetch+ticker once per process:
