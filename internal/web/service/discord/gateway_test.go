@@ -302,9 +302,9 @@ func TestGatewayRequestedHeartbeatDoesNotRaceTicker(t *testing.T) {
 			return
 		}
 		defer conn.Close()
-		// 10ms, not 1ms: Discord answers every heartbeat and the client now drops a
-		// socket it hears nothing back on, so the ACK needs room to arrive.
-		_ = conn.WriteJSON(GatewayPayload{Op: opHello, D: []byte(`{"heartbeat_interval": 10}`)})
+		// Allow ACK scheduling during the parallel Go suite without a false zombie.
+		// The one-second flood still overlaps ten periodic heartbeats.
+		_ = conn.WriteJSON(GatewayPayload{Op: opHello, D: []byte(`{"heartbeat_interval": 100}`)})
 
 		// Two server goroutines write, so they share one writer: gorilla panics on
 		// concurrent writes, and this test is about the CLIENT's two writers.
@@ -316,23 +316,40 @@ func TestGatewayRequestedHeartbeatDoesNotRaceTicker(t *testing.T) {
 		}
 
 		readErr := make(chan error, 1)
+		tickerReady := make(chan struct{})
 		go func() {
+			heartbeats := 0
 			for {
 				var payload GatewayPayload
 				if err := conn.ReadJSON(&payload); err != nil {
 					readErr <- err
 					return
 				}
-				// Discord answers every heartbeat; without this the zombie check
-				// closes the socket a millisecond into the flood below.
+				// ACKs keep both heartbeat sources active throughout the flood.
 				if payload.Op == opHeartbeat {
 					if err := writeJSON(GatewayPayload{Op: opHeartbeatACK}); err != nil {
 						readErr <- err
 						return
 					}
+					heartbeats++
+					if heartbeats == 2 {
+						close(tickerReady)
+					}
 				}
 			}
 		}()
+		// These heartbeats precede any requests, so they prove the ticker is live.
+		select {
+		case <-tickerReady:
+		case err := <-readErr:
+			t.Errorf("gateway failed before the heartbeat flood: %v", err)
+			once.Do(func() { close(flooded) })
+			return
+		case <-time.After(3 * time.Second):
+			t.Error("periodic heartbeats did not start")
+			once.Do(func() { close(flooded) })
+			return
+		}
 		// Op 1 from the server makes the read loop write while the ticker writes too.
 		for deadline := time.Now().Add(time.Second); time.Now().Before(deadline); {
 			if err := writeJSON(GatewayPayload{Op: opHeartbeat}); err != nil {
