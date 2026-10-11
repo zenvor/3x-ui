@@ -66,6 +66,24 @@ func TestBindConflicts(t *testing.T) {
 			``, 1,
 		},
 		{
+			"panel V6Only ipv6 wildcard leaves an ipv4 address free",
+			`{"listen":"::","port":443,"protocol":"vless","tag":"ipv6","streamSettings":{"network":"tcp","sockopt":{"V6Only":true}}},
+			 {"listen":"10.5.0.200","port":443,"protocol":"vless","tag":"ipv4"}`,
+			``, 0,
+		},
+		{
+			"panel V6Only still conflicts with an ipv6 address",
+			`{"listen":"::","port":443,"protocol":"vless","tag":"ipv6","streamSettings":{"network":"tcp","sockopt":{"V6Only":true}}},
+			 {"listen":"2001:db8::1","port":443,"protocol":"vless","tag":"other-ipv6"}`,
+			``, 1,
+		},
+		{
+			"panel V6Only disabled keeps dual-stack conflict",
+			`{"listen":"::","port":443,"protocol":"vless","tag":"ipv6","streamSettings":{"network":"tcp","sockopt":{"V6Only":false}}},
+			 {"listen":"10.5.0.200","port":443,"protocol":"vless","tag":"ipv4"}`,
+			``, 1,
+		},
+		{
 			"v6only ipv6 wildcard leaves an ipv4 address free",
 			`{"listen":"::","port":443,"protocol":"vless","tag":"ipv6","streamSettings":{"network":"tcp","sockopt":{"v6only":true}}},
 			 {"listen":"10.5.0.200","port":443,"protocol":"vless","tag":"ipv4"}`,

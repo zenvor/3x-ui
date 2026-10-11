@@ -957,7 +957,10 @@ func TestCheckPortConflict_V6OnlyWildcardLeavesIPv4AddressFree(t *testing.T) {
 		want   bool
 	}{
 		{"dual-stack", `{"network":"tcp"}`, true},
+		{"panel V6Only", `{"network":"tcp","sockopt":{"V6Only":true}}`, false},
+		{"panel V6Only disabled", `{"network":"tcp","sockopt":{"V6Only":false}}`, true},
 		{"v6only", `{"network":"tcp","sockopt":{"v6only":true}}`, false},
+		{"import v6only disabled", `{"network":"tcp","sockopt":{"v6only":false}}`, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			setupConflictDB(t)
@@ -969,6 +972,29 @@ func TestCheckPortConflict_V6OnlyWildcardLeavesIPv4AddressFree(t *testing.T) {
 			}
 			if got := exist != nil; got != tc.want {
 				t.Fatalf("conflict = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestStreamV6Only(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		stream string
+		want   bool
+	}{
+		{"panel", `{"sockopt":{"V6Only":true}}`, true},
+		{"import", `{"sockopt":{"v6only":true}}`, true},
+		{"disabled", `{"sockopt":{"V6Only":false}}`, false},
+		{"absent", `{"sockopt":{}}`, false},
+		{"empty", ``, false},
+		{"wrong location", `{"V6Only":true}`, false},
+		{"invalid type", `{"sockopt":{"V6Only":"true"}}`, false},
+		{"malformed", `{"sockopt":{"V6Only":true}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := streamV6Only(tc.stream); got != tc.want {
+				t.Fatalf("streamV6Only(%s) = %v, want %v", tc.stream, got, tc.want)
 			}
 		})
 	}
