@@ -8,6 +8,7 @@ import (
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	"github.com/mhsanaei/3x-ui/v3/internal/tuic"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -445,6 +446,11 @@ func (s *ClientService) validateTuicIdentities(tx *gorm.DB, inboundID int, chang
 	}
 	seen := make(map[uuid.UUID]string)
 	for _, client := range candidates {
+		if client.Email != "" {
+			if err := tuic.ValidateSocksUsername(client.Email); err != nil {
+				return err
+			}
+		}
 		if client.ID == "" {
 			continue
 		}

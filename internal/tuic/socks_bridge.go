@@ -333,7 +333,28 @@ func buildSocks5UDPHeader(target *Address) []byte {
 	return hdr
 }
 
+// ValidateSocksUsername checks the byte limit of RFC 1929's one-byte ULEN.
+func ValidateSocksUsername(user string) error {
+	if len(user) == 0 || len(user) > 255 {
+		return errors.New("tuic socks: client email must contain 1 to 255 bytes")
+	}
+	return nil
+}
+
+func validateSocksCredentials(user, password string) error {
+	if err := ValidateSocksUsername(user); err != nil {
+		return err
+	}
+	if len(password) == 0 || len(password) > 255 {
+		return errors.New("tuic socks: relay password must contain 1 to 255 bytes")
+	}
+	return nil
+}
+
 func socks5Handshake(conn net.Conn, user, password string) error {
+	if err := validateSocksCredentials(user, password); err != nil {
+		return err
+	}
 	if _, err := conn.Write([]byte{0x05, 0x01, 0x02}); err != nil {
 		return fmt.Errorf("tuic socks: send greeting: %w", err)
 	}
@@ -572,6 +593,9 @@ func SocksInboundSettings(emails []string, password string) ([]byte, error) {
 		Accounts []account `json:"accounts"`
 	}{Auth: "password", UDP: true}
 	for _, email := range emails {
+		if err := validateSocksCredentials(email, password); err != nil {
+			return nil, err
+		}
 		settings.Accounts = append(settings.Accounts, account{User: email, Pass: password})
 	}
 	return json.Marshal(settings)

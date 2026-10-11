@@ -78,3 +78,64 @@ func TestSocksRelayRejectsAuthenticationDowngrade(t *testing.T) {
 		})
 	}
 }
+
+func TestSocksCredentialsByteLimits(t *testing.T) {
+	for _, tc := range []struct {
+		name, user, password string
+		valid                bool
+	}{
+		{"ASCII boundary", strings.Repeat("u", 255), strings.Repeat("p", 255), true},
+		{"UTF8 boundary", strings.Repeat("中", 85), "password", true},
+		{"ASCII overflow", strings.Repeat("u", 256), "password", false},
+		{"UTF8 overflow", strings.Repeat("中", 86), "password", false},
+		{"password overflow", "user", strings.Repeat("p", 256), false},
+		{"empty user", "", "password", false},
+		{"empty password", "user", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw, err := SocksInboundSettings([]string{tc.user}, tc.password)
+			if (err == nil) != tc.valid {
+				t.Fatalf("settings error = %v, valid = %t", err, tc.valid)
+			}
+			if tc.valid && len(raw) == 0 {
+				t.Fatal("valid credentials produced no settings")
+			}
+			client, server := net.Pipe()
+			defer client.Close()
+			defer server.Close()
+			_ = client.SetDeadline(time.Now().Add(time.Second))
+			_ = server.SetDeadline(time.Now().Add(time.Second))
+			result := make(chan error, 1)
+			go func() {
+				if tc.valid {
+					result <- authenticateMockSocksConn(server, tc.user, tc.password)
+				} else {
+					payload, err := io.ReadAll(server)
+					if err == nil && len(payload) != 0 {
+						err = errors.New("invalid credentials wrote handshake bytes")
+					}
+					result <- err
+				}
+			}()
+			err = socks5Handshake(client, tc.user, tc.password)
+			if (err == nil) != tc.valid {
+				t.Fatalf("handshake error = %v, valid = %t", err, tc.valid)
+			}
+			if !tc.valid && !strings.Contains(err.Error(), "1 to 255 bytes") {
+				t.Fatalf("unexpected validation error: %v", err)
+			}
+			_ = client.Close()
+			if err := <-result; err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestValidateClientsRejectsEmailByteOverflow(t *testing.T) {
+	for _, email := range []string{strings.Repeat("u", 256), strings.Repeat("中", 86)} {
+		if err := ValidateClients([]TuicClientSettings{{UUID: "a0000000-0000-0000-0000-000000000001", Email: email}}); err == nil {
+			t.Fatal("runtime accepted an email exceeding the SOCKS username byte limit")
+		}
+	}
+}

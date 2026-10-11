@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/runtime"
 	"github.com/mhsanaei/3x-ui/v3/internal/xray"
@@ -196,4 +197,64 @@ func TestTuicClientMutationsRefreshXrayBridge(t *testing.T) {
 		t.Fatalf("deleting a TUIC client scheduled %d bridge resyncs, want 6", resyncs)
 	}
 	assertBridgeAccounts("user1@tuic.com")
+}
+
+func TestTuicClientEmailByteLimitBeforePersistence(t *testing.T) {
+	for _, tc := range []struct {
+		name, email string
+		valid       bool
+	}{
+		{"ASCII boundary", strings.Repeat("a", 255), true},
+		{"UTF8 boundary", strings.Repeat("中", 85), true},
+		{"ASCII overflow", strings.Repeat("a", 256), false},
+		{"UTF8 overflow", strings.Repeat("中", 86), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setupConflictDB(t)
+			inboundSvc := &InboundService{}
+			clientSvc := &ClientService{}
+			baseSettings := `{"certificate":"dummy-cert","private_key":"dummy-key","clients":[{"id":"a0000000-0000-0000-0000-000000000001","password":"p1","email":"base@tuic","enable":true}]}`
+			base := &model.Inbound{Tag: "tuic-byte-limit", Protocol: model.TUIC, Settings: baseSettings}
+			created, _, err := inboundSvc.AddInbound(base)
+			if err != nil {
+				t.Fatal(err)
+			}
+			payload := &model.Inbound{Id: created.Id, Settings: fmt.Sprintf(`{"clients":[{"id":"a0000000-0000-0000-0000-000000000002","password":"p2","email":%q,"enable":true}]}`, tc.email)}
+			_, err = clientSvc.AddInboundClient(inboundSvc, payload)
+			if (err == nil) != tc.valid {
+				t.Fatalf("add error = %v, valid = %t", err, tc.valid)
+			}
+			if !tc.valid {
+				var rows int64
+				if err := database.GetDB().Model(&model.ClientRecord{}).Where("email = ?", tc.email).Count(&rows).Error; err != nil {
+					t.Fatal(err)
+				}
+				if rows != 0 {
+					t.Fatal("rejected client was persisted")
+				}
+				payload.Settings = fmt.Sprintf(`{"clients":[{"id":"a0000000-0000-0000-0000-000000000001","password":"p1","email":%q,"enable":true}]}`, tc.email)
+				if _, err := clientSvc.UpdateInboundClient(inboundSvc, payload, "base@tuic"); err == nil {
+					t.Fatal("rename accepted an overflowing email")
+				}
+				current, err := inboundSvc.GetInbound(created.Id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				clients, err := inboundSvc.GetClients(current)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(clients) != 1 || clients[0].Email != "base@tuic" {
+					t.Fatalf("rejected mutations changed clients: %+v", clients)
+				}
+				copy := *base
+				copy.Id = 0
+				copy.Tag = "tuic-overflow-create"
+				copy.Settings = payload.Settings
+				if _, _, err := inboundSvc.AddInbound(&copy); err == nil {
+					t.Fatal("inbound creation accepted an overflowing email")
+				}
+			}
+		})
+	}
 }
