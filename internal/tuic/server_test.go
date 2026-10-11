@@ -196,13 +196,7 @@ func testServerTCPConnectE2E(t *testing.T, controller string) {
 		t.Fatalf("expected active email alice@example.com, got %v", activeEmails)
 	}
 
-	deltas := server.CollectClientTraffic()
-	if len(deltas) == 0 {
-		t.Fatalf("expected traffic deltas, got none")
-	}
-	if deltas[0].Email != "alice@example.com" || deltas[0].Up < int64(len(testMsg)) || deltas[0].Down < int64(len(testMsg)) {
-		t.Fatalf("unexpected traffic deltas: %+v", deltas[0])
-	}
+	awaitTestTraffic(t, server.CollectClientTraffic, "alice@example.com", int64(len(testMsg)), int64(len(testMsg)))
 }
 
 func TestServerUDPDatagramE2E(t *testing.T) {
@@ -295,7 +289,10 @@ func testServerUDPDatagramE2E(t *testing.T, controller string) {
 	if _, err := uniStream.Write(authPayload); err != nil {
 		t.Fatalf("write auth payload failed: %v", err)
 	}
-	_ = uniStream.Close()
+	if err := closeTUICRequestStream(uniStream); err != nil {
+		t.Fatalf("close authentication request: %v", err)
+	}
+	_, _ = authenticatedServerConnection(t, server, testUUID)
 
 	// 2. Send UDP datagram
 	target := &Address{
@@ -304,9 +301,6 @@ func testServerUDPDatagramE2E(t *testing.T, controller string) {
 		Port: 53,
 	}
 	udpMsg := bytes.Repeat([]byte("d"), 1300)
-
-	// Give a tiny moment for auth to register
-	time.Sleep(50 * time.Millisecond)
 
 	fragmentTotal := (len(udpMsg) + maxDatagramFragmentSize - 1) / maxDatagramFragmentSize
 	for i := 0; i < fragmentTotal; i++ {
@@ -356,13 +350,7 @@ func testServerUDPDatagramE2E(t *testing.T, controller string) {
 	}
 
 	// 4. Verify traffic
-	deltas := server.CollectClientTraffic()
-	if len(deltas) == 0 {
-		t.Fatalf("expected traffic deltas, got none")
-	}
-	if deltas[0].Email != "bob@example.com" || deltas[0].Up < int64(len(udpMsg)) || deltas[0].Down < int64(len(udpMsg)) {
-		t.Fatalf("unexpected traffic deltas: %+v", deltas[0])
-	}
+	awaitTestTraffic(t, server.CollectClientTraffic, "bob@example.com", int64(len(udpMsg)), int64(len(udpMsg)))
 }
 
 func TestServerUDPStreamE2E(t *testing.T) {
@@ -754,5 +742,69 @@ func TestAuthenticationTimeoutClosesUnauthenticatedConnections(t *testing.T) {
 				t.Fatalf("server left unauthenticated QUIC connection open: %v", ctx.Err())
 			}
 		})
+	}
+}
+
+// Traffic snapshots drain each direction independently. A reply can arrive
+// before the forwarding goroutine records uplink, so accumulate until both
+// expected totals have arrived instead of requiring one simultaneous snapshot.
+func awaitTestTraffic(t *testing.T, collect func() []ClientTrafficDelta, email string, wantUp, wantDown int64) {
+	t.Helper()
+	deadline := time.NewTimer(2 * time.Second)
+	defer deadline.Stop()
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	var up, down int64
+	for {
+		for _, delta := range collect() {
+			if delta.Email != email {
+				t.Fatalf("unexpected traffic identity: %+v", delta)
+			}
+			up += delta.Up
+			down += delta.Down
+		}
+		if up >= wantUp && down >= wantDown {
+			return
+		}
+		select {
+		case <-tick.C:
+		case <-deadline.C:
+			t.Fatalf("traffic for %s = (%d,%d), want at least (%d,%d)", email, up, down, wantUp, wantDown)
+		}
+	}
+}
+
+func TestTrafficAssertionAccumulatesDelayedUplink(t *testing.T) {
+	const email = "delayed-uplink@tuic"
+	id := uuid.New()
+	registry := NewUserRegistry()
+	registry.SetUsers([]TuicClientSettings{{UUID: id.String(), Password: "password", Email: email}})
+	registry.mu.RLock()
+	user := registry.users[[16]byte(id)]
+	registry.mu.RUnlock()
+	server := &Server{users: registry}
+	user.Traffic.BytesDown.Add(1300)
+	observedDown := make(chan struct{})
+	finished := make(chan struct{})
+	go func() {
+		<-observedDown
+		user.Traffic.BytesUp.Add(1300)
+		close(finished)
+	}()
+	first := true
+	awaitTestTraffic(t, func() []ClientTrafficDelta {
+		deltas := server.CollectClientTraffic()
+		if first {
+			first = false
+			if len(deltas) != 1 || deltas[0].Up != 0 || deltas[0].Down != 1300 {
+				t.Fatalf("did not reproduce down-only snapshot: %+v", deltas)
+			}
+			close(observedDown)
+		}
+		return deltas
+	}, email, 1300, 1300)
+	<-finished
+	if left := server.CollectClientTraffic(); len(left) != 0 {
+		t.Fatalf("undrained traffic: %+v", left)
 	}
 }
