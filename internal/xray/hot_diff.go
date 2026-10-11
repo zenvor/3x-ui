@@ -346,7 +346,8 @@ func inboundUsesTproxy(ib *InboundConfig) bool {
 
 // inboundUsesSocksAccounts reports whether an inbound is a password-auth
 // SOCKS5 inbound with one or more named accounts -- the shape
-// internal/amneziawgnet and TUIC per-inbound relays generate this shape; every
+// internal/amneziawgnet's per-inbound relay (internal/web/service/xray.go's
+// injectAmneziawgnetSocks) is the only generator of in this fork; every
 // other SOCKS5 bridge this fork builds (panel egress, per-node egress,
 // mtproto egress) uses "noauth" with no per-account identity at all, so this
 // check can't accidentally rope in one of those lower-churn bridges.

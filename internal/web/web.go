@@ -804,18 +804,13 @@ func (s *Server) stop(stopXray bool, stopTgBot bool) error {
 		shutdownCancel()
 	}
 	if s.cron != nil {
-		cronCtx, cronCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := stopCronJobs(cronCtx, s.cron); err != nil {
-			logger.Warning("timed out waiting for cron jobs during shutdown:", err)
-			err2 = err
-		}
-		cronCancel()
+		<-s.cron.Stop().Done()
 	}
 	if stopXray {
 		tuic.GetManager().StopAll()
 		if err := job.NewTuicJob().FlushStoppedTraffic(); err != nil {
 			logger.Warning("persist final TUIC traffic on shutdown failed:", err)
-			err2 = common.Combine(err2, err)
+			err2 = err
 		}
 		mtproto.GetManager().StopAll()
 		amneziawgnet.GetManager().StopAll()

@@ -3,7 +3,6 @@ package sub
 import (
 	"encoding/base64"
 	"fmt"
-	"net"
 	"slices"
 	"strconv"
 	"strings"
@@ -14,38 +13,6 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	wgutil "github.com/mhsanaei/3x-ui/v3/internal/util/wireguard"
 )
-
-func TestAmneziaWGHostEndpointAddressFamilies(t *testing.T) {
-	seedSubDB(t)
-	priv, pub, err := wgutil.GenerateWireguardKeypair()
-	if err != nil {
-		t.Fatal(err)
-	}
-	ib := &model.Inbound{
-		Listen: "203.0.113.7", Port: 51820, Protocol: model.AmneziaWG,
-		Settings: fmt.Sprintf(`{"server":{"privateKey":%q,"publicKey":%q},"clients":[{"email":"user","privateKey":%q,"allowedIPs":["10.8.1.2/32"]}]}`, priv, pub, priv),
-	}
-	for _, address := range []string{"2001:db8::1", "[2001:db8::1]", "203.0.113.8", "vpn.example.com"} {
-		t.Run(address, func(t *testing.T) {
-			ep := hostToExternalProxyMap(&model.Host{Remark: "peer"}, address, 8443)
-			link := (&SubService{}).linkFromHosts(ib, model.Client{Email: "user"}, []map[string]any{ep})
-			raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(link, "vpn://"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			for line := range strings.SplitSeq(string(raw), "\n") {
-				if endpoint, ok := strings.CutPrefix(line, "Endpoint = "); ok {
-					host, port, err := net.SplitHostPort(endpoint)
-					if err != nil || host != strings.Trim(address, "[]") || port != "8443" {
-						t.Fatalf("endpoint=%q host=%q port=%q err=%v", endpoint, host, port, err)
-					}
-					return
-				}
-			}
-			t.Fatalf("no Endpoint in decoded host link: %s", raw)
-		})
-	}
-}
 
 // TestGenAmneziaWGLinkFields covers the real AmneziaVPN app's vpn:// scheme:
 // base64url (no padding) of a plain AmneziaWG .conf text, parsed by the real

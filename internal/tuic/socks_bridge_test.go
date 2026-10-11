@@ -208,51 +208,41 @@ func startMockSocks5Server(t *testing.T, expectedUser, expectedPass string) (str
 	}
 }
 
-func authenticateMockSocksConn(conn net.Conn, expectedUser, expectedPass string) error {
+func handleMockSocksConn(conn net.Conn, expectedUser, expectedPass string) {
+	defer conn.Close()
 	// Read greeting
-	var greeting [3]byte
+	var greeting [4]byte
 	if _, err := io.ReadFull(conn, greeting[:]); err != nil {
-		return err
-	}
-	if greeting != [3]byte{5, 1, 2} {
-		return errors.New("relay must offer password authentication only")
+		return
 	}
 	// Select user/password auth (0x02)
 	if _, err := conn.Write([]byte{0x05, 0x02}); err != nil {
-		return err
+		return
 	}
 	// Auth negotiation
 	var authVer [2]byte
 	if _, err := io.ReadFull(conn, authVer[:]); err != nil {
-		return err
+		return
 	}
 	uLen := int(authVer[1])
 	user := make([]byte, uLen)
 	if _, err := io.ReadFull(conn, user); err != nil {
-		return err
+		return
 	}
 	var pLen [1]byte
 	if _, err := io.ReadFull(conn, pLen[:]); err != nil {
-		return err
+		return
 	}
 	pass := make([]byte, int(pLen[0]))
 	if _, err := io.ReadFull(conn, pass); err != nil {
-		return err
-	}
-
-	if len(user) == 0 || (expectedUser != "" && string(user) != expectedUser) || string(pass) != expectedPass {
-		_, _ = conn.Write([]byte{0x01, 0x01}) // auth failure
-		return errors.New("relay credentials did not match")
-	}
-	_, err := conn.Write([]byte{0x01, 0x00}) // auth success
-	return err
-}
-
-func handleMockSocksConn(conn net.Conn, expectedUser, expectedPass string) {
-	defer conn.Close()
-	if err := authenticateMockSocksConn(conn, expectedUser, expectedPass); err != nil {
 		return
 	}
+
+	if string(user) != expectedUser || string(pass) != expectedPass {
+		_, _ = conn.Write([]byte{0x01, 0x01}) // auth failure
+		return
+	}
+	_, _ = conn.Write([]byte{0x01, 0x00}) // auth success
 
 	// Read command
 	var cmdHdr [4]byte

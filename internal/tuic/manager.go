@@ -103,14 +103,9 @@ func (m *Manager) ensureLocked(inst Instance) error {
 }
 
 func (m *Manager) startLocked(inst Instance) (*Server, error) {
-	identity, err := sharedBridgeIdentity()
-	if err != nil {
-		return nil, fmt.Errorf("tuic: initialize authenticated bridge: %w", err)
-	}
 	relay := &SocksRelay{
-		Addr:      fmt.Sprintf("127.0.0.1:%d", SOCKSPortForInbound(inst.Id)),
-		Password:  SocksPassword(),
-		TLSConfig: identity.client.Clone(),
+		Addr:     fmt.Sprintf("127.0.0.1:%d", SOCKSPortForInbound(inst.Id)),
+		Password: SocksPassword(),
 	}
 	server, err := NewServer(inst, relay)
 	if err != nil {

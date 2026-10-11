@@ -55,21 +55,14 @@ func TestInjectTuicSocks(t *testing.T) {
 	}
 
 	var parsedSettings struct {
-		Auth     string `json:"auth"`
-		UDP      bool   `json:"udp"`
-		Accounts []struct {
-			User string `json:"user"`
-			Pass string `json:"pass"`
-		} `json:"accounts"`
+		Auth string `json:"auth"`
+		UDP  bool   `json:"udp"`
 	}
 	if err := json.Unmarshal(sc.Settings, &parsedSettings); err != nil {
 		t.Fatalf("failed to unmarshal settings: %v", err)
 	}
-	if parsedSettings.Auth != "password" || !parsedSettings.UDP {
-		t.Fatal("TUIC relay must require password authentication and enable UDP")
-	}
-	if len(parsedSettings.Accounts) != 1 || parsedSettings.Accounts[0].User != "user1@example.com" || parsedSettings.Accounts[0].Pass != tuic.SocksPassword() {
-		t.Fatal("TUIC relay must authenticate the client email using the manager's password")
+	if parsedSettings.Auth != "noauth" || !parsedSettings.UDP {
+		t.Fatalf("expected auth=noauth, udp=true, got %+v", parsedSettings)
 	}
 }
 

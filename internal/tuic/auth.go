@@ -207,11 +207,6 @@ func (ur *UserRegistry) authenticate(cs *tls.ConnectionState, rawUUID [16]byte, 
 func ValidateClients(clients []TuicClientSettings) error {
 	seen := make(map[uuid.UUID]bool, len(clients))
 	for _, client := range clients {
-		if client.Email != "" {
-			if err := ValidateSocksUsername(client.Email); err != nil {
-				return err
-			}
-		}
 		id, err := uuid.Parse(client.UUID)
 		if err != nil {
 			return errors.New("tuic: invalid client UUID")

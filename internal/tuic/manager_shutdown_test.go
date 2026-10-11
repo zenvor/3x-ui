@@ -28,12 +28,6 @@ func TestAudit3ManagerStopMustInterruptIdleTCPRelay(t *testing.T) {
 	if listener == nil {
 		t.Fatal(err)
 	}
-	identity, err := sharedBridgeIdentity()
-	if err != nil {
-		_ = listener.Close()
-		t.Fatal(err)
-	}
-	listener = tls.NewListener(listener, &tls.Config{Certificates: []tls.Certificate{identity.certificate}, MinVersion: tls.VersionTLS13})
 	defer listener.Close()
 	release := make(chan struct{})
 	defer close(release)
@@ -45,9 +39,11 @@ func TestAudit3ManagerStopMustInterruptIdleTCPRelay(t *testing.T) {
 			return
 		}
 		defer c.Close()
-		if err := authenticateMockSocksConn(c, "close-idle@audit3", SocksPassword()); err != nil {
+		var greeting [4]byte
+		if _, err := io.ReadFull(c, greeting[:]); err != nil {
 			return
 		}
+		c.Write([]byte{5, 0})
 		var req [10]byte
 		if _, err := io.ReadFull(c, req[:]); err != nil {
 			return

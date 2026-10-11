@@ -107,29 +107,23 @@ func (s *InboundService) DeliverNodeResets(ctx context.Context, nodeID int, rt r
 		for i := range batch {
 			emails[i] = batch[i].Email
 		}
-		acknowledge := func(row model.NodePendingReset) error {
-			return db.Where("id = ? AND queued_at = ?", row.Id, row.QueuedAt).
-				Delete(&model.NodePendingReset{}).Error
-		}
+		var err error
 		if canBulk && len(batch) > nodeBulkPushThreshold {
-			if err := bulk.ResetClientTraffics(ctx, emails); err != nil {
-				return err
-			}
-			for _, row := range batch {
-				if err := acknowledge(row); err != nil {
-					return err
-				}
-			}
+			err = bulk.ResetClientTraffics(ctx, emails)
 		} else {
-			for _, row := range batch {
-				if err := rt.ResetClientTraffic(ctx, nil, row.Email); err != nil {
-					return err
+			for _, email := range emails {
+				if err = rt.ResetClientTraffic(ctx, nil, email); err != nil {
+					break
 				}
-				// Confirm each successful RPC before sending the next one. A
-				// later failure must not replay resets that already succeeded.
-				if err := acknowledge(row); err != nil {
-					return err
-				}
+			}
+		}
+		if err != nil {
+			return err
+		}
+		for i := range batch {
+			if err := db.Where("id = ? AND queued_at = ?", batch[i].Id, batch[i].QueuedAt).
+				Delete(&model.NodePendingReset{}).Error; err != nil {
+				return err
 			}
 		}
 	}

@@ -1,71 +1,12 @@
 package sub
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/gin-gonic/gin"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/xray"
 )
-
-func TestAllExcludedInboundsRemainKnownWithoutLinks(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	seedSubDB(t)
-	db := database.GetDB()
-	const subID = "all-excluded"
-	for i, tag := range []string{"hidden-one", "hidden-two"} {
-		ib := seedSubInbound(t, subID, tag, 24401+i, i, `{"network":"tcp","security":"none"}`)
-		if err := db.Model(ib).Update("exclude_from_sub", true).Error; err != nil {
-			t.Fatal(err)
-		}
-		if err := db.Create(&xray.ClientTraffic{InboundId: ib.Id, Email: tag + "@e", Up: 100, Down: 200, Enable: true}).Error; err != nil {
-			t.Fatal(err)
-		}
-	}
-	links, _, _, traffic, err := NewSubService("").GetSubs(subID, "sub.example.com")
-	if err != nil || links == nil || len(links) != 0 || traffic.Up != 200 || traffic.Down != 400 {
-		t.Fatalf("links=%v usage=%+v err=%v, want a known empty subscription with both clients' usage", links, traffic, err)
-	}
-	oldDistFS := distFS
-	distFS = testDistFS
-	t.Cleanup(func() { distFS = oldDistFS })
-	router := gin.New()
-	NewSUBController(router.Group("/"), WithSUBEncryption(false))
-	for _, accept := range []string{"text/plain", "text/html"} {
-		req := httptest.NewRequest(http.MethodGet, "/sub/"+subID, nil)
-		req.Header.Set("Accept", accept)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
-		if w.Code != http.StatusOK {
-			t.Fatalf("%s: status=%d body=%s", accept, w.Code, w.Body.String())
-		}
-		if accept == "text/plain" {
-			if w.Body.Len() != 0 || !strings.HasPrefix(w.Header().Get("Subscription-Userinfo"), "upload=200; download=400;") {
-				t.Fatalf("raw response body=%q usage=%q", w.Body.String(), w.Header().Get("Subscription-Userinfo"))
-			}
-		} else if !strings.Contains(w.Body.String(), `"links":[]`) || strings.Contains(w.Body.String(), "vless://") {
-			t.Fatalf("HTML must show no links: %s", w.Body.String())
-		}
-	}
-	var rows []xray.ClientTraffic
-	if err := db.Find(&rows).Error; err != nil {
-		t.Fatal(err)
-	}
-	for _, row := range rows {
-		if row.LastSubFetch == 0 {
-			t.Fatalf("client %s did not record subscription fetch", row.Email)
-		}
-	}
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/sub/missing-subscription", nil))
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("missing subscription status=%d, want 404", w.Code)
-	}
-}
 
 // An excluded inbound keeps serving its clients, so every renderer must drop
 // its links yet still count its clients' usage in the Subscription-Userinfo header.

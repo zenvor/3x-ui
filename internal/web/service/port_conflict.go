@@ -107,15 +107,15 @@ func inboundBindAddr(ib *model.Inbound) bindAddr {
 }
 
 func streamV6Only(streamSettings string) bool {
-	var stream struct {
-		Sockopt struct {
-			// encoding/json also accepts the lowercase alias used by imports.
-			V6Only bool `json:"V6Only"`
-		} `json:"sockopt"`
-	}
-	if json.Unmarshal([]byte(streamSettings), &stream) != nil {
+	if !strings.Contains(streamSettings, "v6only") {
 		return false
 	}
+	var stream struct {
+		Sockopt struct {
+			V6Only bool `json:"v6only"`
+		} `json:"sockopt"`
+	}
+	_ = json.Unmarshal([]byte(streamSettings), &stream)
 	return stream.Sockopt.V6Only
 }
 

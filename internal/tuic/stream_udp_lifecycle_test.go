@@ -57,13 +57,7 @@ func startLifecycleTestServer(t *testing.T, relayAddr, email string) (*Server, *
 	if _, err := stream.Write(auth); err != nil {
 		t.Fatalf("write authentication: %v", err)
 	}
-	// Force the server's normal cancellation to arrive before the client FIN.
-	select {
-	case <-stream.Context().Done():
-	case <-ctx.Done():
-		t.Fatal("server did not finish reading the authentication request")
-	}
-	if err := closeTUICRequestStream(stream); err != nil {
+	if err := stream.Close(); err != nil {
 		t.Fatalf("close authentication stream: %v", err)
 	}
 	return server, client, clientID, password

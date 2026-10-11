@@ -796,13 +796,12 @@ func injectAmneziawgnetSocks(cfg *xray.Config, inbounds []*model.Inbound) {
 }
 
 const (
+	tuicEgressSocksSettings    = `{"auth":"noauth","udp":true}`
 	tuicEgressSniffingSettings = `{"enabled":true,"destOverride":["http","tls","quic","fakedns"]}`
 )
 
 func injectTuicSocks(cfg *xray.Config, inbounds []*model.Inbound) {
 	existingTags := make(map[string]struct{}, len(cfg.InboundConfigs))
-	var relayLevel uint32
-	policyReady := false
 	for i := range cfg.InboundConfigs {
 		existingTags[cfg.InboundConfigs[i].Tag] = struct{}{}
 	}
@@ -815,48 +814,15 @@ func injectTuicSocks(cfg *xray.Config, inbounds []*model.Inbound) {
 			logger.Warning("tuic socks: inbound tag [", inbound.Tag, "] already present in generated config, skipping its relay inbound")
 			continue
 		}
-		inst, ok := tuic.InstanceFromInbound(inbound)
-		if !ok {
-			continue
-		}
-		emails := make([]string, 0, len(inst.Clients))
-		for _, client := range inst.Clients {
-			if client.Email != "" {
-				emails = append(emails, client.Email)
-			}
-		}
-		if len(emails) == 0 {
-			continue
-		}
-		if !policyReady {
-			var err error
-			relayLevel, err = ensureTuicSocksPolicy(cfg)
-			if err != nil {
-				logger.Warning("tuic socks: building relay policy: ", err)
-				continue
-			}
-			policyReady = true
-		}
-		settings, err := tuicSocksSettings(emails, relayLevel)
-		if err != nil {
-			logger.Warning("tuic socks: building settings for inbound [", inbound.Tag, "]: ", err)
-			continue
-		}
-		streamSettings, err := tuic.BridgeStreamSettings()
-		if err != nil {
-			logger.Warning("tuic socks: building authenticated bridge: ", err)
-			continue
-		}
 
 		existingTags[inbound.Tag] = struct{}{}
 		cfg.InboundConfigs = append(cfg.InboundConfigs, xray.InboundConfig{
-			Listen:         json_util.RawMessage(`"127.0.0.1"`),
-			Port:           tuic.SOCKSPortForInbound(inbound.Id),
-			Protocol:       "socks",
-			Settings:       json_util.RawMessage(settings),
-			StreamSettings: json_util.RawMessage(streamSettings),
-			Sniffing:       json_util.RawMessage(tuicEgressSniffingSettings),
-			Tag:            inbound.Tag,
+			Listen:   json_util.RawMessage(`"127.0.0.1"`),
+			Port:     tuic.SOCKSPortForInbound(inbound.Id),
+			Protocol: "socks",
+			Settings: json_util.RawMessage(tuicEgressSocksSettings),
+			Sniffing: json_util.RawMessage(tuicEgressSniffingSettings),
+			Tag:      inbound.Tag,
 		})
 	}
 }

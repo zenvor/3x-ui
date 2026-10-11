@@ -3,7 +3,6 @@ package tuic
 import (
 	"context"
 	"crypto/rand"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -23,17 +22,8 @@ const maxSocksUdpDatagramSize = 65507
 
 // SocksRelay describes the loopback SOCKS5 endpoint where decrypted TUIC traffic is forwarded.
 type SocksRelay struct {
-	Addr      string // e.g. "127.0.0.1:63201"
-	Password  string // internal shared password for the SOCKS inbound
-	TLSConfig *tls.Config
-}
-
-func (r *SocksRelay) dial(ctx context.Context) (net.Conn, error) {
-	dialer := &net.Dialer{Timeout: 10 * time.Second}
-	if r.TLSConfig != nil {
-		return (&tls.Dialer{NetDialer: dialer, Config: r.TLSConfig}).DialContext(ctx, "tcp", r.Addr)
-	}
-	return dialer.DialContext(ctx, "tcp", r.Addr)
+	Addr     string // e.g. "127.0.0.1:63201"
+	Password string // internal shared password for the SOCKS inbound
 }
 
 // CountingConn wraps a net.Conn and tracks bytes read and written atomically.
@@ -61,7 +51,8 @@ func (c *CountingConn) Write(p []byte) (int, error) {
 
 // DialTCP establishes a SOCKS5 CONNECT tunnel to the target address on behalf of user.
 func (r *SocksRelay) DialTCP(ctx context.Context, user string, target *Address) (net.Conn, error) {
-	conn, err := r.dial(ctx)
+	dialer := net.Dialer{Timeout: 10 * time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", r.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("tuic socks: dial relay %s: %w", r.Addr, err)
 	}
@@ -157,7 +148,8 @@ type SocksUDPSession struct {
 
 // DialUDP establishes a SOCKS5 UDP ASSOCIATE tunnel to Xray.
 func (r *SocksRelay) DialUDP(ctx context.Context, user string) (*SocksUDPSession, error) {
-	ctrl, err := r.dial(ctx)
+	dialer := net.Dialer{Timeout: 10 * time.Second}
+	ctrl, err := dialer.DialContext(ctx, "tcp", r.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("tuic socks: dial UDP control connection: %w", err)
 	}
@@ -341,29 +333,8 @@ func buildSocks5UDPHeader(target *Address) []byte {
 	return hdr
 }
 
-// ValidateSocksUsername checks the byte limit of RFC 1929's one-byte ULEN.
-func ValidateSocksUsername(user string) error {
-	if len(user) == 0 || len(user) > 255 {
-		return errors.New("tuic socks: client email must contain 1 to 255 bytes")
-	}
-	return nil
-}
-
-func validateSocksCredentials(user, password string) error {
-	if err := ValidateSocksUsername(user); err != nil {
-		return err
-	}
-	if len(password) == 0 || len(password) > 255 {
-		return errors.New("tuic socks: relay password must contain 1 to 255 bytes")
-	}
-	return nil
-}
-
 func socks5Handshake(conn net.Conn, user, password string) error {
-	if err := validateSocksCredentials(user, password); err != nil {
-		return err
-	}
-	if _, err := conn.Write([]byte{0x05, 0x01, 0x02}); err != nil {
+	if _, err := conn.Write([]byte{0x05, 0x02, 0x00, 0x02}); err != nil {
 		return fmt.Errorf("tuic socks: send greeting: %w", err)
 	}
 	var resp [2]byte
@@ -374,8 +345,8 @@ func socks5Handshake(conn net.Conn, user, password string) error {
 		return fmt.Errorf("tuic socks: unexpected SOCKS version %d", resp[0])
 	}
 	switch resp[1] {
-	case 0x00:
-		return errors.New("tuic socks: relay selected unauthenticated access")
+	case 0x00: // no auth
+		return nil
 	case 0x02: // username/password
 		req := make([]byte, 0, 3+len(user)+len(password))
 		req = append(req, 0x01, byte(len(user)))
@@ -601,9 +572,6 @@ func SocksInboundSettings(emails []string, password string) ([]byte, error) {
 		Accounts []account `json:"accounts"`
 	}{Auth: "password", UDP: true}
 	for _, email := range emails {
-		if err := validateSocksCredentials(email, password); err != nil {
-			return nil, err
-		}
 		settings.Accounts = append(settings.Accounts, account{User: email, Pass: password})
 	}
 	return json.Marshal(settings)

@@ -486,9 +486,6 @@ func (s *SubService) getSubs(subId string) ([]string, []string, int64, xray.Clie
 			continue
 		}
 		if inbound.ExcludeFromSub {
-			if result == nil {
-				result = []string{}
-			}
 			if countHiddenClients(clients, seenEmails) {
 				hasEnabledClient = true
 			}
@@ -1064,7 +1061,7 @@ func amneziaWGConfigText(server *amneziawg.ServerSettings, client *model.Client,
 		fmt.Fprintf(&b, "PresharedKey = %s\n", client.PreSharedKey)
 	}
 	b.WriteString("AllowedIPs = 0.0.0.0/0, ::/0\n")
-	fmt.Fprintf(&b, "Endpoint = %s", net.JoinHostPort(strings.Trim(host, "[]"), strconv.Itoa(port)))
+	fmt.Fprintf(&b, "Endpoint = %s:%d", host, port)
 	if ka := client.KeepAliveSeconds(); ka > 0 {
 		fmt.Fprintf(&b, "\nPersistentKeepalive = %d", ka)
 	}

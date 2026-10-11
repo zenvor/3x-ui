@@ -1,20 +1,13 @@
 package controller
 
 import (
-	"bytes"
-	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
-	"fmt"
-	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
-	"net/url"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"testing"
 
 	"github.com/gin-contrib/sessions"
@@ -25,7 +18,6 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/database/dbtest"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/util/crypto"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/runtime"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/session"
 )
 
@@ -83,16 +75,6 @@ func newAPIAuthTestEngine(t *testing.T) (*gin.Engine, *APIController) {
 	})
 	api.POST("/clients/clientIpsByGuid", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"reached": true})
-	})
-	api.Any("/clients/bulkResetTraffic", func(c *gin.Context) {
-		var payload struct {
-			Emails []string `json:"emails"`
-		}
-		if err := c.ShouldBindJSON(&payload); err != nil || len(payload.Emails) != 33 {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"success": true})
 	})
 	return engine, a
 }
@@ -171,7 +153,6 @@ func TestNodeSyncScopeAllowlistMatchesRemoteInventory(t *testing.T) {
 		"/server/getWebCertFiles":      {http.MethodGet: {}},
 		"/server/descendants":          {http.MethodGet: {}},
 		"/clients/resetTraffic/:email": {http.MethodPost: {}},
-		"/clients/bulkResetTraffic":    {http.MethodPost: {}},
 		"/inbounds/resetAllTraffics":   {http.MethodPost: {}},
 		"/inbounds/:id/resetTraffic":   {http.MethodPost: {}},
 		"/clients/onlinesByGuid":       {http.MethodPost: {}},
@@ -311,66 +292,5 @@ func TestCheckAPIAuth_SessionLoginPasses(t *testing.T) {
 	pingResp.Body.Close()
 	if pingResp.StatusCode != http.StatusOK {
 		t.Fatalf("session ping status = %d, want 200", pingResp.StatusCode)
-	}
-}
-
-func TestBulkTrafficResetScopeAndRemoteRuntime(t *testing.T) {
-	engine, _ := newAPIAuthTestEngine(t)
-	for _, scope := range []string{model.ApiScopeNodeSync, model.ApiScopeMonitor} {
-		if err := database.GetDB().Create(&model.ApiToken{Name: scope, Token: crypto.HashTokenSHA256(scope), Enabled: true, Scope: scope}).Error; err != nil {
-			t.Fatal(err)
-		}
-	}
-	emails := make([]string, 33)
-	for i := range emails {
-		emails[i] = fmt.Sprintf("reset-%d", i)
-	}
-	body, err := json.Marshal(map[string]any{"emails": emails})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, tc := range []struct {
-		name, method, scope string
-		mtls                bool
-		want                int
-	}{
-		{"node-sync bearer", http.MethodPost, model.ApiScopeNodeSync, false, http.StatusOK},
-		{"node-sync mTLS", http.MethodPost, "", true, http.StatusOK},
-		{"monitor denied", http.MethodPost, model.ApiScopeMonitor, false, http.StatusForbidden},
-		{"GET denied", http.MethodGet, model.ApiScopeNodeSync, false, http.StatusForbidden},
-		{"PUT denied", http.MethodPut, model.ApiScopeNodeSync, false, http.StatusForbidden},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(tc.method, "/panel/api/clients/bulkResetTraffic", bytes.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-			if tc.mtls {
-				req.TLS = &tls.ConnectionState{VerifiedChains: [][]*x509.Certificate{{{}}}}
-			} else {
-				req.Header.Set("Authorization", "Bearer "+tc.scope)
-			}
-			response := httptest.NewRecorder()
-			engine.ServeHTTP(response, req)
-			if response.Code != tc.want {
-				t.Fatalf("status = %d, want %d; body=%s", response.Code, tc.want, response.Body.String())
-			}
-		})
-	}
-	node := httptest.NewServer(engine)
-	defer node.Close()
-	u, err := url.Parse(node.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	host, portString, err := net.SplitHostPort(u.Host)
-	if err != nil {
-		t.Fatal(err)
-	}
-	port, err := strconv.Atoi(portString)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rt := runtime.NewRemote(&model.Node{Name: "reset-test", Address: host, Port: port, Scheme: "http", ApiToken: model.ApiScopeNodeSync, AllowPrivateAddress: true}, nil)
-	if err := rt.ResetClientTraffics(context.Background(), emails); err != nil {
-		t.Fatalf("actual remote bulk reset was denied: %v", err)
 	}
 }

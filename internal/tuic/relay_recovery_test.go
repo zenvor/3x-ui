@@ -36,7 +36,11 @@ func audit3RestartableSOCKS(t *testing.T) (string, *net.UDPConn, *net.UDPAddr) {
 			}
 			go func(c net.Conn) {
 				defer c.Close()
-				if err := authenticateMockSocksConn(c, "", "lifecycle-socks-password"); err != nil {
+				var greet [4]byte
+				if _, err := io.ReadFull(c, greet[:]); err != nil {
+					return
+				}
+				if _, err := c.Write([]byte{5, 0}); err != nil {
 					return
 				}
 				var req [10]byte

@@ -22,24 +22,17 @@ func TestUpdateTuicInboundResyncsBridgeOnTagRename(t *testing.T) {
 	}
 }
 
-func TestUpdateTuicInboundResyncsWhenSnapshotsMayAlreadyBeCurrent(t *testing.T) {
-	for _, settings := range []string{
-		`{"clients":[],"congestion_control":"bbr"}`,
-		`{"clients":[],"congestion_control":"cubic","log_level":"debug"}`,
-	} {
-		t.Run(settings, func(t *testing.T) {
-			resyncs := 0
-			local := NewLocal(LocalDeps{SetNeedRestart: func() { resyncs++ }})
-			oldInbound := &model.Inbound{Id: 940002, Tag: "tuic-tag", Protocol: model.TUIC, Enable: true, Settings: `{"clients":[],"congestion_control":"bbr"}`}
-			newInbound := *oldInbound
-			newInbound.Settings = settings
+func TestUpdateTuicInboundDoesNotResyncForProfileOnlyChange(t *testing.T) {
+	resyncs := 0
+	local := NewLocal(LocalDeps{SetNeedRestart: func() { resyncs++ }})
+	oldInbound := &model.Inbound{Id: 940002, Tag: "tuic-tag", Protocol: model.TUIC, Enable: true, Settings: `{"clients":[],"congestion_control":"bbr"}`}
+	newInbound := *oldInbound
+	newInbound.Settings = `{"clients":[],"congestion_control":"cubic","log_level":"debug"}`
 
-			if err := local.updateTuicInbound(context.Background(), oldInbound, &newInbound); err != nil {
-				t.Fatalf("updateTuicInbound: %v", err)
-			}
-			if resyncs != 1 {
-				t.Fatalf("runtime apply triggered %d Xray resyncs, want 1", resyncs)
-			}
-		})
+	if err := local.updateTuicInbound(context.Background(), oldInbound, &newInbound); err != nil {
+		t.Fatalf("updateTuicInbound: %v", err)
+	}
+	if resyncs != 0 {
+		t.Fatalf("profile-only update triggered %d Xray restarts, want 0", resyncs)
 	}
 }
