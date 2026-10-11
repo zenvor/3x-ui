@@ -334,7 +334,7 @@ func buildSocks5UDPHeader(target *Address) []byte {
 }
 
 func socks5Handshake(conn net.Conn, user, password string) error {
-	if _, err := conn.Write([]byte{0x05, 0x02, 0x00, 0x02}); err != nil {
+	if _, err := conn.Write([]byte{0x05, 0x01, 0x02}); err != nil {
 		return fmt.Errorf("tuic socks: send greeting: %w", err)
 	}
 	var resp [2]byte
@@ -345,8 +345,8 @@ func socks5Handshake(conn net.Conn, user, password string) error {
 		return fmt.Errorf("tuic socks: unexpected SOCKS version %d", resp[0])
 	}
 	switch resp[1] {
-	case 0x00: // no auth
-		return nil
+	case 0x00:
+		return errors.New("tuic socks: relay selected unauthenticated access")
 	case 0x02: // username/password
 		req := make([]byte, 0, 3+len(user)+len(password))
 		req = append(req, 0x01, byte(len(user)))

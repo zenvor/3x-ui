@@ -39,11 +39,9 @@ func TestAudit3ManagerStopMustInterruptIdleTCPRelay(t *testing.T) {
 			return
 		}
 		defer c.Close()
-		var greeting [4]byte
-		if _, err := io.ReadFull(c, greeting[:]); err != nil {
+		if err := authenticateMockSocksConn(c, "close-idle@audit3", SocksPassword()); err != nil {
 			return
 		}
-		c.Write([]byte{5, 0})
 		var req [10]byte
 		if _, err := io.ReadFull(c, req[:]); err != nil {
 			return
