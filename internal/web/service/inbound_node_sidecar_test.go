@@ -78,6 +78,10 @@ func TestAddInbound_SidecarProtocolNodeVersionGate(t *testing.T) {
 	}{
 		{"one release too old", "v3.6.9", "v3.7.0"},
 		{"version not reported yet", "", "has not reported its panel version"},
+		{"old custom release", "v3.4.1-custom", "unrecognized panel version"},
+		{"unparseable release", "latest", "unrecognized panel version"},
+		{"dev without commit", "dev+", "unrecognized panel version"},
+		{"dev with invalid commit", "dev+not-a-sha", "unrecognized panel version"},
 		{"dev build", "dev+1d1128cf", ""},
 	}
 	for _, tc := range cases {
@@ -96,6 +100,22 @@ func TestAddInbound_SidecarProtocolNodeVersionGate(t *testing.T) {
 				t.Fatalf("err = %v, want a refusal mentioning %q", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestNodeSidecarProtocolRejectsUnknownVersions(t *testing.T) {
+	setupConflictDB(t)
+	for _, panelVersion := range []string{"v3.4.1-custom", "v3.9.0-custom", "latest", "dev+", "dev+not-a-sha", "v3.9.0", "dev+abcdef1"} {
+		node := seedVersionedNode(t, panelVersion)
+		for _, protocol := range []model.Protocol{model.MTProto, model.AmneziaWG, model.TUIC} {
+			t.Run(panelVersion+"/"+string(protocol), func(t *testing.T) {
+				err := checkNodeCanHostProtocol(database.GetDB(), node.Id, protocol)
+				wantAllowed := panelVersion == "v3.9.0" || panelVersion == "dev+abcdef1"
+				if (err == nil) != wantAllowed {
+					t.Fatalf("version=%s protocol=%s err=%v want allowed=%v", panelVersion, protocol, err, wantAllowed)
+				}
+			})
+		}
 	}
 }
 

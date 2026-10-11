@@ -99,11 +99,33 @@ func checkNodeCanHostProtocol(db *gorm.DB, nodeID int, protocol model.Protocol) 
 			node.Name, protocol, firstRelease)
 	}
 	// A dev build reports "dev+<sha>": it tracks main, which carries every protocol.
-	if cmp, ok := version.Compare(node.PanelVersion, firstRelease); ok && cmp < 0 {
+	panelVersion := strings.TrimSpace(node.PanelVersion)
+	if isDevPanelVersion(panelVersion) {
+		return nil
+	}
+	cmp, ok := version.Compare(panelVersion, firstRelease)
+	if !ok {
+		return common.NewErrorf("node %q reports unrecognized panel version %q; %s inbounds need %s or newer",
+			node.Name, node.PanelVersion, protocol, firstRelease)
+	}
+	if cmp < 0 {
 		return common.NewErrorf("node %q runs panel %s; %s inbounds need %s or newer",
 			node.Name, node.PanelVersion, protocol, firstRelease)
 	}
 	return nil
+}
+
+func isDevPanelVersion(panelVersion string) bool {
+	commit, ok := strings.CutPrefix(panelVersion, "dev+")
+	if !ok || len(commit) < 7 || len(commit) > 40 {
+		return false
+	}
+	for _, c := range commit {
+		if !strings.ContainsRune("0123456789abcdefABCDEF", c) {
+			return false
+		}
+	}
+	return true
 }
 
 // vlessEncryptionEnabled reports whether a VLESS inbound has VLESS-level
