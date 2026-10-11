@@ -433,7 +433,7 @@ func testServerUDPStreamE2E(t *testing.T, controller string) {
 	if _, err := authStream.Write(authPayload); err != nil {
 		t.Fatalf("write authentication payload failed: %v", err)
 	}
-	if err := authStream.Close(); err != nil {
+	if err := closeTUICRequestStream(authStream); err != nil {
 		t.Fatalf("close authentication stream failed: %v", err)
 	}
 
@@ -458,7 +458,7 @@ func testServerUDPStreamE2E(t *testing.T, controller string) {
 		if _, err := packetStream.Write(frame.Bytes()); err != nil {
 			t.Fatalf("write packet frame failed: %v", err)
 		}
-		if err := packetStream.Close(); err != nil {
+		if err := closeTUICRequestStream(packetStream); err != nil {
 			t.Fatalf("close packet stream failed: %v", err)
 		}
 	}

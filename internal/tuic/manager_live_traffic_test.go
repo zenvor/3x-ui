@@ -13,6 +13,7 @@ import (
 
 	"github.com/apernet/quic-go"
 	"github.com/google/uuid"
+	clientquic "github.com/quic-go/quic-go"
 )
 
 type reauditCCSnapshot struct {
@@ -24,78 +25,109 @@ type reauditCCSnapshot struct {
 
 // TUIC finishes fixed-size requests with STOP_SENDING(0), which may beat FIN.
 // Other cancellations still indicate a failed request.
-func closeTUICRequestStream(stream *quic.SendStream) error {
+type tuicRequestStream interface {
+	io.Writer
+	Close() error
+	Context() context.Context
+}
+
+func closeTUICRequestStream(stream tuicRequestStream) error {
 	err := stream.Close()
 	var reset *quic.StreamError
 	if err != nil && errors.As(context.Cause(stream.Context()), &reset) && reset.Remote && reset.ErrorCode == 0 {
+		return nil
+	}
+	var clientReset *clientquic.StreamError
+	if err != nil && errors.As(context.Cause(stream.Context()), &clientReset) && clientReset.Remote && clientReset.ErrorCode == 0 {
 		return nil
 	}
 	return err
 }
 
 func TestCloseTUICRequestStreamAfterCancellation(t *testing.T) {
-	for _, tc := range []struct {
-		name   string
-		code   quic.StreamErrorCode
-		local  bool
-		wantOK bool
-	}{
-		{"request consumed", 0, false, true},
-		{"remote rejection", 0x100, false, false},
-		{"local cancellation", 0, true, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cert, key := generateTestCert(t)
-			pair, err := tls.X509KeyPair(cert, key)
-			if err != nil {
-				t.Fatal(err)
-			}
-			listener, err := quic.ListenAddr("127.0.0.1:0", &tls.Config{Certificates: []tls.Certificate{pair}, NextProtos: []string{"h3"}}, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer listener.Close()
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			client, err := quic.DialAddr(ctx, listener.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{"h3"}}, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer client.CloseWithError(0, "")
-			server, err := listener.Accept(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer server.CloseWithError(0, "")
-			stream, err := client.OpenUniStreamSync(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := stream.Write([]byte{ProtocolVersion}); err != nil {
-				t.Fatal(err)
-			}
-			received, err := server.AcceptUniStream(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var payload [1]byte
-			if _, err := io.ReadFull(received, payload[:]); err != nil {
-				t.Fatal(err)
-			}
-			if tc.local {
-				stream.CancelWrite(tc.code)
-			} else {
-				received.CancelRead(tc.code)
-			}
-			select {
-			case <-stream.Context().Done():
-			case <-ctx.Done():
-				t.Fatal("stream cancellation was not received")
-			}
-			if err := closeTUICRequestStream(stream); (err == nil) != tc.wantOK {
-				t.Fatalf("close error = %v, want success = %t", err, tc.wantOK)
-			}
-		})
+	for _, library := range []string{"apernet", "quic-go"} {
+		for _, tc := range []struct {
+			name   string
+			code   quic.StreamErrorCode
+			local  bool
+			wantOK bool
+		}{
+			{"request consumed", 0, false, true},
+			{"remote rejection", 0x100, false, false},
+			{"local cancellation", 0, true, false},
+		} {
+			t.Run(library+"/"+tc.name, func(t *testing.T) {
+				cert, key := generateTestCert(t)
+				pair, err := tls.X509KeyPair(cert, key)
+				if err != nil {
+					t.Fatal(err)
+				}
+				listener, err := quic.ListenAddr("127.0.0.1:0", &tls.Config{Certificates: []tls.Certificate{pair}, NextProtos: []string{"h3"}}, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer listener.Close()
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				var stream tuicRequestStream
+				var cancelWrite func()
+				tlsConfig := &tls.Config{InsecureSkipVerify: true, NextProtos: []string{"h3"}}
+				if library == "apernet" {
+					client, err := quic.DialAddr(ctx, listener.Addr().String(), tlsConfig, nil)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer client.CloseWithError(0, "")
+					s, err := client.OpenUniStreamSync(ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					stream = s
+					cancelWrite = func() { s.CancelWrite(tc.code) }
+				} else {
+					client, err := clientquic.DialAddr(ctx, listener.Addr().String(), tlsConfig, nil)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer client.CloseWithError(0, "")
+					s, err := client.OpenUniStreamSync(ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					stream = s
+					cancelWrite = func() { s.CancelWrite(clientquic.StreamErrorCode(tc.code)) }
+				}
+				server, err := listener.Accept(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer server.CloseWithError(0, "")
+				if _, err := stream.Write([]byte{ProtocolVersion}); err != nil {
+					t.Fatal(err)
+				}
+				received, err := server.AcceptUniStream(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var payload [1]byte
+				if _, err := io.ReadFull(received, payload[:]); err != nil {
+					t.Fatal(err)
+				}
+				if tc.local {
+					cancelWrite()
+				} else {
+					received.CancelRead(tc.code)
+				}
+				select {
+				case <-stream.Context().Done():
+				case <-ctx.Done():
+					t.Fatal("stream cancellation was not received")
+				}
+				if err := closeTUICRequestStream(stream); (err == nil) != tc.wantOK {
+					t.Fatalf("close error = %v, want success = %t", err, tc.wantOK)
+				}
+			})
+		}
 	}
 }
 
