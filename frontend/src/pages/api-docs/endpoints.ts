@@ -80,6 +80,63 @@ export interface Section {
   endpoints: Endpoint[];
 }
 
+const templateBodyParams: EndpointParam[] = [
+  {
+    name: 'name',
+    in: 'body (json)',
+    type: 'string',
+    desc: 'Trimmed display name, up to 100 characters.',
+  },
+  {
+    name: 'url',
+    in: 'body (json)',
+    type: 'string',
+    desc: 'Public HTTPS URL, up to 2048 bytes. Content must be valid YAML up to 1 MiB with __API_DOMAIN__ and __TOKEN__ in a proxy-provider URL.',
+  },
+  {
+    name: 'source',
+    in: 'body (json)',
+    type: 'string',
+    enum: ['remote'],
+    optional: true,
+    desc: 'Only remote sources are supported; upload is reserved.',
+  },
+];
+
+const templateStatusSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    variant: { type: 'string', description: 'Compatibility alias of id.' },
+    name: { type: 'string' },
+    source: { type: 'string', enum: ['builtin', 'remote'] },
+    url: { type: 'string' },
+    cached: { type: 'boolean' },
+    updatedAt: {
+      type: 'integer',
+      description: 'Cache file update time in Unix milliseconds; 0 if unavailable.',
+    },
+    checkedAt: {
+      type: 'integer',
+      description: 'Last successful check in Unix milliseconds, including 304; 0 if unknown.',
+    },
+    checkResult: { type: 'string', enum: ['updated', 'unchanged'] },
+  },
+  required: ['id', 'variant', 'name', 'source', 'url', 'cached', 'updatedAt', 'checkedAt'],
+};
+
+const templateRecordSchema = {
+  ...templateStatusSchema,
+  properties: { ...templateStatusSchema.properties, builtin: { type: 'boolean' } },
+  required: [...templateStatusSchema.required, 'builtin'],
+};
+
+const templateRefreshSchema = {
+  ...templateStatusSchema,
+  properties: { ...templateStatusSchema.properties, changed: { type: 'boolean' } },
+  required: [...templateStatusSchema.required, 'changed'],
+};
+
 // /inbounds/update replaces the whole row, so it takes the same payload as /add.
 const inboundBody =
   '{\n  "enable": true,\n  "remark": "VLESS-443",\n  "listen": "",\n  "port": 443,\n  "protocol": "vless",\n  "expiryTime": 0,\n  "total": 0,\n  "settings": {\n    "clients": [{ "id": "...", "email": "user1" }],\n    "decryption": "none",\n    "fallbacks": []\n  },\n  "streamSettings": {\n    "network": "tcp",\n    "security": "reality",\n    "realitySettings": { "show": false, "dest": "..." }\n  },\n  "sniffing": {\n    "enabled": true,\n    "destOverride": ["http", "tls"]\n  }\n}';
@@ -581,13 +638,16 @@ export const sections: readonly Section[] = [
         method: 'GET',
         path: '/panel/api/subconverter/settings',
         summary:
-          'Read global subconverter settings, including User-Agent filtering keywords and reject status.',
+          'Read global subconverter settings, including User-Agent policy and activeTemplateId (also returned as templateVariant).',
       },
       {
         method: 'POST',
         path: '/panel/api/subconverter/settings',
-        summary: 'Update global subconverter settings.',
-        body: '{\n  "uaFilterEnabled": true,\n  "uaKeywords": ["clash", "mihomo"],\n  "uaRejectStatus": 403\n}',
+        summary:
+          'Update User-Agent policy and the active template. Download and validate a changed selection before saving; omitted IDs preserve the selection.',
+        description:
+          'activeTemplateId accepts general, aggressive or a remote-UUID catalog ID. templateVariant remains a compatibility alias; if both are supplied they must match. Failed preparation preserves the previous settings.',
+        body: '{\n  "uaFilterEnabled": true,\n  "uaKeywords": ["clash", "mihomo"],\n  "uaRejectStatus": 403,\n  "activeTemplateId": "general"\n}',
       },
       {
         method: 'GET',
@@ -649,13 +709,75 @@ export const sections: readonly Section[] = [
         method: 'GET',
         path: '/panel/api/subconverter/template',
         summary:
-          'Read the cached Mihomo config status: source URL, whether a cache exists, and when it was last written.',
+          'Read the active template source, cache update time, last successful check time and check result.',
+        responseObjectSchema: templateStatusSchema,
       },
       {
         method: 'POST',
         path: '/panel/api/subconverter/template/refresh',
         summary:
-          'Pull the remote Mihomo config into the disk cache immediately (conditional request; a 304 still counts as success).',
+          'Refresh the active template immediately. A 304 or unchanged 200 advances checkedAt while preserving updatedAt and returning changed=false.',
+        responseObjectSchema: templateRefreshSchema,
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/subconverter/templates',
+        summary:
+          'List built-in and custom templates with independent cache and successful-check records.',
+        responseObjectSchema: { type: 'array', items: templateRecordSchema },
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/subconverter/templates',
+        summary:
+          'Validate and save a custom HTTPS template without activating it. The stable remote-UUID ID is generated server-side.',
+        params: templateBodyParams,
+        responseObjectSchema: templateRecordSchema,
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/subconverter/templates/:templateId',
+        summary:
+          'Rename or change a custom template source. Renaming preserves check history; URL changes are validated before saving. Built-in templates are read-only.',
+        params: [
+          {
+            name: 'templateId',
+            in: 'path',
+            type: 'string',
+            desc: 'Stable remote-UUID catalog ID.',
+          },
+          ...templateBodyParams,
+        ],
+        responseObjectSchema: templateRecordSchema,
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/subconverter/templates/:templateId/delete',
+        summary:
+          'Delete an inactive custom template. Built-in and active templates cannot be deleted; old caches are retained for in-flight readers.',
+        params: [
+          {
+            name: 'templateId',
+            in: 'path',
+            type: 'string',
+            desc: 'Stable remote-UUID catalog ID.',
+          },
+        ],
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/subconverter/templates/:templateId/refresh',
+        summary:
+          'Refresh one catalog template without changing the active selection. Check and cache times belong to this template only.',
+        params: [
+          {
+            name: 'templateId',
+            in: 'path',
+            type: 'string',
+            desc: 'general, aggressive or a remote-UUID catalog ID.',
+          },
+        ],
+        responseObjectSchema: templateRefreshSchema,
       },
     ],
   },

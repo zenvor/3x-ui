@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/mhsanaei/3x-ui/v3/subconverter/database"
 )
 
 const fetchTestTemplate = "proxy-providers:\n  main:\n    url: '__API_DOMAIN__/feed/__TOKEN__/nodes'\n"
@@ -146,7 +148,7 @@ func TestFetchTemplateUnexpectedStatus(t *testing.T) {
 }
 
 func TestReadTemplateMissesWithoutCache(t *testing.T) {
-	t.Setenv("XUI_DB_FOLDER", t.TempDir())
+	setupTemplateTestDB(t)
 
 	if _, err := ReadTemplate(); err == nil {
 		t.Fatal("expected error when the cache file does not exist")
@@ -154,7 +156,7 @@ func TestReadTemplateMissesWithoutCache(t *testing.T) {
 }
 
 func TestFetchTemplateStateForcesFullFetchWhenCacheMissing(t *testing.T) {
-	t.Setenv("XUI_DB_FOLDER", t.TempDir())
+	setupTemplateTestDB(t)
 	var conditionalRequests atomic.Int32
 	server, _ := newTemplateServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("If-None-Match") != "" {
@@ -167,10 +169,10 @@ func TestFetchTemplateStateForcesFullFetchWhenCacheMissing(t *testing.T) {
 	})
 
 	// Simulate a panel that fetched successfully before but lost its cache file.
-	templateState.etag = `"v1"`
-	t.Cleanup(func() { templateState.etag = "" })
+	templateState.etags[TemplateCachePath()] = `"v1"`
+	t.Cleanup(func() { delete(templateState.etags, TemplateCachePath()) })
 
-	changed, err := fetchTemplateState(server.URL)
+	changed, err := fetchTemplateStateLocked(server.URL, TemplateCachePath())
 	if err != nil {
 		t.Fatalf("fetch: %v", err)
 	}
@@ -185,7 +187,7 @@ func TestFetchTemplateStateForcesFullFetchWhenCacheMissing(t *testing.T) {
 	}
 
 	// Second fetch: cache exists and the ETag is current, so a 304 is correct now.
-	changed, err = fetchTemplateState(server.URL)
+	changed, err = fetchTemplateStateLocked(server.URL, TemplateCachePath())
 	if err != nil {
 		t.Fatalf("fetch: %v", err)
 	}
@@ -198,19 +200,43 @@ func TestFetchTemplateStateForcesFullFetchWhenCacheMissing(t *testing.T) {
 }
 
 func TestGetTemplateStatusReflectsCacheFile(t *testing.T) {
-	t.Setenv("XUI_DB_FOLDER", t.TempDir())
+	setupTemplateTestDB(t)
 
-	if status := GetTemplateStatus(); status.Cached || status.UpdatedAt != 0 {
+	if status, err := GetTemplateStatus(); err != nil || status.Cached || status.UpdatedAt != 0 {
 		t.Fatalf("status = %+v, want uncached", status)
 	}
 	if err := os.WriteFile(TemplateCachePath(), []byte(fetchTestTemplate), 0o644); err != nil {
 		t.Fatalf("seed cache: %v", err)
 	}
-	status := GetTemplateStatus()
+	status, err := GetTemplateStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !status.Cached || status.UpdatedAt <= 0 {
 		t.Fatalf("status = %+v, want cached with a positive mtime", status)
 	}
 	if status.URL != DefaultTemplateURL {
 		t.Fatalf("status.URL = %q, want %q", status.URL, DefaultTemplateURL)
 	}
+}
+
+func setupTemplateTestDB(t *testing.T) {
+	t.Helper()
+	t.Setenv("XUI_DB_FOLDER", t.TempDir())
+	if err := database.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.InitDB(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = database.Reset() })
+}
+
+func mustTemplateCachePath(t *testing.T, d templateDefinition) string {
+	t.Helper()
+	path, err := d.cachePath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return path
 }

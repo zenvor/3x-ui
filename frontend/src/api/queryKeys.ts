@@ -57,6 +57,7 @@ export const keys = {
     detail: (id: number) => ['subconverter', 'detail', id] as const,
     settings: () => ['subconverter', 'settings'] as const,
     template: () => ['subconverter', 'template'] as const,
+    templates: () => ['subconverter', 'templates'] as const,
     logs: (limit?: string | number) => {
       if (limit === undefined) return ['subconverter', 'logs'] as const;
       return ['subconverter', 'logs', String(limit)] as const;

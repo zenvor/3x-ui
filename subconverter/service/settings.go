@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -15,13 +16,18 @@ const defaultUARejectStatus = http.StatusForbidden
 
 var defaultUAKeywords = []string{"clash", "mihomo", "shadowrocket"}
 
-var ErrUAKeywordsRequired = errors.New("at least one user-agent keyword is required")
+var (
+	ErrUAKeywordsRequired  = errors.New("at least one user-agent keyword is required")
+	ErrTemplatePreparation = errors.New("selected template could not be prepared")
+)
 
 // SettingsDTO is the API-facing shape of global subconverter settings.
 type SettingsDTO struct {
-	UAFilterEnabled bool     `json:"uaFilterEnabled"`
-	UAKeywords      []string `json:"uaKeywords"`
-	UARejectStatus  int      `json:"uaRejectStatus"`
+	UAFilterEnabled  bool     `json:"uaFilterEnabled"`
+	UAKeywords       []string `json:"uaKeywords"`
+	UARejectStatus   int      `json:"uaRejectStatus"`
+	TemplateVariant  string   `json:"templateVariant"` // compatibility alias; now a stable template ID
+	ActiveTemplateID string   `json:"activeTemplateId"`
 }
 
 // SettingsInput is accepted by the settings update endpoint.
@@ -29,6 +35,9 @@ type SettingsInput struct {
 	UAFilterEnabled bool     `json:"uaFilterEnabled" form:"uaFilterEnabled"`
 	UAKeywords      []string `json:"uaKeywords" form:"uaKeywords"`
 	UARejectStatus  int      `json:"uaRejectStatus" form:"uaRejectStatus"`
+	// Omitted by older clients: preserve the currently selected template.
+	TemplateVariant  *string `json:"templateVariant" form:"templateVariant"`
+	ActiveTemplateID *string `json:"activeTemplateId" form:"activeTemplateId"`
 }
 
 type SettingsService struct{}
@@ -42,10 +51,23 @@ func (s *SettingsService) Get() (*SettingsDTO, error) {
 	if err != nil {
 		return nil, err
 	}
+	// UA policy is independent of template availability. In-flight readers may
+	// still hold an older selection after it has been switched and deleted.
 	return settingsToDTO(row), nil
 }
 
 func (s *SettingsService) Update(input SettingsInput) (*SettingsDTO, error) {
+	if input.ActiveTemplateID != nil {
+		if input.TemplateVariant != nil && *input.TemplateVariant != *input.ActiveTemplateID {
+			return nil, ErrInvalidTemplateVariant
+		}
+		input.TemplateVariant = input.ActiveTemplateID
+	}
+	if input.TemplateVariant != nil {
+		if _, err := resolveTemplate(*input.TemplateVariant); err != nil {
+			return nil, ErrInvalidTemplateVariant
+		}
+	}
 	keywords := NormalizeUAKeywords(input.UAKeywords)
 	if input.UAFilterEnabled && len(keywords) == 0 {
 		return nil, ErrUAKeywordsRequired
@@ -54,10 +76,29 @@ func (s *SettingsService) Update(input SettingsInput) (*SettingsDTO, error) {
 		input.UARejectStatus = defaultUARejectStatus
 	}
 
+	// Serialize saves with manual/background refreshes. Readers keep serving
+	// the current version while the next version is downloaded and validated.
+	templateState.Lock()
+	defer templateState.Unlock()
 	row, err := s.getOrCreate()
 	if err != nil {
 		return nil, err
 	}
+	variant := normalizeTemplateVariant(row.TemplateVariant)
+	if input.TemplateVariant != nil {
+		variant = *input.TemplateVariant
+	}
+	if _, err := resolveTemplate(variant); err != nil {
+		return nil, ErrInvalidTemplateVariant
+	}
+	if variant != normalizeTemplateVariant(row.TemplateVariant) {
+		// Prepare a usable target cache before committing any settings. Failure
+		// keeps both the selected version and the UA settings unchanged.
+		if _, err := fetchTemplateVariantLocked(variant); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrTemplatePreparation, err)
+		}
+	}
+	row.TemplateVariant = variant
 	row.UAFilterEnabled = input.UAFilterEnabled
 	row.UAKeywords = strings.Join(keywords, ",")
 	row.UARejectStatus = input.UARejectStatus
@@ -69,6 +110,9 @@ func (s *SettingsService) Update(input SettingsInput) (*SettingsDTO, error) {
 
 func (s *SettingsService) getOrCreate() (*model.Settings, error) {
 	db := database.GetDB()
+	if db == nil {
+		return nil, errors.New("subconverter database is not initialized")
+	}
 	row := &model.Settings{}
 	err := db.First(row, 1).Error
 	if err == nil {
@@ -82,6 +126,7 @@ func (s *SettingsService) getOrCreate() (*model.Settings, error) {
 		UAFilterEnabled: true,
 		UAKeywords:      strings.Join(defaultUAKeywords, ","),
 		UARejectStatus:  defaultUARejectStatus,
+		TemplateVariant: TemplateVariantGeneral,
 	}
 	if err := db.Create(row).Error; err != nil {
 		// Another first request may have created the singleton row concurrently.
@@ -95,9 +140,11 @@ func (s *SettingsService) getOrCreate() (*model.Settings, error) {
 
 func settingsToDTO(row *model.Settings) *SettingsDTO {
 	return &SettingsDTO{
-		UAFilterEnabled: row.UAFilterEnabled,
-		UAKeywords:      NormalizeUAKeywords(strings.Split(row.UAKeywords, ",")),
-		UARejectStatus:  normalizeUARejectStatus(row.UARejectStatus),
+		UAFilterEnabled:  row.UAFilterEnabled,
+		UAKeywords:       NormalizeUAKeywords(strings.Split(row.UAKeywords, ",")),
+		UARejectStatus:   normalizeUARejectStatus(row.UARejectStatus),
+		TemplateVariant:  normalizeTemplateVariant(row.TemplateVariant),
+		ActiveTemplateID: normalizeTemplateVariant(row.TemplateVariant),
 	}
 }
 

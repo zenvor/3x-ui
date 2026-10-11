@@ -60,6 +60,25 @@ function responseObjectSchema(path: string, method = 'get'): OpenApiSchema {
 }
 
 describe('generated OpenAPI runtime contracts', () => {
+  it('documents the template catalog and independent check/cache times', () => {
+    const base = '/panel/api/subconverter';
+    const status = responseObjectSchema(`${base}/template`);
+    expect(status.properties?.checkedAt.type).toBe('integer');
+    expect(status.properties?.updatedAt.type).toBe('integer');
+    expect(status.properties?.checkResult.enum).toEqual(['updated', 'unchanged']);
+    expect(status.required).not.toContain('checkResult');
+    const records = responseObjectSchema(`${base}/templates`);
+    expect(records.type).toBe('array');
+    expect(records.items?.properties?.builtin.type).toBe('boolean');
+    for (const path of [`${base}/templates`, `${base}/templates/{templateId}`]) {
+      expect(responseObjectSchema(path, 'post')).toEqual(records.items);
+    }
+    for (const path of [`${base}/template/refresh`, `${base}/templates/{templateId}/refresh`]) {
+      expect(responseObjectSchema(path, 'post').properties?.changed.type).toBe('boolean');
+    }
+    expect(operation(`${base}/templates/{templateId}/delete`, 'post')).toBeDefined();
+  });
+
   it('exports only valid OpenAPI paths and HTTP methods', () => {
     const validMethods = new Set([
       'get',

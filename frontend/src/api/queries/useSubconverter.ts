@@ -12,6 +12,11 @@ import {
   SettingsValuesSchema,
   SubconverterSettingsSchema,
   SubconverterTemplateRefreshSchema,
+  SubconverterTemplateRecordSchema,
+  SubconverterTemplateListSchema,
+  SubconverterTemplateInputSchema,
+  type SubconverterTemplateRecord,
+  type SubconverterTemplateInput,
   SubconverterTemplateStatusSchema,
   SubscriptionDetailRecordSchema,
   SubscriptionRecordListSchema,
@@ -122,7 +127,11 @@ export function invalidateSubconverterList(queryClient: QueryClient) {
 }
 
 export function invalidateSubconverterSettings(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ queryKey: keys.subconverter.settings() });
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: keys.subconverter.settings() }),
+    queryClient.invalidateQueries({ queryKey: keys.subconverter.template() }),
+    queryClient.invalidateQueries({ queryKey: keys.subconverter.templates() }),
+  ]);
 }
 
 export function invalidateSubconverterLogs(queryClient: QueryClient) {
@@ -155,6 +164,7 @@ export function useSubconverterTemplate(enabled: boolean) {
     enabled,
   });
   const refreshMut = useMutation({
+    onMutate: () => queryClient.cancelQueries({ queryKey: keys.subconverter.template() }),
     mutationFn: async (): Promise<Msg<SubconverterTemplateRefresh>> => {
       const raw = await HttpUtil.post(`${SUBCONVERTER_API}/template/refresh`, undefined, {
         silent: true,
@@ -165,6 +175,14 @@ export function useSubconverterTemplate(enabled: boolean) {
       if (msg?.success && msg.obj) {
         const { changed: _changed, ...status } = msg.obj;
         queryClient.setQueryData(keys.subconverter.template(), status);
+        void queryClient.invalidateQueries({ queryKey: keys.subconverter.templates() });
+      }
+    },
+    onSettled: (msg, error) => {
+      // Cancelling an initial GET leaves it pending and idle. Recover it after
+      // both rejected requests and business failures returned as success:false.
+      if (error || !msg?.success || !msg.obj) {
+        return queryClient.invalidateQueries({ queryKey: keys.subconverter.template() });
       }
     },
   });
@@ -173,6 +191,86 @@ export function useSubconverterTemplate(enabled: boolean) {
   const { mutateAsync: refreshMutate } = refreshMut;
   const refresh = useCallback(() => refreshMutate(), [refreshMutate]);
   return { statusQuery, refresh, refreshPending: refreshMut.isPending };
+}
+
+export async function fetchSubconverterTemplates(): Promise<SubconverterTemplateRecord[]> {
+  const raw = await HttpUtil.get(`${SUBCONVERTER_API}/templates`, undefined, { silent: true });
+  const msg = parseMsg(
+    assertSuccess(raw, 'Failed to fetch templates'),
+    SubconverterTemplateListSchema,
+    'subconverter/templates',
+  );
+  if (!msg.obj) throw new Error('Empty template list');
+  return msg.obj;
+}
+
+export function useSubconverterTemplates(enabled: boolean) {
+  const queryClient = useQueryClient();
+  const listQuery = useQuery({
+    queryKey: keys.subconverter.templates(),
+    queryFn: fetchSubconverterTemplates,
+    enabled,
+  });
+  const saveMut = useMutation({
+    onMutate: () =>
+      Promise.all([
+        queryClient.cancelQueries({ queryKey: keys.subconverter.templates() }),
+        queryClient.cancelQueries({ queryKey: keys.subconverter.template() }),
+      ]),
+    mutationFn: async ({ id, input }: { id?: string; input: SubconverterTemplateInput }) => {
+      const payload = SubconverterTemplateInputSchema.parse(input);
+      const raw = await HttpUtil.post(
+        `${SUBCONVERTER_API}/templates${id ? `/${encodeURIComponent(id)}` : ''}`,
+        payload,
+        { ...JSON_HEADERS, silent: true },
+      );
+      return parseMsg(
+        assertSuccess(raw, 'Failed to save template'),
+        SubconverterTemplateRecordSchema,
+        'subconverter/templates/save',
+      );
+    },
+    onSettled: () => invalidateSubconverterSettings(queryClient),
+  });
+  const deleteMut = useMutation({
+    mutationFn: async (id: string) =>
+      assertSuccess(
+        await HttpUtil.post(
+          `${SUBCONVERTER_API}/templates/${encodeURIComponent(id)}/delete`,
+          undefined,
+          { silent: true },
+        ),
+        'Failed to delete template',
+      ),
+    onSuccess: () => invalidateSubconverterSettings(queryClient),
+  });
+  const refreshMut = useMutation({
+    onMutate: () =>
+      Promise.all([
+        queryClient.cancelQueries({ queryKey: keys.subconverter.templates() }),
+        queryClient.cancelQueries({ queryKey: keys.subconverter.template() }),
+      ]),
+    mutationFn: async (id: string) => {
+      const raw = await HttpUtil.post(
+        `${SUBCONVERTER_API}/templates/${encodeURIComponent(id)}/refresh`,
+        undefined,
+        { silent: true },
+      );
+      return parseMsg(
+        assertSuccess(raw, 'Failed to refresh template'),
+        SubconverterTemplateRefreshSchema,
+        'subconverter/templates/refresh',
+      );
+    },
+    onSettled: () => invalidateSubconverterSettings(queryClient),
+  });
+  return {
+    listQuery,
+    save: saveMut.mutateAsync,
+    remove: deleteMut.mutateAsync,
+    refresh: refreshMut.mutateAsync,
+    pending: saveMut.isPending || deleteMut.isPending || refreshMut.isPending,
+  };
 }
 
 export function useSubconverter() {
@@ -233,8 +331,13 @@ export function useSubconverter() {
       );
       return parseMsg(raw, SubconverterSettingsSchema, 'subconverter/settings/save');
     },
-    onSuccess: (msg) => {
-      if (msg?.success) invalidateSubconverterSettings(queryClient);
+    onSuccess: async (msg) => {
+      if (msg?.success) {
+        // Discard an older in-flight status before fetching the newly saved version.
+        await queryClient.cancelQueries({ queryKey: keys.subconverter.template() });
+        queryClient.setQueryData(keys.subconverter.settings(), msg.obj);
+        await invalidateSubconverterSettings(queryClient);
+      }
     },
   });
 

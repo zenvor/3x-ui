@@ -4,6 +4,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+
+	"github.com/mhsanaei/3x-ui/v3/subconverter/model"
 )
 
 // TestInitDB verifies that InitDB creates the SQLite file under XUI_DB_FOLDER
@@ -73,5 +78,43 @@ func TestInitDBIdempotent(t *testing.T) {
 
 	if first != second {
 		t.Fatal("InitDB should reuse the same *gorm.DB across calls")
+	}
+}
+
+func TestInitDBMigratesLegacySettingsWithoutChangingUA(t *testing.T) {
+	t.Setenv("XUI_DB_FOLDER", t.TempDir())
+	if err := Reset(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = Reset() })
+	conn, err := gorm.Open(sqlite.Open(GetDBPath()), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Exec(`CREATE TABLE settings (id integer PRIMARY KEY AUTOINCREMENT, ua_filter_enabled numeric DEFAULT true, ua_keywords text NOT NULL, ua_reject_status integer DEFAULT 403, created_at datetime, updated_at datetime)`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Exec(`INSERT INTO settings (id, ua_filter_enabled, ua_keywords, ua_reject_status) VALUES (1, 0, 'custom-client', 404)`).Error; err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := conn.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := InitDB(); err != nil {
+		t.Fatal(err)
+	}
+	var row model.Settings
+	if err := GetDB().First(&row, 1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if row.TemplateVariant != "general" || row.UAFilterEnabled || row.UAKeywords != "custom-client" || row.UARejectStatus != 404 {
+		t.Fatalf("migration changed legacy settings: %+v", row)
+	}
+	if !GetDB().Migrator().HasTable(&model.Template{}) {
+		t.Fatal("migration did not create the custom template catalog")
 	}
 }

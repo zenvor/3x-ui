@@ -6076,7 +6076,7 @@
         "tags": [
           "Subconverter"
         ],
-        "summary": "Read global subconverter settings, including User-Agent filtering keywords and reject status.",
+        "summary": "Read global subconverter settings, including User-Agent policy and activeTemplateId (also returned as templateVariant).",
         "operationId": "get_panel_api_subconverter_settings",
         "responses": {
           "200": {
@@ -6104,8 +6104,9 @@
         "tags": [
           "Subconverter"
         ],
-        "summary": "Update global subconverter settings.",
+        "summary": "Update User-Agent policy and the active template. Download and validate a changed selection before saving; omitted IDs preserve the selection.",
         "operationId": "post_panel_api_subconverter_settings",
+        "description": "activeTemplateId accepts general, aggressive or a remote-UUID catalog ID. templateVariant remains a compatibility alias; if both are supplied they must match. Failed preparation preserves the previous settings.",
         "requestBody": {
           "required": true,
           "content": {
@@ -6119,7 +6120,8 @@
                   "clash",
                   "mihomo"
                 ],
-                "uaRejectStatus": 403
+                "uaRejectStatus": 403,
+                "activeTemplateId": "general"
               }
             }
           }
@@ -6409,8 +6411,519 @@
         "tags": [
           "Subconverter"
         ],
-        "summary": "Read the cached Mihomo config status: source URL, whether a cache exists, and when it was last written.",
+        "summary": "Read the active template source, cache update time, last successful check time and check result.",
         "operationId": "get_panel_api_subconverter_template",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "variant": {
+                          "type": "string",
+                          "description": "Compatibility alias of id."
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "builtin",
+                            "remote"
+                          ]
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "cached": {
+                          "type": "boolean"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "description": "Cache file update time in Unix milliseconds; 0 if unavailable."
+                        },
+                        "checkedAt": {
+                          "type": "integer",
+                          "description": "Last successful check in Unix milliseconds, including 304; 0 if unknown."
+                        },
+                        "checkResult": {
+                          "type": "string",
+                          "enum": [
+                            "updated",
+                            "unchanged"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "variant",
+                        "name",
+                        "source",
+                        "url",
+                        "cached",
+                        "updatedAt",
+                        "checkedAt"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/template/refresh": {
+      "post": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Refresh the active template immediately. A 304 or unchanged 200 advances checkedAt while preserving updatedAt and returning changed=false.",
+        "operationId": "post_panel_api_subconverter_template_refresh",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "variant": {
+                          "type": "string",
+                          "description": "Compatibility alias of id."
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "builtin",
+                            "remote"
+                          ]
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "cached": {
+                          "type": "boolean"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "description": "Cache file update time in Unix milliseconds; 0 if unavailable."
+                        },
+                        "checkedAt": {
+                          "type": "integer",
+                          "description": "Last successful check in Unix milliseconds, including 304; 0 if unknown."
+                        },
+                        "checkResult": {
+                          "type": "string",
+                          "enum": [
+                            "updated",
+                            "unchanged"
+                          ]
+                        },
+                        "changed": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "variant",
+                        "name",
+                        "source",
+                        "url",
+                        "cached",
+                        "updatedAt",
+                        "checkedAt",
+                        "changed"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/templates": {
+      "get": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "List built-in and custom templates with independent cache and successful-check records.",
+        "operationId": "get_panel_api_subconverter_templates",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "variant": {
+                            "type": "string",
+                            "description": "Compatibility alias of id."
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "builtin",
+                              "remote"
+                            ]
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "cached": {
+                            "type": "boolean"
+                          },
+                          "updatedAt": {
+                            "type": "integer",
+                            "description": "Cache file update time in Unix milliseconds; 0 if unavailable."
+                          },
+                          "checkedAt": {
+                            "type": "integer",
+                            "description": "Last successful check in Unix milliseconds, including 304; 0 if unknown."
+                          },
+                          "checkResult": {
+                            "type": "string",
+                            "enum": [
+                              "updated",
+                              "unchanged"
+                            ]
+                          },
+                          "builtin": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "variant",
+                          "name",
+                          "source",
+                          "url",
+                          "cached",
+                          "updatedAt",
+                          "checkedAt",
+                          "builtin"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Validate and save a custom HTTPS template without activating it. The stable remote-UUID ID is generated server-side.",
+        "operationId": "post_panel_api_subconverter_templates",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Trimmed display name, up to 100 characters."
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "Public HTTPS URL, up to 2048 bytes. Content must be valid YAML up to 1 MiB with __API_DOMAIN__ and __TOKEN__ in a proxy-provider URL."
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "remote"
+                    ],
+                    "description": "Only remote sources are supported; upload is reserved."
+                  }
+                },
+                "required": [
+                  "name",
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "variant": {
+                          "type": "string",
+                          "description": "Compatibility alias of id."
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "builtin",
+                            "remote"
+                          ]
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "cached": {
+                          "type": "boolean"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "description": "Cache file update time in Unix milliseconds; 0 if unavailable."
+                        },
+                        "checkedAt": {
+                          "type": "integer",
+                          "description": "Last successful check in Unix milliseconds, including 304; 0 if unknown."
+                        },
+                        "checkResult": {
+                          "type": "string",
+                          "enum": [
+                            "updated",
+                            "unchanged"
+                          ]
+                        },
+                        "builtin": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "variant",
+                        "name",
+                        "source",
+                        "url",
+                        "cached",
+                        "updatedAt",
+                        "checkedAt",
+                        "builtin"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/templates/{templateId}": {
+      "post": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Rename or change a custom template source. Renaming preserves check history; URL changes are validated before saving. Built-in templates are read-only.",
+        "operationId": "post_panel_api_subconverter_templates_templateId",
+        "parameters": [
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "description": "Stable remote-UUID catalog ID.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Trimmed display name, up to 100 characters."
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "Public HTTPS URL, up to 2048 bytes. Content must be valid YAML up to 1 MiB with __API_DOMAIN__ and __TOKEN__ in a proxy-provider URL."
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "remote"
+                    ],
+                    "description": "Only remote sources are supported; upload is reserved."
+                  }
+                },
+                "required": [
+                  "name",
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "variant": {
+                          "type": "string",
+                          "description": "Compatibility alias of id."
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "builtin",
+                            "remote"
+                          ]
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "cached": {
+                          "type": "boolean"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "description": "Cache file update time in Unix milliseconds; 0 if unavailable."
+                        },
+                        "checkedAt": {
+                          "type": "integer",
+                          "description": "Last successful check in Unix milliseconds, including 304; 0 if unknown."
+                        },
+                        "checkResult": {
+                          "type": "string",
+                          "enum": [
+                            "updated",
+                            "unchanged"
+                          ]
+                        },
+                        "builtin": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "variant",
+                        "name",
+                        "source",
+                        "url",
+                        "cached",
+                        "updatedAt",
+                        "checkedAt",
+                        "builtin"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/subconverter/templates/{templateId}/delete": {
+      "post": {
+        "tags": [
+          "Subconverter"
+        ],
+        "summary": "Delete an inactive custom template. Built-in and active templates cannot be deleted; old caches are retained for in-flight readers.",
+        "operationId": "post_panel_api_subconverter_templates_templateId_delete",
+        "parameters": [
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "description": "Stable remote-UUID catalog ID.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful response",
@@ -6434,13 +6947,24 @@
         }
       }
     },
-    "/panel/api/subconverter/template/refresh": {
+    "/panel/api/subconverter/templates/{templateId}/refresh": {
       "post": {
         "tags": [
           "Subconverter"
         ],
-        "summary": "Pull the remote Mihomo config into the disk cache immediately (conditional request; a 304 still counts as success).",
-        "operationId": "post_panel_api_subconverter_template_refresh",
+        "summary": "Refresh one catalog template without changing the active selection. Check and cache times belong to this template only.",
+        "operationId": "post_panel_api_subconverter_templates_templateId_refresh",
+        "parameters": [
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "description": "general, aggressive or a remote-UUID catalog ID.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful response",
@@ -6455,7 +6979,63 @@
                     "msg": {
                       "type": "string"
                     },
-                    "obj": {}
+                    "obj": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "variant": {
+                          "type": "string",
+                          "description": "Compatibility alias of id."
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "builtin",
+                            "remote"
+                          ]
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "cached": {
+                          "type": "boolean"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "description": "Cache file update time in Unix milliseconds; 0 if unavailable."
+                        },
+                        "checkedAt": {
+                          "type": "integer",
+                          "description": "Last successful check in Unix milliseconds, including 304; 0 if unknown."
+                        },
+                        "checkResult": {
+                          "type": "string",
+                          "enum": [
+                            "updated",
+                            "unchanged"
+                          ]
+                        },
+                        "changed": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "variant",
+                        "name",
+                        "source",
+                        "url",
+                        "cached",
+                        "updatedAt",
+                        "checkedAt",
+                        "changed"
+                      ]
+                    }
                   }
                 }
               }

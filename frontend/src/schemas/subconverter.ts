@@ -92,22 +92,45 @@ export const DefaultsPayloadSchema = z.looseObject({
   pageSize: z.number().optional(),
 });
 
+// Retain the legacy field name while accepting stable catalog IDs.
+export const TemplateVariantSchema = z.union([
+  z.enum(['general', 'aggressive']),
+  z.string().regex(/^remote-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+]);
+
 export const SubconverterSettingsSchema = z.looseObject({
   uaFilterEnabled: z.boolean(),
   uaKeywords: z.array(z.string()).default([]),
   uaRejectStatus: z.number().default(403),
+  templateVariant: TemplateVariantSchema.default('general'),
 });
 
 export const SubconverterTemplateStatusSchema = z.looseObject({
+  variant: TemplateVariantSchema.default('general'),
+  name: z.string().optional(),
   url: z.string(),
   cached: z.boolean(),
   updatedAt: z.number().default(0),
+  checkedAt: z.number().default(0),
+  checkResult: z.enum(['', 'updated', 'unchanged']).default(''),
 });
 
-export const SubconverterTemplateRefreshSchema = z.looseObject({
-  url: z.string(),
-  cached: z.boolean(),
-  updatedAt: z.number().default(0),
+export const SubconverterTemplateRecordSchema = SubconverterTemplateStatusSchema.extend({
+  id: z.string().min(1),
+  name: z.string(),
+  source: z.enum(['builtin', 'remote', 'upload']),
+  builtin: z.boolean(),
+});
+export const SubconverterTemplateListSchema = z.array(SubconverterTemplateRecordSchema);
+export const SubconverterTemplateInputSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  url: z.string().trim().max(2048),
+  source: z.literal('remote').default('remote'),
+});
+export type SubconverterTemplateRecord = z.infer<typeof SubconverterTemplateRecordSchema>;
+export type SubconverterTemplateInput = z.infer<typeof SubconverterTemplateInputSchema>;
+
+export const SubconverterTemplateRefreshSchema = SubconverterTemplateStatusSchema.extend({
   changed: z.boolean().default(false),
 });
 
@@ -142,6 +165,7 @@ export const SettingsValuesSchema = z.object({
   uaFilterEnabled: z.boolean(),
   uaKeywords: z.array(z.string()),
   uaRejectStatus: z.number(),
+  templateVariant: TemplateVariantSchema.default('general'),
 });
 
 export const SubscriptionRecordListSchema = z
@@ -170,3 +194,4 @@ export type SubconverterTemplateStatus = z.infer<typeof SubconverterTemplateStat
 export type SubconverterTemplateRefresh = z.infer<typeof SubconverterTemplateRefreshSchema>;
 export type FormValues = z.infer<typeof FormValuesSchema>;
 export type SettingsValues = z.infer<typeof SettingsValuesSchema>;
+export type TemplateVariant = z.infer<typeof TemplateVariantSchema>;
