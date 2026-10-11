@@ -5,9 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/subconverter/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+
+	"github.com/mhsanaei/3x-ui/v3/subconverter/model"
 )
 
 // TestInitDB verifies that InitDB creates the SQLite file under XUI_DB_FOLDER

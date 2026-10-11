@@ -231,3 +231,12 @@ func setupTemplateTestDB(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = database.Reset() })
 }
+
+func mustTemplateCachePath(t *testing.T, d templateDefinition) string {
+	t.Helper()
+	path, err := d.cachePath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return path
+}

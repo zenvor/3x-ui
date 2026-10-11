@@ -131,7 +131,10 @@ func templateStatusForVariant(variant string) TemplateStatus {
 func templateStatusForDefinition(d templateDefinition) TemplateStatus {
 	status := TemplateStatus{Variant: d.ID, ID: d.ID, Name: d.Name, Source: d.Source, URL: d.URL}
 	// Read and stat the same opened file, even if a refresh renames the path.
-	cachePath := d.cachePath()
+	cachePath, err := d.cachePath()
+	if err != nil {
+		return status
+	}
 	if data, info, err := readTemplateCache(cachePath); err == nil {
 		status.Cached = true
 		status.UpdatedAt = info.ModTime().UnixMilli()
@@ -173,7 +176,11 @@ func ReadTemplate() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	data, _, err := readTemplateCache(d.cachePath())
+	cachePath, err := d.cachePath()
+	if err != nil {
+		return "", err
+	}
+	data, _, err := readTemplateCache(cachePath)
 	if err != nil {
 		return "", fmt.Errorf("read template cache: %w", err)
 	}
@@ -236,6 +243,10 @@ func fetchTemplateVariantLocked(variant string) (bool, error) {
 }
 
 func fetchTemplateDefinitionLocked(d templateDefinition) (bool, error) {
+	cachePath, err := d.cachePath()
+	if err != nil {
+		return false, err
+	}
 	client := &http.Client{Timeout: templateFetchTimeout}
 	if d.Source == TemplateSourceRemote {
 		if err := validateRemoteTemplateURL(d.URL); err != nil {
@@ -243,7 +254,7 @@ func fetchTemplateDefinitionLocked(d templateDefinition) (bool, error) {
 		}
 		client = remoteTemplateClient()
 	}
-	return fetchTemplateWithClientLocked(d.URL, d.cachePath(), client)
+	return fetchTemplateWithClientLocked(d.URL, cachePath, client)
 }
 
 func fetchTemplateStateLocked(url, cachePath string) (bool, error) {

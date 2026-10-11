@@ -4,13 +4,66 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/mhsanaei/3x-ui/v3/internal/config"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/database"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/model"
 )
+
+func TestTemplateCachePathRejectsInvalidIdentityBeforeIO(t *testing.T) {
+	t.Setenv("XUI_DB_FOLDER", t.TempDir())
+	requests := 0
+	mockRemoteTemplates(t, func(*http.Request) (*http.Response, error) {
+		requests++
+		return templateResponse(200, fetchTestTemplate, ""), nil
+	})
+	for _, id := range []string{"", "remote-invalid", "remote-../../../../outside", "/tmp/outside", `remote-..\outside`, "remote-\x00outside"} {
+		t.Run(id, func(t *testing.T) {
+			d := templateDefinition{ID: id, Source: TemplateSourceRemote, URL: "https://templates.example/a.yaml"}
+			if path, err := d.cachePath(); !errors.Is(err, ErrTemplateInput) || path != "" {
+				t.Fatalf("unsafe cache path %q: %v", path, err)
+			}
+			if _, err := fetchTemplateDefinitionLocked(d); !errors.Is(err, ErrTemplateInput) {
+				t.Fatalf("invalid identity reached refresh: %v", err)
+			}
+		})
+	}
+	if requests != 0 {
+		t.Fatal("invalid identity reached the network")
+	}
+	entries, err := os.ReadDir(config.GetDBFolderPath())
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("invalid identities wrote files: %v %v", entries, err)
+	}
+	for _, d := range []templateDefinition{{ID: "../outside", Source: TemplateSourceBuiltin}, {ID: "general", Source: TemplateSourceUpload}} {
+		if path, err := d.cachePath(); err == nil || path != "" {
+			t.Fatalf("unsupported definition has cache path %q", path)
+		}
+	}
+}
+
+func TestTemplateCachePathPreservesExistingNames(t *testing.T) {
+	t.Setenv("XUI_DB_FOLDER", t.TempDir())
+	for _, id := range []string{TemplateVariantGeneral, TemplateVariantAggressive} {
+		d, err := resolveTemplate(id)
+		if err != nil || mustTemplateCachePath(t, d) != templateCachePath(id) {
+			t.Fatalf("builtin cache moved: %s %v", id, err)
+		}
+	}
+	d := templateDefinition{ID: "remote-123e4567-e89b-12d3-a456-426614174000", Source: TemplateSourceRemote, URL: "https://templates.example/a.yaml"}
+	path := mustTemplateCachePath(t, d)
+	if filepath.Dir(path) != config.GetDBFolderPath() || !strings.HasPrefix(filepath.Base(path), "mihomo-template-"+d.ID+"-") || !strings.HasSuffix(path, ".yaml") {
+		t.Fatalf("unexpected remote cache path %s", path)
+	}
+	d.URL = "https://templates.example/b.yaml"
+	if mustTemplateCachePath(t, d) == path {
+		t.Fatal("changed URL reused an unrelated cache")
+	}
+}
 
 func mockRemoteTemplates(t *testing.T, handler templateRoundTripper) {
 	t.Helper()
@@ -80,7 +133,7 @@ func TestTemplateCatalogIndependentCachesActivationRenameAndRestart(t *testing.T
 	}
 	firstDefinition, _ := resolveTemplate(first.ID)
 	secondDefinition, _ := resolveTemplate(second.ID)
-	if firstDefinition.cachePath() == secondDefinition.cachePath() {
+	if mustTemplateCachePath(t, firstDefinition) == mustTemplateCachePath(t, secondDefinition) {
 		t.Fatal("shared custom caches")
 	}
 	// Refreshing an inactive template cannot overwrite the active source/cache.
@@ -144,7 +197,7 @@ func TestTemplateURLChangeFailureAndDatabaseFailurePreserveActiveSource(t *testi
 	}
 	before, _ := GetTemplateStatus()
 	oldDefinition, _ := resolveTemplate(first.ID)
-	oldBytes, _ := os.ReadFile(oldDefinition.cachePath())
+	oldBytes, _ := os.ReadFile(mustTemplateCachePath(t, oldDefinition))
 	fail = true
 	if _, err := SaveTemplate(first.ID, TemplateInput{Name: "Broken", URL: "https://templates.example/broken.yaml"}); !errors.Is(err, ErrTemplatePreparation) {
 		t.Fatal(err)
@@ -153,7 +206,7 @@ func TestTemplateURLChangeFailureAndDatabaseFailurePreserveActiveSource(t *testi
 	if after != before {
 		t.Fatalf("failed edit changed active source: %+v -> %+v", before, after)
 	}
-	data, _ := os.ReadFile(oldDefinition.cachePath())
+	data, _ := os.ReadFile(mustTemplateCachePath(t, oldDefinition))
 	if !reflect.DeepEqual(data, oldBytes) {
 		t.Fatal("failed edit touched old cache")
 	}
@@ -176,7 +229,7 @@ func TestTemplateURLChangeFailureAndDatabaseFailurePreserveActiveSource(t *testi
 		t.Fatalf("edit: %+v %v", changed, err)
 	}
 	newDefinition, _ := resolveTemplate(first.ID)
-	if newDefinition.cachePath() == oldDefinition.cachePath() {
+	if mustTemplateCachePath(t, newDefinition) == mustTemplateCachePath(t, oldDefinition) {
 		t.Fatal("URL edit reused source cache/ETag")
 	}
 	content, err := ReadTemplate()

@@ -9,10 +9,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"github.com/mhsanaei/3x-ui/v3/internal/config"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/database"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/model"
-	"gorm.io/gorm"
 )
 
 const (
@@ -35,22 +36,34 @@ type templateDefinition struct {
 	URL    string
 }
 
-func (d templateDefinition) cachePath() string {
+func (d templateDefinition) cachePath() (string, error) {
 	if d.Source == TemplateSourceBuiltin {
-		return templateCachePath(d.ID)
+		if d.ID != TemplateVariantGeneral && d.ID != TemplateVariantAggressive {
+			return "", ErrTemplateNotFound
+		}
+		return templateCachePath(d.ID), nil
+	}
+	if d.Source != TemplateSourceRemote || !isRemoteTemplateID(d.ID) {
+		return "", ErrTemplateInput
 	}
 	// Bind the cache to both stable identity and source. Changing a URL is
 	// prepared in a new file before the DB commits, preserving the active cache.
 	hash := sha256.Sum256([]byte(d.URL))
-	return filepath.Join(config.GetDBFolderPath(), fmt.Sprintf("mihomo-template-%s-%x.yaml", d.ID, hash))
+	name := fmt.Sprintf("mihomo-template-%s-%x.yaml", d.ID, hash)
+	// Enforce a single local filename at the filesystem boundary as well as
+	// validating catalog IDs. Never normalize an invalid ID into another file.
+	if !filepath.IsLocal(name) || strings.ContainsAny(name, `/\`) {
+		return "", ErrTemplateInput
+	}
+	return filepath.Join(config.GetDBFolderPath(), name), nil
 }
 
 func resolveTemplate(id string) (templateDefinition, error) {
 	switch id {
 	case TemplateVariantGeneral:
-		return templateDefinition{id, "General", TemplateSourceBuiltin, DefaultTemplateURL}, nil
+		return templateDefinition{TemplateVariantGeneral, "General", TemplateSourceBuiltin, DefaultTemplateURL}, nil
 	case TemplateVariantAggressive:
-		return templateDefinition{id, "Aggressive", TemplateSourceBuiltin, AggressiveTemplateURL}, nil
+		return templateDefinition{TemplateVariantAggressive, "Aggressive", TemplateSourceBuiltin, AggressiveTemplateURL}, nil
 	}
 	if !isRemoteTemplateID(id) {
 		return templateDefinition{}, ErrTemplateNotFound

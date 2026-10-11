@@ -105,10 +105,12 @@ func (a *SubscriptionController) addTemplate(c *gin.Context) { a.saveTemplate(c,
 func (a *SubscriptionController) updateTemplate(c *gin.Context) {
 	a.saveTemplate(c, c.Param("templateId"))
 }
+
 func (a *SubscriptionController) deleteTemplate(c *gin.Context) {
 	err := service.DeleteTemplate(c.Param("templateId"))
 	a.templateResult(c, nil, err, "pages.subconverter.templateManageFailed")
 }
+
 func (a *SubscriptionController) refreshNamedTemplate(c *gin.Context) {
 	result, err := service.RefreshTemplateByID(c.Param("templateId"))
 	a.templateResult(c, result, err, "pages.subconverter.templateRefreshFailed")

@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/mhsanaei/3x-ui/v3/subconverter/database"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/model"
-	"gorm.io/gorm"
 )
 
 func TestTemplateReadersSurviveActiveSwitchAndDelete(t *testing.T) {
@@ -109,7 +110,7 @@ func TestTemplateReadersSurviveActiveSwitchAndDelete(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("reader did not finish")
 			}
-			if _, err := os.Stat(definition.cachePath()); err != nil {
+			if _, err := os.Stat(mustTemplateCachePath(t, definition)); err != nil {
 				t.Fatal("in-flight cache removed:", err)
 			}
 			current, err := GetTemplateStatus()

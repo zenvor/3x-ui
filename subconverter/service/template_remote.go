@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -24,7 +25,8 @@ func validateRemoteTemplateURL(raw string) error {
 		return errors.New("template URL must use a public address")
 	}
 	if port := u.Port(); port != "" {
-		if _, err := net.LookupPort("tcp", port); err != nil {
+		// URL ports are numeric; a service-name/DNS lookup is unnecessary.
+		if value, err := strconv.ParseUint(port, 10, 16); err != nil || value == 0 {
 			return errors.New("invalid HTTPS port")
 		}
 	}

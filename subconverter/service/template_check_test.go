@@ -30,7 +30,7 @@ func TestSuccessfulCheckMetadataSupportsMaximumEscapedURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	metadata, err := os.ReadFile(definition.cachePath() + ".check.json")
+	metadata, err := os.ReadFile(mustTemplateCachePath(t, definition) + ".check.json")
 	if err != nil || len(metadata) <= 4096 {
 		t.Fatalf("test must exceed old metadata limit: %d %v", len(metadata), err)
 	}

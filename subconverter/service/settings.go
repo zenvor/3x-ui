@@ -16,8 +16,10 @@ const defaultUARejectStatus = http.StatusForbidden
 
 var defaultUAKeywords = []string{"clash", "mihomo", "shadowrocket"}
 
-var ErrUAKeywordsRequired = errors.New("at least one user-agent keyword is required")
-var ErrTemplatePreparation = errors.New("selected template could not be prepared")
+var (
+	ErrUAKeywordsRequired  = errors.New("at least one user-agent keyword is required")
+	ErrTemplatePreparation = errors.New("selected template could not be prepared")
+)
 
 // SettingsDTO is the API-facing shape of global subconverter settings.
 type SettingsDTO struct {

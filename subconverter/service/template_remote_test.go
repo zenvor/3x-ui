@@ -28,6 +28,66 @@ func TestRemoteTemplateURLAndIPRestrictions(t *testing.T) {
 	}
 }
 
+func TestRemoteTemplateNumericPortBounds(t *testing.T) {
+	for _, port := range []string{"0", "65536", "999999999999999999999", "-1", "https"} {
+		if err := validateRemoteTemplateURL("https://example.com:" + port + "/a"); err == nil {
+			t.Errorf("accepted port %s", port)
+		}
+	}
+	for _, port := range []string{"1", "443", "8443", "65535"} {
+		if err := validateRemoteTemplateURL("https://example.com:" + port + "/a"); err != nil {
+			t.Errorf("rejected port %s: %v", port, err)
+		}
+	}
+}
+
+func TestRemoteTemplateClientBlocksUnsafeRedirectBeforeRequest(t *testing.T) {
+	for _, target := range []string{"http://templates.example/a", "https://127.0.0.1/a", "https://169.254.169.254/a", "https://[::ffff:10.0.0.1]/a", "https://user:password@example.com/a"} {
+		t.Run(target, func(t *testing.T) {
+			client := remoteTemplateClient()
+			requests := 0
+			client.Transport = templateRoundTripper(func(r *http.Request) (*http.Response, error) {
+				requests++
+				response := templateResponse(http.StatusFound, "", "")
+				response.Request = r
+				response.Header.Set("Location", target)
+				return response, nil
+			})
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://templates.example/start", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			response, err := client.Do(req)
+			if response != nil {
+				response.Body.Close()
+			}
+			if err == nil || requests != 1 {
+				t.Fatalf("unsafe redirect reached transport: %d requests, %v", requests, err)
+			}
+		})
+	}
+}
+
+func TestRemoteTemplateDialRejectsUnsafeDNSBeforeAnyConnection(t *testing.T) {
+	for _, addresses := range [][]string{nil, {"127.0.0.1"}, {"169.254.169.254"}, {"::ffff:10.0.0.1"}, {"1.1.1.1", "fc00::1"}} {
+		lookup := func(context.Context, string) ([]netip.Addr, error) {
+			var result []netip.Addr
+			for _, address := range addresses {
+				result = append(result, netip.MustParseAddr(address))
+			}
+			return result, nil
+		}
+		dialed := false
+		dial := func(context.Context, string, string) (net.Conn, error) {
+			dialed = true
+			return nil, errors.New("unexpected network access")
+		}
+		if _, err := dialPublicTemplate(t.Context(), "tcp", "templates.example:443", lookup, dial); err == nil || dialed {
+			t.Fatalf("unsafe DNS reached network: %v, %v", addresses, err)
+		}
+	}
+}
+
 func TestRemoteTemplateDialPinsPublicDNSAndRejectsMixedAnswers(t *testing.T) {
 	resolved := 0
 	var dialed []string
