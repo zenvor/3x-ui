@@ -17,6 +17,7 @@ import (
 
 	"github.com/mhsanaei/3x-ui/v3/internal/config"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	"github.com/mhsanaei/3x-ui/v3/internal/util/netsafe"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
 )
 
@@ -64,6 +65,7 @@ var (
 	sponsorsURL     = "https://sponsors.sanaei.dev/3X/sponsors.json"
 	sponsorLogoBase = "https://sponsors.sanaei.dev/3X/logos/"
 	sponsorNow      = time.Now
+	sponsorClient   = newSponsorHTTPClient
 
 	// The panel proxies logos from sponsorLogoBase: CSP stays 'self' and no third party sees admin IPs.
 	sponsorLogoRe = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]*\.(png|webp|jpg)$`)
@@ -173,8 +175,32 @@ func readSponsorSource(url, localPath string, limit int) ([]byte, error) {
 	return data, nil
 }
 
-func fetchLimited(url string, limit int) ([]byte, error) {
+func newSponsorHTTPClient() *http.Client {
 	client := (&service.SettingService{}).NewProxiedHTTPClient(10 * time.Second)
+	return secureSponsorHTTPClient(client)
+}
+
+func secureSponsorHTTPClient(client *http.Client) *http.Client {
+	if client.Transport == nil {
+		transport := &http.Transport{}
+		if base, ok := http.DefaultTransport.(*http.Transport); ok {
+			transport = base.Clone()
+		}
+		transport.Proxy = nil
+		transport.DialContext = netsafe.SSRFGuardedDialContext
+		client.Transport = transport
+	}
+	// Both resources have canonical URLs. Never let their response select a
+	// new target, including when using an admin-configured panel egress proxy.
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return client
+}
+
+func fetchLimited(url string, limit int) ([]byte, error) {
+	client := sponsorClient()
+	defer client.CloseIdleConnections()
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

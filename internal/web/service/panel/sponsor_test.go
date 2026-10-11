@@ -154,11 +154,19 @@ func setupSponsorServer(t *testing.T, body string) *atomic.Int32 {
 	}))
 	t.Cleanup(srv.Close)
 
-	prevURL, prevBase, prevNow := sponsorsURL, sponsorLogoBase, sponsorNow
+	prevURL, prevBase, prevNow, prevClient := sponsorsURL, sponsorLogoBase, sponsorNow, sponsorClient
 	sponsorsURL, sponsorLogoBase = srv.URL+"/sponsors.json", srv.URL+"/media/"
+	// Only the fixture transport can reach loopback; retain the production
+	// redirect policy so these tests do not weaken redirect protection.
+	sponsorClient = func() *http.Client {
+		client := newSponsorHTTPClient()
+		client.Transport = srv.Client().Transport
+		return client
+	}
 	resetSponsorCache()
 	t.Cleanup(func() {
 		sponsorsURL, sponsorLogoBase, sponsorNow = prevURL, prevBase, prevNow
+		sponsorClient = prevClient
 		failSponsorList.Store(false)
 		failSponsorLogos.Store(false)
 		resetSponsorCache()
