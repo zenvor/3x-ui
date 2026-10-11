@@ -207,7 +207,9 @@ func runWebServer() {
 			tgbot.StopBot()
 			// ------------------------------------------------------------
 
-			_ = server.Stop()
+			if err := server.Stop(); err != nil {
+				logger.Error("Server shutdown failed:", err)
+			}
 			_ = subServer.Stop()
 			log.Println("Shutting down servers.")
 			return
@@ -497,7 +499,7 @@ func GetListenIP(getListen bool) {
 	}
 }
 
-func GetApiToken(getApiToken bool, tokenName string) error {
+func GetApiToken(getApiToken bool, tokenName, tokenScope string) error {
 	if !getApiToken {
 		return nil
 	}
@@ -523,7 +525,7 @@ func GetApiToken(getApiToken bool, tokenName string) error {
 		if rotated == "" {
 			rotated = cliFallbackTokenName
 		}
-		created, err := apiTokenService.RecreateByName(rotated)
+		created, err := apiTokenService.RecreateByName(rotated, tokenScope)
 		if err != nil {
 			return fmt.Errorf("create fallback API token: %w", err)
 		}
@@ -534,7 +536,7 @@ func GetApiToken(getApiToken bool, tokenName string) error {
 	if name == "" {
 		name = installTokenName
 	}
-	created, err := apiTokenService.Create(name, "", 0)
+	created, err := apiTokenService.Create(name, tokenScope, 0)
 	if err != nil {
 		return fmt.Errorf("create apiToken: %w", err)
 	}
@@ -713,6 +715,7 @@ func main() {
 	var getCert bool
 	var getApiToken bool
 	var tokenName string
+	var tokenScope string
 	var resetTwoFactor bool
 	settingCmd.BoolVar(&reset, "reset", false, "Reset all settings")
 	settingCmd.BoolVar(&show, "show", false, "Display current settings")
@@ -726,6 +729,7 @@ func main() {
 	settingCmd.BoolVar(&getCert, "getCert", false, "Display current certificate settings")
 	settingCmd.BoolVar(&getApiToken, "getApiToken", false, "Print an API token for CLI use, regenerating it and invalidating the previous one; on a panel with no tokens yet it mints one instead")
 	settingCmd.StringVar(&tokenName, "tokenName", "", "Name of the token -getApiToken acts on (default: "+cliFallbackTokenName+", or "+installTokenName+" on a panel with no tokens)")
+	settingCmd.StringVar(&tokenScope, "tokenScope", "", "Scope of the token -getApiToken issues: admin, monitor or node-sync (default: the scope of the token it replaces, or admin for a new one)")
 	settingCmd.StringVar(&webCertFile, "webCert", "", "Set path to public key file for panel")
 	settingCmd.StringVar(&webKeyFile, "webCertKey", "", "Set path to private key file for panel")
 	settingCmd.StringVar(&tgbottoken, "tgbottoken", "", "Set token for Telegram bot")
@@ -836,7 +840,7 @@ func main() {
 			}
 		}
 		if getApiToken {
-			if err := GetApiToken(getApiToken, tokenName); err != nil {
+			if err := GetApiToken(getApiToken, tokenName, tokenScope); err != nil {
 				fmt.Fprintln(os.Stderr, "failed to get API token:", err)
 				os.Exit(1)
 			}

@@ -11,6 +11,7 @@ import {
   CloudServerOutlined,
   ClusterOutlined,
   CodeOutlined,
+  CrownOutlined,
   DashboardOutlined,
   DatabaseOutlined,
   DiscordOutlined,
@@ -44,6 +45,7 @@ import { formatPanelVersion } from '@/lib/panel-version';
 import { pauseAnimationsUntilLeave, useTheme } from '@/hooks/useTheme';
 import { useAllSettings } from '@/api/queries/useAllSettings';
 import { useCommandPalette } from '@/components/command-palette/useCommandPalette';
+import SponsorSlot from '@/components/sponsor/SponsorSlot';
 import './AppSidebar.css';
 
 const DONATE_URL = 'https://donate.sanaei.dev/';
@@ -69,6 +71,7 @@ type IconName =
   | 'cluster'
   | 'hosts'
   | 'logout'
+  | 'sponsors'
   | 'apidocs'
   | 'outbound'
   | 'routing'
@@ -84,6 +87,7 @@ const iconByName: Record<IconName, ComponentType> = {
   cluster: ClusterOutlined,
   hosts: GlobalOutlined,
   logout: LogoutOutlined,
+  sponsors: CrownOutlined,
   apidocs: ApiOutlined,
   outbound: ExportOutlined,
   routing: SwapOutlined,
@@ -236,6 +240,7 @@ export default function AppSidebar() {
       { key: '/settings', icon: 'setting', title: t('menu.settings') },
       { key: '/xray', icon: 'tool', title: t('menu.xray') },
       { key: '/api-docs', icon: 'apidocs', title: t('menu.apiDocs') },
+      { key: '/sponsors', icon: 'sponsors', title: t('menu.sponsors') },
       { key: LOGOUT_KEY, icon: 'logout', title: t('logout') },
     ],
     [t],
@@ -451,6 +456,13 @@ export default function AppSidebar() {
           onClick={onMenuClick}
         />
         <div className="sider-footer">
+          <SponsorSlot
+            slot="sidebar"
+            variant="compact"
+            iconOnly={railCollapsed}
+            rotate
+            className="sider-sponsor"
+          />
           <VersionBadge version={panelVersion} collapsed={railCollapsed} />
         </div>
       </Layout.Sider>
@@ -536,6 +548,7 @@ export default function AppSidebar() {
           }}
         />
         <div className="drawer-footer">
+          <SponsorSlot slot="sidebar" variant="compact" rotate className="sider-sponsor" />
           <VersionBadge version={panelVersion} />
         </div>
       </Drawer>
