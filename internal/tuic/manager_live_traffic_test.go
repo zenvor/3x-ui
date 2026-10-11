@@ -337,7 +337,11 @@ func TestAudit3ManagerEnsureActualSendersWithPersistentTraffic(t *testing.T) {
 }
 
 func audit3StartSocksForManager(t *testing.T, expectedUser, expectedPass string, inboundID int) (string, func()) {
-	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", SOCKSPortForInbound(inboundID)))
+	identity, err := sharedBridgeIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ln, err := tls.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", SOCKSPortForInbound(inboundID)), &tls.Config{Certificates: []tls.Certificate{identity.certificate}, MinVersion: tls.VersionTLS13})
 	if err != nil {
 		t.Fatalf("failed to listen: %v", err)
 	}

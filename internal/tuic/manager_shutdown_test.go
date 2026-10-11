@@ -28,6 +28,12 @@ func TestAudit3ManagerStopMustInterruptIdleTCPRelay(t *testing.T) {
 	if listener == nil {
 		t.Fatal(err)
 	}
+	identity, err := sharedBridgeIdentity()
+	if err != nil {
+		_ = listener.Close()
+		t.Fatal(err)
+	}
+	listener = tls.NewListener(listener, &tls.Config{Certificates: []tls.Certificate{identity.certificate}, MinVersion: tls.VersionTLS13})
 	defer listener.Close()
 	release := make(chan struct{})
 	defer close(release)

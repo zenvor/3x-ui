@@ -3,6 +3,7 @@ package tuic
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -22,8 +23,17 @@ const maxSocksUdpDatagramSize = 65507
 
 // SocksRelay describes the loopback SOCKS5 endpoint where decrypted TUIC traffic is forwarded.
 type SocksRelay struct {
-	Addr     string // e.g. "127.0.0.1:63201"
-	Password string // internal shared password for the SOCKS inbound
+	Addr      string // e.g. "127.0.0.1:63201"
+	Password  string // internal shared password for the SOCKS inbound
+	TLSConfig *tls.Config
+}
+
+func (r *SocksRelay) dial(ctx context.Context) (net.Conn, error) {
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	if r.TLSConfig != nil {
+		return (&tls.Dialer{NetDialer: dialer, Config: r.TLSConfig}).DialContext(ctx, "tcp", r.Addr)
+	}
+	return dialer.DialContext(ctx, "tcp", r.Addr)
 }
 
 // CountingConn wraps a net.Conn and tracks bytes read and written atomically.
@@ -51,8 +61,7 @@ func (c *CountingConn) Write(p []byte) (int, error) {
 
 // DialTCP establishes a SOCKS5 CONNECT tunnel to the target address on behalf of user.
 func (r *SocksRelay) DialTCP(ctx context.Context, user string, target *Address) (net.Conn, error) {
-	dialer := net.Dialer{Timeout: 10 * time.Second}
-	conn, err := dialer.DialContext(ctx, "tcp", r.Addr)
+	conn, err := r.dial(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("tuic socks: dial relay %s: %w", r.Addr, err)
 	}
@@ -148,8 +157,7 @@ type SocksUDPSession struct {
 
 // DialUDP establishes a SOCKS5 UDP ASSOCIATE tunnel to Xray.
 func (r *SocksRelay) DialUDP(ctx context.Context, user string) (*SocksUDPSession, error) {
-	dialer := net.Dialer{Timeout: 10 * time.Second}
-	ctrl, err := dialer.DialContext(ctx, "tcp", r.Addr)
+	ctrl, err := r.dial(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("tuic socks: dial UDP control connection: %w", err)
 	}

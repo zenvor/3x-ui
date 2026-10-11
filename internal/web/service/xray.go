@@ -842,15 +842,21 @@ func injectTuicSocks(cfg *xray.Config, inbounds []*model.Inbound) {
 			logger.Warning("tuic socks: building settings for inbound [", inbound.Tag, "]: ", err)
 			continue
 		}
+		streamSettings, err := tuic.BridgeStreamSettings()
+		if err != nil {
+			logger.Warning("tuic socks: building authenticated bridge: ", err)
+			continue
+		}
 
 		existingTags[inbound.Tag] = struct{}{}
 		cfg.InboundConfigs = append(cfg.InboundConfigs, xray.InboundConfig{
-			Listen:   json_util.RawMessage(`"127.0.0.1"`),
-			Port:     tuic.SOCKSPortForInbound(inbound.Id),
-			Protocol: "socks",
-			Settings: json_util.RawMessage(settings),
-			Sniffing: json_util.RawMessage(tuicEgressSniffingSettings),
-			Tag:      inbound.Tag,
+			Listen:         json_util.RawMessage(`"127.0.0.1"`),
+			Port:           tuic.SOCKSPortForInbound(inbound.Id),
+			Protocol:       "socks",
+			Settings:       json_util.RawMessage(settings),
+			StreamSettings: json_util.RawMessage(streamSettings),
+			Sniffing:       json_util.RawMessage(tuicEgressSniffingSettings),
+			Tag:            inbound.Tag,
 		})
 	}
 }
