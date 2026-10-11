@@ -1,11 +1,15 @@
 package service
 
 import (
+	"encoding/json"
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/runtime"
+	"github.com/mhsanaei/3x-ui/v3/internal/xray"
 )
 
 func TestBuildTargetClientFromSourceTuic(t *testing.T) {
@@ -66,9 +70,10 @@ func TestAddInboundTuicClientValidation(t *testing.T) {
 	}
 }
 
-func TestTuicClientMutationsDoNotRequireRestart(t *testing.T) {
+func TestTuicClientMutationsRefreshXrayBridge(t *testing.T) {
 	setupConflictDB(t)
-	mgr := runtime.NewManager(runtime.LocalDeps{APIPort: func() int { return 0 }, SetNeedRestart: func() {}})
+	resyncs := 0
+	mgr := runtime.NewManager(runtime.LocalDeps{APIPort: func() int { return 0 }, SetNeedRestart: func() { resyncs++ }})
 	runtime.SetManager(mgr)
 	t.Cleanup(func() { runtime.SetManager(nil) })
 
@@ -91,6 +96,37 @@ func TestTuicClientMutationsDoNotRequireRestart(t *testing.T) {
 		t.Fatalf("AddInbound failed: %v", err)
 	}
 
+	assertBridgeAccounts := func(want ...string) {
+		t.Helper()
+		current, err := inboundSvc.GetInbound(created.Id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg := &xray.Config{}
+		injectTuicSocks(cfg, []*model.Inbound{current})
+		if len(cfg.InboundConfigs) != 1 {
+			t.Fatalf("bridge count = %d, want 1", len(cfg.InboundConfigs))
+		}
+		var settings struct {
+			Accounts []struct {
+				User string `json:"user"`
+			} `json:"accounts"`
+		}
+		if err := json.Unmarshal(cfg.InboundConfigs[0].Settings, &settings); err != nil {
+			t.Fatal(err)
+		}
+		got := make([]string, 0, len(settings.Accounts))
+		for _, account := range settings.Accounts {
+			got = append(got, account.User)
+		}
+		slices.Sort(got)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Fatalf("bridge identities = %v, want %v", got, want)
+		}
+	}
+	resyncs = 0
+
 	addPayload := &model.Inbound{
 		Id:       created.Id,
 		Settings: `{"clients":[{"id":"a0000000-0000-0000-0000-000000000002","password":"p2","email":"user2@tuic.com","enable":true}]}`,
@@ -100,8 +136,13 @@ func TestTuicClientMutationsDoNotRequireRestart(t *testing.T) {
 		t.Fatalf("AddInboundClient failed: %v", err)
 	}
 	if needRestart {
-		t.Fatal("expected needRestart = false when adding TUIC client")
+		t.Fatal("TUIC runtime schedules its own bridge resync")
 	}
+	if resyncs != 1 {
+		t.Fatalf("adding a TUIC client scheduled %d bridge resyncs, want 1", resyncs)
+	}
+
+	assertBridgeAccounts("user1@tuic.com", "user2@tuic.com")
 
 	updatePayload := &model.Inbound{
 		Id:       created.Id,
@@ -112,14 +153,47 @@ func TestTuicClientMutationsDoNotRequireRestart(t *testing.T) {
 		t.Fatalf("UpdateInboundClient failed: %v", err)
 	}
 	if needRestart {
-		t.Fatal("expected needRestart = false when updating TUIC client")
+		t.Fatal("TUIC runtime schedules its own bridge resync")
+	}
+	if resyncs != 2 {
+		t.Fatalf("updating a TUIC client scheduled %d bridge resyncs, want 2", resyncs)
 	}
 
-	needRestart, err = clientSvc.DelInboundClientByEmail(inboundSvc, created.Id, "user2@tuic.com", false, true)
+	for i, state := range []struct {
+		email  string
+		enable bool
+	}{
+		{"renamed@tuic.com", true},
+		{"renamed@tuic.com", false},
+		{"renamed@tuic.com", true},
+	} {
+		oldEmail := "renamed@tuic.com"
+		if i == 0 {
+			oldEmail = "user2@tuic.com"
+		}
+		updatePayload.Settings = fmt.Sprintf(`{"clients":[{"id":"a0000000-0000-0000-0000-000000000002","password":"new-p2","email":%q,"enable":%t}]}`, state.email, state.enable)
+		if _, err := clientSvc.UpdateInboundClient(inboundSvc, updatePayload, oldEmail); err != nil {
+			t.Fatalf("rename/enable mutation %d: %v", i, err)
+		}
+		if resyncs != i+3 {
+			t.Fatalf("mutation %d scheduled %d bridge resyncs, want %d", i, resyncs, i+3)
+		}
+		if state.enable {
+			assertBridgeAccounts("user1@tuic.com", state.email)
+		} else {
+			assertBridgeAccounts("user1@tuic.com")
+		}
+	}
+
+	needRestart, err = clientSvc.DelInboundClientByEmail(inboundSvc, created.Id, "renamed@tuic.com", false, true)
 	if err != nil {
 		t.Fatalf("DelInboundClientByEmail failed: %v", err)
 	}
 	if needRestart {
-		t.Fatal("expected needRestart = false when deleting TUIC client")
+		t.Fatal("TUIC runtime schedules its own bridge resync")
 	}
+	if resyncs != 6 {
+		t.Fatalf("deleting a TUIC client scheduled %d bridge resyncs, want 6", resyncs)
+	}
+	assertBridgeAccounts("user1@tuic.com")
 }

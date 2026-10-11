@@ -233,11 +233,14 @@ func (l *Local) updateAmneziaWGInbound(ctx context.Context, oldIb, newIb *model.
 }
 
 func (l *Local) updateTuicInbound(ctx context.Context, oldIb, newIb *model.Inbound) error {
+	// Client API paths may pass two snapshots read after the DB commit, so
+	// comparing oldIb and newIb cannot detect changes to the running relay's
+	// password accounts. Every TUIC apply must refresh the Xray-side bridge.
+	if l.deps.SetNeedRestart != nil {
+		l.deps.SetNeedRestart()
+	}
 	if oldIb.Protocol == model.TUIC && newIb.Protocol != model.TUIC {
 		tuic.GetManager().Remove(oldIb.Id)
-		if l.deps.SetNeedRestart != nil {
-			l.deps.SetNeedRestart()
-		}
 		if !newIb.Enable {
 			return nil
 		}
@@ -245,24 +248,10 @@ func (l *Local) updateTuicInbound(ctx context.Context, oldIb, newIb *model.Inbou
 	}
 	if oldIb.Protocol != model.TUIC {
 		_ = l.DelInbound(ctx, oldIb)
-		if l.deps.SetNeedRestart != nil {
-			l.deps.SetNeedRestart()
-		}
-	}
-	if oldIb.Protocol == model.TUIC && newIb.Protocol == model.TUIC && oldIb.Enable && newIb.Enable && oldIb.Tag != newIb.Tag && l.deps.SetNeedRestart != nil {
-		l.deps.SetNeedRestart()
 	}
 	if !newIb.Enable {
 		tuic.GetManager().Remove(newIb.Id)
-		if oldIb.Enable && l.deps.SetNeedRestart != nil {
-			l.deps.SetNeedRestart()
-		}
 		return nil
-	}
-	if !oldIb.Enable && newIb.Enable {
-		if l.deps.SetNeedRestart != nil {
-			l.deps.SetNeedRestart()
-		}
 	}
 	inst, ok := tuic.InstanceFromInbound(newIb)
 	if !ok {
