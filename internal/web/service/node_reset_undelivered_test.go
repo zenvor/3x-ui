@@ -273,3 +273,79 @@ func TestConcurrentNodeResetDeliveriesSendOnce(t *testing.T) {
 		t.Fatalf("node received resets %v, want exactly [once]", got)
 	}
 }
+
+type partialResetRuntime struct {
+	fakeNodeRuntime
+	failEmail string
+	delivered []string
+	onSuccess func(string)
+}
+
+func (r *partialResetRuntime) ResetClientTraffic(_ context.Context, _ *model.Inbound, email string) error {
+	if email == r.failEmail {
+		return errors.New("temporary node failure")
+	}
+	r.delivered = append(r.delivered, email)
+	if r.onSuccess != nil {
+		r.onSuccess(email)
+	}
+	return nil
+}
+
+func TestNodeResetPartialSuccessIsNotReplayed(t *testing.T) {
+	setupBulkDB(t)
+	const nodeID = 41
+	rows := []model.NodePendingReset{{NodeId: nodeID, Email: "first", QueuedAt: 1}, {NodeId: nodeID, Email: "second", QueuedAt: 1}}
+	if err := database.GetDB().Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	rt := &partialResetRuntime{failEmail: "second"}
+	svc := &InboundService{}
+	if err := svc.DeliverNodeResets(context.Background(), nodeID, rt); err == nil {
+		t.Fatal("expected the second reset to fail")
+	}
+	if pending := pendingResetEmails(t, nodeID); !slices.Equal(pending, []string{"second"}) {
+		t.Fatalf("pending after partial success = %v, want [second]", pending)
+	}
+	rt.failEmail = ""
+	if err := svc.DeliverNodeResets(context.Background(), nodeID, rt); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(rt.delivered, []string{"first", "second"}) {
+		t.Fatalf("successful reset was replayed: %v", rt.delivered)
+	}
+	if pending := pendingResetEmails(t, nodeID); len(pending) != 0 {
+		t.Fatalf("pending after retry: %v", pending)
+	}
+}
+
+func TestNodeResetAcknowledgementPreservesRequeuedRecord(t *testing.T) {
+	setupBulkDB(t)
+	const nodeID = 42
+	row := model.NodePendingReset{NodeId: nodeID, Email: "again", QueuedAt: 1}
+	if err := database.GetDB().Create(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	rt := &partialResetRuntime{onSuccess: func(email string) {
+		if err := database.GetDB().Model(&model.NodePendingReset{}).Where("node_id = ? AND email = ?", nodeID, email).Update("queued_at", 2).Error; err != nil {
+			t.Error(err)
+		}
+	}}
+	svc := &InboundService{}
+	if err := svc.DeliverNodeResets(context.Background(), nodeID, rt); err != nil {
+		t.Fatal(err)
+	}
+	if pending := pendingResetEmails(t, nodeID); !slices.Equal(pending, []string{"again"}) {
+		t.Fatalf("concurrent requeue was deleted: %v", pending)
+	}
+	rt.onSuccess = nil
+	if err := svc.DeliverNodeResets(context.Background(), nodeID, rt); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(rt.delivered, []string{"again", "again"}) {
+		t.Fatalf("new reset was not delivered: %v", rt.delivered)
+	}
+	if pending := pendingResetEmails(t, nodeID); len(pending) != 0 {
+		t.Fatalf("confirmed reset remains pending: %v", pending)
+	}
+}
