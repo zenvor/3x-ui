@@ -108,6 +108,54 @@ gen_random_string() {
         | head -c "$length"
 }
 
+# Read service assignments as data; never evaluate DSNs or shell expressions.
+# Keep quoting and backslash handling aligned with parseServiceEnvFile in main.go.
+_xui_load_service_env() {
+    local env_file="$1" env_line env_key env_value env_quote env_char env_decoded
+    local env_escaped env_i
+    [[ -r "$env_file" ]] || return 0
+    while IFS= read -r env_line || [[ -n "$env_line" ]]; do
+        env_line="${env_line#"${env_line%%[![:space:]]*}"}"
+        env_line="${env_line%"${env_line##*[![:space:]]}"}"
+        [[ -n "$env_line" && "$env_line" != \#* && "$env_line" != \;* && "$env_line" == *=* ]] || continue
+        env_key="${env_line%%=*}"
+        env_key="${env_key%"${env_key##*[![:space:]]}"}"
+        [[ "$env_key" =~ ^XUI_[A-Za-z0-9_]+$ ]] || continue
+        env_value="${env_line#*=}"
+        env_value="${env_value#"${env_value%%[![:space:]]*}"}"
+        env_value="${env_value%"${env_value##*[![:space:]]}"}"
+        env_quote=""
+        if [[ ${#env_value} -ge 2 ]]; then
+            case "$env_value" in
+                \"*\") env_quote='"'; env_value="${env_value:1:${#env_value}-2}" ;;
+                \'*\') env_quote="'"; env_value="${env_value:1:${#env_value}-2}" ;;
+            esac
+        fi
+        if [[ "$env_quote" != "'" ]]; then
+            env_decoded=""
+            env_escaped=false
+            for ((env_i = 0; env_i < ${#env_value}; env_i++)); do
+                env_char="${env_value:env_i:1}"
+                if [[ "$env_escaped" == true ]]; then
+                    if [[ "$env_quote" == '"' && "$env_char" != '"' && "$env_char" != '\' && "$env_char" != '$' && "$env_char" != $'\140' ]]; then
+                        env_decoded+='\'
+                    fi
+                    env_decoded+="$env_char"
+                    env_escaped=false
+                elif [[ "$env_char" == '\' ]]; then
+                    env_escaped=true
+                else
+                    env_decoded+="$env_char"
+                fi
+            done
+            [[ "$env_escaped" == false ]] || env_decoded+='\'
+            env_value="$env_decoded"
+        fi
+        export "$env_key=$env_value"
+    done < "$env_file"
+    return 0
+}
+
 xui_env_file_path() {
     case "${release}" in
         ubuntu | debian | armbian)
@@ -125,12 +173,7 @@ xui_env_file_path() {
 load_xui_env() {
     local env_file
     env_file="$(xui_env_file_path)"
-    if [[ -r "$env_file" ]]; then
-        set -a
-        # shellcheck disable=SC1090
-        source "$env_file"
-        set +a
-    fi
+    _xui_load_service_env "$env_file"
 }
 
 install_base() {
@@ -323,12 +366,7 @@ _xui_service_write_paths_dropin() {
     if [[ -z "$env_file" ]]; then
         env_file="$(xui_env_file_path)"
     fi
-    if [[ -r "$env_file" ]]; then
-        set -a
-        # shellcheck disable=SC1090
-        source "$env_file"
-        set +a
-    fi
+    _xui_load_service_env "$env_file"
 
     # XUI_* wins over the script's own default: the unit hands that same env
     # file to the panel through EnvironmentFile=, so these are the folders it
