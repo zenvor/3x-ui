@@ -4,8 +4,8 @@ case $1 in
     amd64)
         FNAME="amd64"
         ;;
-    i386)
-        FNAME="i386"
+    i386 | 386)
+        FNAME="386"
         ;;
     armv8 | arm64 | aarch64)
         FNAME="arm64"
@@ -14,7 +14,7 @@ case $1 in
         FNAME="arm32"
         ;;
     armv6)
-        FNAME="armv6"
+        FNAME="arm32"
         ;;
     *)
         FNAME="amd64"
@@ -32,8 +32,10 @@ cd build/bin
 # mtg-multi (MTProto sidecar) ships prebuilt release binaries for every target
 # we package, so download and unpack the matching one instead of compiling.
 case $FNAME in
-    i386) MTGARCH="386" ;;
-    arm32) MTGARCH="armv7" ;;
+    arm32)
+        MTGARCH="armv7"
+        if [ "$1" = "armv6" ] || [ "${2:-}" = "v6" ]; then MTGARCH="armv6"; fi
+        ;;
     *) MTGARCH="$FNAME" ;;
 esac
 MTG_PKG="mtg-multi-${MTG_MULTI_VER#v}-linux-${MTGARCH}"
