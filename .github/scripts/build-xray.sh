@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 if [ "$#" -ne 1 ]; then
   echo "usage: $0 <output-path>" >&2

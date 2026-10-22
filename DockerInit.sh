@@ -2,27 +2,21 @@
 set -e
 case $1 in
     amd64)
-        ARCH="64"
         FNAME="amd64"
         ;;
     i386)
-        ARCH="32"
         FNAME="i386"
         ;;
     armv8 | arm64 | aarch64)
-        ARCH="arm64-v8a"
         FNAME="arm64"
         ;;
     armv7 | arm | arm32)
-        ARCH="arm32-v7a"
         FNAME="arm32"
         ;;
     armv6)
-        ARCH="arm32-v6"
         FNAME="armv6"
         ;;
     *)
-        ARCH="64"
         FNAME="amd64"
         ;;
 esac
@@ -32,11 +26,9 @@ if [ -z "$MTG_MULTI_VER" ]; then
     exit 1
 fi
 mkdir -p build/bin
+sh .github/scripts/build-xray.sh "build/bin/xray-linux-${FNAME}"
+cp "$(go list -m -f '{{.Dir}}' github.com/xtls/xray-core)/LICENSE" build/bin/LICENSE
 cd build/bin
-curl -sfLRO "https://github.com/XTLS/Xray-core/releases/download/v26.10.10/Xray-linux-${ARCH}.zip"
-unzip "Xray-linux-${ARCH}.zip"
-rm -f "Xray-linux-${ARCH}.zip" geoip.dat geosite.dat
-mv xray "xray-linux-${FNAME}"
 # mtg-multi (MTProto sidecar) ships prebuilt release binaries for every target
 # we package, so download and unpack the matching one instead of compiling.
 case $FNAME in
