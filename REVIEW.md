@@ -237,7 +237,7 @@ For a bug fix, answer three questions, each with `file:line` evidence:
   When the linked issue carries an analysis comment from the issue-analyst bot
   (`github-actions[bot]`, a `Verdict:` and a root cause), read it and say
   whether you agree; it is a claim to check, not a fact.
-- **Is it fixed at the root?** Trace the same input through `pr-head/`. Say
+- **Is it fixed at the root?** Trace the same input through the pinned head. Say
   whether the change removes the root cause or only hides the symptom at one
   call site while another path still reaches it.
 - **Does the test prove it?** Name the assertion that tells the broken
