@@ -504,6 +504,38 @@ func TestFeedIgnoresForwardedHeadersFromUntrustedRemote(t *testing.T) {
 	}
 }
 
+// Caddy and HAProxy pass a client-sent X-Real-IP through and append to X-Forwarded-For,
+// so only the proxy end of the chain may pick the address MaxIps binds (upstream d50c419e).
+func TestFeedRecordsClientAddressFromProxyEndOfForwardedHeaders(t *testing.T) {
+	cases := []struct {
+		name, realIP, forwardedFor, want string
+	}{
+		{"spoofed leftmost forwarded entry", "", "198.51.100.66, 203.0.113.7", "203.0.113.7"},
+		{"client-sent real ip disagrees with proxy hop", "198.51.100.66", "203.0.113.7", "127.0.0.1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			engine := setupPublicControllerTest(t)
+			sub := createPublicTestSubscription(t, 1)
+
+			req := httptest.NewRequest(http.MethodGet, "/feed/"+sub.Token, nil)
+			req.RemoteAddr = "127.0.0.1:12345"
+			if tc.realIP != "" {
+				req.Header.Set("X-Real-IP", tc.realIP)
+			}
+			req.Header.Set("X-Forwarded-For", tc.forwardedFor)
+			req.Header.Set("User-Agent", "mihomo-test")
+			resp := httptest.NewRecorder()
+			engine.ServeHTTP(resp, req)
+
+			if resp.Code != http.StatusOK {
+				t.Fatalf("feed status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+			}
+			assertLatestAccessLog(t, sub.Id, "full", "success", http.StatusOK, tc.want)
+		})
+	}
+}
+
 func createPublicTestSubscription(t *testing.T, maxIps int) *model.Subscription {
 	t.Helper()
 	sub := &model.Subscription{
