@@ -44,9 +44,18 @@ func NewPublicController(engine *gin.Engine) *PublicController {
 		accessLogs: service.NewAccessLogService(),
 		subInfo:    subsvc.NewSubService(""),
 	}
-	engine.GET("/feed/:token", p.full)
-	engine.GET("/feed/:token/nodes", p.provider)
+	feed := engine.Group("/feed", setNoStoreHeaders)
+	feed.GET("/:token", p.full)
+	feed.GET("/:token/nodes", p.provider)
 	return p
+}
+
+// setNoStoreHeaders covers every feed response, errors included, because the bodies
+// carry live quota and node data a shared cache must not replay.
+func setNoStoreHeaders(c *gin.Context) {
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+	c.Header("Pragma", "no-cache")
+	c.Header("Expires", "0")
 }
 
 const (

@@ -536,6 +536,23 @@ func TestFeedRecordsClientAddressFromProxyEndOfForwardedHeaders(t *testing.T) {
 	}
 }
 
+// Feed bodies carry live quota and node data, so a cache in front must never replay them,
+// including the 403/404 answers a quota or token check gives (matches upstream 0729fc6d).
+func TestFeedRoutesSendNoStore(t *testing.T) {
+	engine := setupPublicControllerTest(t)
+	sub := createPublicTestSubscription(t, 0)
+	for _, path := range []string{
+		"/feed/" + sub.Token,
+		"/feed/" + sub.Token + "/nodes",
+		"/feed/ffffffffffffffffffffffffffffffff",
+	} {
+		resp := performFeedRequest(engine, path, "203.0.113.20")
+		if got := resp.Header().Get("Cache-Control"); got != "no-cache, no-store, must-revalidate" {
+			t.Fatalf("%s (status %d) Cache-Control = %q, want no-store", path, resp.Code, got)
+		}
+	}
+}
+
 func createPublicTestSubscription(t *testing.T, maxIps int) *model.Subscription {
 	t.Helper()
 	sub := &model.Subscription{
