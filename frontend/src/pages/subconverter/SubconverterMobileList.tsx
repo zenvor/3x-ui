@@ -45,7 +45,7 @@ export default function SubconverterMobileList({
   if (rows.length === 0) {
     return (
       <div className="subconverter-card-empty">
-        <ContainerOutlined style={{ fontSize: 28, opacity: 0.5 }} />
+        <ContainerOutlined aria-hidden style={{ fontSize: 28, opacity: 0.5 }} />
         <div>{t('noData')}</div>
       </div>
     );
@@ -78,7 +78,7 @@ export default function SubconverterMobileList({
                     <Button
                       type="text"
                       size="small"
-                      icon={<QrcodeOutlined />}
+                      icon={<QrcodeOutlined aria-hidden />}
                       className="row-action-trigger"
                       aria-label={t('pages.clients.qrCode')}
                     />
@@ -88,7 +88,7 @@ export default function SubconverterMobileList({
                   <Button
                     type="text"
                     size="small"
-                    icon={<CopyOutlined />}
+                    icon={<CopyOutlined aria-hidden />}
                     className="row-action-trigger"
                     aria-label={t('pages.subconverter.copyFeedUrl')}
                     onClick={() => onCopy(buildFeedUrl(record.token))}
@@ -98,7 +98,7 @@ export default function SubconverterMobileList({
                   <Button
                     type="text"
                     size="small"
-                    icon={<InfoCircleOutlined />}
+                    icon={<InfoCircleOutlined aria-hidden />}
                     className="row-action-trigger"
                     aria-label={t('info')}
                     onClick={() => onInfo(record)}
@@ -108,7 +108,7 @@ export default function SubconverterMobileList({
                   <Button
                     type="text"
                     size="small"
-                    icon={<RetweetOutlined />}
+                    icon={<RetweetOutlined aria-hidden />}
                     className="row-action-trigger"
                     aria-label={t('pages.subconverter.resetToken')}
                     onClick={() => onResetToken(record)}
@@ -118,7 +118,7 @@ export default function SubconverterMobileList({
                   <Button
                     type="text"
                     size="small"
-                    icon={<EditOutlined />}
+                    icon={<EditOutlined aria-hidden />}
                     className="row-action-trigger"
                     aria-label={t('edit')}
                     onClick={() => onEdit(record)}
@@ -136,7 +136,7 @@ export default function SubconverterMobileList({
                     danger
                     type="text"
                     size="small"
-                    icon={<DeleteOutlined />}
+                    icon={<DeleteOutlined aria-hidden />}
                     className="row-action-trigger"
                     aria-label={t('delete')}
                     onClick={() => onRemove(record)}

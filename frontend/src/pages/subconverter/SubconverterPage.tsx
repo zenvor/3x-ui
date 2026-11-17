@@ -534,21 +534,21 @@ export default function SubconverterPage() {
                         <Statistic
                           title={t('pages.subconverter.totalCompletedSubscriptions')}
                           value={stats.completedSubscriptions}
-                          prefix={<ContainerOutlined />}
+                          prefix={<ContainerOutlined aria-hidden />}
                         />
                       </Col>
                       <Col xs={12} sm={12} md={8}>
                         <Statistic
                           title={t('pages.subconverter.enabledCount')}
                           value={stats.enabled}
-                          prefix={<CheckCircleOutlined />}
+                          prefix={<CheckCircleOutlined aria-hidden />}
                         />
                       </Col>
                       <Col xs={24} sm={24} md={8}>
                         <Statistic
                           title={t('pages.subconverter.linkedInbounds')}
                           value={stats.linkedInbounds}
-                          prefix={<ApiOutlined />}
+                          prefix={<ApiOutlined aria-hidden />}
                         />
                       </Col>
                     </Row>
@@ -559,28 +559,38 @@ export default function SubconverterPage() {
                     hoverable
                     title={
                       <div className="card-toolbar">
-                        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+                        <Button
+                          type="primary"
+                          icon={<PlusOutlined aria-hidden />}
+                          aria-label={isMobile ? t('pages.subconverter.create') : undefined}
+                          onClick={openCreate}
+                        >
                           {!isMobile && t('pages.subconverter.create')}
                         </Button>
                         {isMobile ? (
                           <Tooltip title={t('pages.subconverter.settings')}>
-                            <Button icon={<SettingOutlined />} onClick={openSettings} />
+                            <Button
+                              icon={<SettingOutlined aria-hidden />}
+                              aria-label={t('pages.subconverter.settings')}
+                              onClick={openSettings}
+                            />
                           </Tooltip>
                         ) : (
-                          <Button icon={<SettingOutlined />} onClick={openSettings}>
+                          <Button icon={<SettingOutlined aria-hidden />} onClick={openSettings}>
                             {t('pages.subconverter.settings')}
                           </Button>
                         )}
                         {isMobile ? (
                           <Tooltip title={t('pages.subconverter.accessLogs')}>
                             <Button
-                              icon={<FileTextOutlined />}
+                              icon={<FileTextOutlined aria-hidden />}
+                              aria-label={t('pages.subconverter.accessLogs')}
                               onClick={() => setAccessLogsOpen(true)}
                             />
                           </Tooltip>
                         ) : (
                           <Button
-                            icon={<FileTextOutlined />}
+                            icon={<FileTextOutlined aria-hidden />}
                             onClick={() => setAccessLogsOpen(true)}
                           >
                             {t('pages.subconverter.accessLogs')}

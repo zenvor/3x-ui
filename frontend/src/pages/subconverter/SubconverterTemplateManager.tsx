@@ -144,7 +144,7 @@ export default function SubconverterTemplateManager({
           <Space wrap>
             <Button
               size="small"
-              icon={<ReloadOutlined />}
+              icon={<ReloadOutlined aria-hidden />}
               disabled={busy}
               onClick={() => void run(() => onRefresh(template.id))}
             >

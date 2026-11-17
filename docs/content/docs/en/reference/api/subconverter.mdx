@@ -40,12 +40,13 @@ _openapi:
         stats, and inbound links.
       url: '#delete-one-subscription-conversion-entry-and-its-related-bindings-logs-stats-and-inbound-links'
     - depth: 2
-      title: Read global subconverter settings, including User-Agent filtering
-        keywords and reject status.
-      url: '#read-global-subconverter-settings-including-user-agent-filtering-keywords-and-reject-status'
+      title: Read global subconverter settings, including User-Agent policy and
+        activeTemplateId (also returned as templateVariant).
+      url: '#read-global-subconverter-settings-including-user-agent-policy-and-activetemplateid-also-returned-as-templatevariant'
     - depth: 2
-      title: Update global subconverter settings.
-      url: '#update-global-subconverter-settings'
+      title: Update User-Agent policy and the active template. Download and validate a
+        changed selection before saving; omitted IDs preserve the selection.
+      url: '#update-user-agent-policy-and-the-active-template-download-and-validate-a-changed-selection-before-saving-omitted-ids-preserve-the-selection'
     - depth: 2
       title: Return recent known-token public feed access logs across
         subscription-conversion entries.
@@ -69,13 +70,34 @@ _openapi:
         completed subscription stats, and access logs.
       url: '#generate-a-new-token-for-one-entry-and-clear-its-bound-ip-records-completed-subscription-stats-and-access-logs'
     - depth: 2
-      title: 'Read the cached Mihomo config status: source URL, whether a cache
-        exists, and when it was last written.'
-      url: '#read-the-cached-mihomo-config-status-source-url-whether-a-cache-exists-and-when-it-was-last-written'
+      title: Read the active template source, cache update time, last successful check
+        time and check result.
+      url: '#read-the-active-template-source-cache-update-time-last-successful-check-time-and-check-result'
     - depth: 2
-      title: Pull the remote Mihomo config into the disk cache immediately
-        (conditional request; a 304 still counts as success).
-      url: '#pull-the-remote-mihomo-config-into-the-disk-cache-immediately-conditional-request-a-304-still-counts-as-success'
+      title: Refresh the active template immediately. A 304 or unchanged 200 advances
+        checkedAt while preserving updatedAt and returning changed=false.
+      url: '#refresh-the-active-template-immediately-a-304-or-unchanged-200-advances-checkedat-while-preserving-updatedat-and-returning-changedfalse'
+    - depth: 2
+      title: List built-in and custom templates with independent cache and
+        successful-check records.
+      url: '#list-built-in-and-custom-templates-with-independent-cache-and-successful-check-records'
+    - depth: 2
+      title: Validate and save a custom HTTPS template without activating it. The
+        stable remote-UUID ID is generated server-side.
+      url: '#validate-and-save-a-custom-https-template-without-activating-it-the-stable-remote-uuid-id-is-generated-server-side'
+    - depth: 2
+      title: Rename or change a custom template source. Renaming preserves check
+        history; URL changes are validated before saving. Built-in templates are
+        read-only.
+      url: '#rename-or-change-a-custom-template-source-renaming-preserves-check-history-url-changes-are-validated-before-saving-built-in-templates-are-read-only'
+    - depth: 2
+      title: Delete an inactive custom template. Built-in and active templates cannot
+        be deleted; old caches are retained for in-flight readers.
+      url: '#delete-an-inactive-custom-template-built-in-and-active-templates-cannot-be-deleted-old-caches-are-retained-for-in-flight-readers'
+    - depth: 2
+      title: Refresh one catalog template without changing the active selection. Check
+        and cache times belong to this template only.
+      url: '#refresh-one-catalog-template-without-changing-the-active-selection-check-and-cache-times-belong-to-this-template-only'
   structuredData:
     headings:
       - content: Return the managed Mihomo YAML for a public token.
@@ -100,11 +122,12 @@ _openapi:
       - content: Delete one subscription-conversion entry and its related bindings,
           logs, stats, and inbound links.
         id: delete-one-subscription-conversion-entry-and-its-related-bindings-logs-stats-and-inbound-links
-      - content: Read global subconverter settings, including User-Agent filtering
-          keywords and reject status.
-        id: read-global-subconverter-settings-including-user-agent-filtering-keywords-and-reject-status
-      - content: Update global subconverter settings.
-        id: update-global-subconverter-settings
+      - content: Read global subconverter settings, including User-Agent policy and
+          activeTemplateId (also returned as templateVariant).
+        id: read-global-subconverter-settings-including-user-agent-policy-and-activetemplateid-also-returned-as-templatevariant
+      - content: Update User-Agent policy and the active template. Download and validate
+          a changed selection before saving; omitted IDs preserve the selection.
+        id: update-user-agent-policy-and-the-active-template-download-and-validate-a-changed-selection-before-saving-omitted-ids-preserve-the-selection
       - content: Return recent known-token public feed access logs across
           subscription-conversion entries.
         id: return-recent-known-token-public-feed-access-logs-across-subscription-conversion-entries
@@ -121,12 +144,29 @@ _openapi:
       - content: Generate a new token for one entry and clear its bound IP records,
           completed subscription stats, and access logs.
         id: generate-a-new-token-for-one-entry-and-clear-its-bound-ip-records-completed-subscription-stats-and-access-logs
-      - content: 'Read the cached Mihomo config status: source URL, whether a cache
-          exists, and when it was last written.'
-        id: read-the-cached-mihomo-config-status-source-url-whether-a-cache-exists-and-when-it-was-last-written
-      - content: Pull the remote Mihomo config into the disk cache immediately
-          (conditional request; a 304 still counts as success).
-        id: pull-the-remote-mihomo-config-into-the-disk-cache-immediately-conditional-request-a-304-still-counts-as-success
+      - content: Read the active template source, cache update time, last successful
+          check time and check result.
+        id: read-the-active-template-source-cache-update-time-last-successful-check-time-and-check-result
+      - content: Refresh the active template immediately. A 304 or unchanged 200
+          advances checkedAt while preserving updatedAt and returning
+          changed=false.
+        id: refresh-the-active-template-immediately-a-304-or-unchanged-200-advances-checkedat-while-preserving-updatedat-and-returning-changedfalse
+      - content: List built-in and custom templates with independent cache and
+          successful-check records.
+        id: list-built-in-and-custom-templates-with-independent-cache-and-successful-check-records
+      - content: Validate and save a custom HTTPS template without activating it. The
+          stable remote-UUID ID is generated server-side.
+        id: validate-and-save-a-custom-https-template-without-activating-it-the-stable-remote-uuid-id-is-generated-server-side
+      - content: Rename or change a custom template source. Renaming preserves check
+          history; URL changes are validated before saving. Built-in templates
+          are read-only.
+        id: rename-or-change-a-custom-template-source-renaming-preserves-check-history-url-changes-are-validated-before-saving-built-in-templates-are-read-only
+      - content: Delete an inactive custom template. Built-in and active templates
+          cannot be deleted; old caches are retained for in-flight readers.
+        id: delete-an-inactive-custom-template-built-in-and-active-templates-cannot-be-deleted-old-caches-are-retained-for-in-flight-readers
+      - content: Refresh one catalog template without changing the active selection.
+          Check and cache times belong to this template only.
+        id: refresh-one-catalog-template-without-changing-the-active-selection-check-and-cache-times-belong-to-this-template-only
     contents:
       - content: Unauthenticated public feed endpoint. When the immediate client IP is a
           configured trusted proxy, X-Real-IP, X-Forwarded-For,
@@ -137,18 +177,21 @@ _openapi:
           user-agent, and trusted-proxy header rules as /feed/:token, but does
           not bind a new IP slot.
         heading: return-the-proxy-provider-node-list-for-a-public-token
+      - content: activeTemplateId accepts general, aggressive or a remote-UUID catalog
+          ID. templateVariant remains a compatibility alias; if both are
+          supplied they must match. Failed preparation preserves the previous
+          settings.
+        heading: update-user-agent-policy-and-the-active-template-download-and-validate-a-changed-selection-before-saving-omitted-ids-preserve-the-selection
 ---
 
 {/* This file was generated by Fumadocs. Do not edit this file directly. Any changes should be made by running the generation command again. */}
 
 export default function Layout(props) {
-  const { APIPage, OpenAPIPage } = props.components ?? {};
-  // "APIPage" is the old name from v10, this allows both for backward compatibility
-  const Comp = OpenAPIPage ?? APIPage;
+  const { OpenAPIPage } = props.components ?? {};
   return (
     <>
       {props.children}
-      <Comp document="./public/openapi.json" webhooks={[]} operations={[{"path":"/feed/{token}","method":"get"},{"path":"/feed/{token}/nodes","method":"get"},{"path":"/panel/api/subconverter/inbounds","method":"get"},{"path":"/panel/api/subconverter/list","method":"get"},{"path":"/panel/api/subconverter/get/{id}","method":"get"},{"path":"/panel/api/subconverter/add","method":"post"},{"path":"/panel/api/subconverter/update/{id}","method":"post"},{"path":"/panel/api/subconverter/del/{id}","method":"post"},{"path":"/panel/api/subconverter/settings","method":"get"},{"path":"/panel/api/subconverter/settings","method":"post"},{"path":"/panel/api/subconverter/logs","method":"get"},{"path":"/panel/api/subconverter/logs/{id}","method":"get"},{"path":"/panel/api/subconverter/ips/{id}","method":"get"},{"path":"/panel/api/subconverter/ips/{subscriptionId}/del/{bindingId}","method":"post"},{"path":"/panel/api/subconverter/ips/clear/{id}","method":"post"},{"path":"/panel/api/subconverter/reset-token/{id}","method":"post"},{"path":"/panel/api/subconverter/template","method":"get"},{"path":"/panel/api/subconverter/template/refresh","method":"post"}]} showTitle />
+      <OpenAPIPage document="./public/openapi.json" webhooks={[]} operations={[{"path":"/feed/{token}","method":"get"},{"path":"/feed/{token}/nodes","method":"get"},{"path":"/panel/api/subconverter/inbounds","method":"get"},{"path":"/panel/api/subconverter/list","method":"get"},{"path":"/panel/api/subconverter/get/{id}","method":"get"},{"path":"/panel/api/subconverter/add","method":"post"},{"path":"/panel/api/subconverter/update/{id}","method":"post"},{"path":"/panel/api/subconverter/del/{id}","method":"post"},{"path":"/panel/api/subconverter/settings","method":"get"},{"path":"/panel/api/subconverter/settings","method":"post"},{"path":"/panel/api/subconverter/logs","method":"get"},{"path":"/panel/api/subconverter/logs/{id}","method":"get"},{"path":"/panel/api/subconverter/ips/{id}","method":"get"},{"path":"/panel/api/subconverter/ips/{subscriptionId}/del/{bindingId}","method":"post"},{"path":"/panel/api/subconverter/ips/clear/{id}","method":"post"},{"path":"/panel/api/subconverter/reset-token/{id}","method":"post"},{"path":"/panel/api/subconverter/template","method":"get"},{"path":"/panel/api/subconverter/template/refresh","method":"post"},{"path":"/panel/api/subconverter/templates","method":"get"},{"path":"/panel/api/subconverter/templates","method":"post"},{"path":"/panel/api/subconverter/templates/{templateId}","method":"post"},{"path":"/panel/api/subconverter/templates/{templateId}/delete","method":"post"},{"path":"/panel/api/subconverter/templates/{templateId}/refresh","method":"post"}]} showTitle />
     </>
   );
 }

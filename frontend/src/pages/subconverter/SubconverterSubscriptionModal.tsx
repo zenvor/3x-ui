@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useId, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, Col, Form, Input, InputNumber, Modal, Row, Select, Space, Switch, Tag } from 'antd';
 import type { FormInstance } from 'antd/es/form';
@@ -43,6 +43,7 @@ export default function SubconverterSubscriptionModal({
   onCancel,
 }: SubconverterSubscriptionModalProps) {
   const { t } = useTranslation();
+  const uid = useId();
   const watchedInboundIds = Form.useWatch('inboundIds', form);
   const watchedCdnTls = Form.useWatch('cdnTls', form);
   const watchedClientEmail = Form.useWatch('clientEmail', form);
@@ -202,11 +203,12 @@ export default function SubconverterSubscriptionModal({
             <Form.Item
               {...cdnFieldLayout}
               label={t('pages.subconverter.trafficStats')}
+              htmlFor={`${uid}-traffic-stats`}
               tooltip={t('pages.subconverter.trafficStatsHint')}
             >
               <Space wrap size={12}>
                 <Form.Item name="trafficStats" valuePropName="checked" noStyle>
-                  <Switch />
+                  <Switch id={`${uid}-traffic-stats`} />
                 </Form.Item>
                 {(requiresClientChoice || trafficLimitDisplay) && (
                   <div className="subconverter-traffic-summary">
@@ -218,6 +220,7 @@ export default function SubconverterSubscriptionModal({
                         {requiresClientChoice ? (
                           <Form.Item name="clientEmail" noStyle>
                             <Select
+                              aria-label={t('pages.subconverter.client')}
                               className="subconverter-traffic-client-select"
                               placeholder={t('pages.subconverter.clientPlaceholder')}
                               options={clientOptions}
@@ -270,7 +273,12 @@ export default function SubconverterSubscriptionModal({
             </Form.Item>
           </Col>
           <Col span={24}>
-            <Form.Item {...cdnFieldLayout} label={t('pages.subconverter.inbounds')} required>
+            <Form.Item
+              {...cdnFieldLayout}
+              label={t('pages.subconverter.inbounds')}
+              htmlFor={`${uid}-inbounds`}
+              required
+            >
               <SelectAllClearButtons
                 options={inboundOptions}
                 value={selectedInboundIds}
@@ -279,9 +287,15 @@ export default function SubconverterSubscriptionModal({
               <Form.Item
                 name="inboundIds"
                 noStyle
-                rules={[{ required: true, message: t('pages.subconverter.inboundsRequired') }]}
+                rules={[
+                  {
+                    required: true,
+                    message: t('pages.subconverter.inboundsRequired'),
+                  },
+                ]}
               >
                 <Select
+                  id={`${uid}-inbounds`}
                   mode="multiple"
                   placeholder={t('pages.subconverter.inboundsPlaceholder')}
                   options={inboundOptions}
