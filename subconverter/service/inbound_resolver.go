@@ -48,7 +48,7 @@ func (r *InboundResolver) Resolve(items []submodel.SubscriptionInbound) ([]Proxy
 			continue
 		}
 
-		clients, err := r.inboundSvc.GetClients(inbound)
+		clients, err := r.exportClients(inbound)
 		if err != nil || len(clients) == 0 {
 			continue
 		}
@@ -71,6 +71,16 @@ func (r *InboundResolver) Resolve(items []submodel.SubscriptionInbound) ([]Proxy
 	}
 
 	return sources, nil
+}
+
+// exportClients 优先读取规范化客户端表，与运行中的 Xray 身份一致（#6436）；
+// 表中没有记录时回退到入站 settings JSON，与上游 clientsForLinkExport 相同。
+func (r *InboundResolver) exportClients(inbound *xmodel.Inbound) ([]xmodel.Client, error) {
+	clients, err := r.inboundSvc.ListClientsForInbound(inbound.Id)
+	if err == nil && len(clients) > 0 {
+		return clients, nil
+	}
+	return r.inboundSvc.GetClients(inbound)
 }
 
 func isExportableClient(client xmodel.Client) bool {
