@@ -14,7 +14,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	paneldatabase "github.com/mhsanaei/3x-ui/v3/internal/database"
+	"github.com/mhsanaei/3x-ui/v3/internal/database/dbtest"
 	panelmodel "github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	panelcontroller "github.com/mhsanaei/3x-ui/v3/internal/web/controller"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/middleware"
 	panelservice "github.com/mhsanaei/3x-ui/v3/internal/web/service/panel"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/session"
@@ -27,10 +29,7 @@ func newCheckAPIAuthTestEngine(t *testing.T) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	dbDir := t.TempDir()
 	t.Setenv("XUI_DB_FOLDER", dbDir)
-	if err := paneldatabase.InitDB(filepath.Join(dbDir, "x-ui.db")); err != nil {
-		t.Fatalf("init panel database: %v", err)
-	}
-	t.Cleanup(func() { _ = paneldatabase.CloseDB() })
+	dbtest.InitDB(t, filepath.Join(dbDir, "x-ui.db"))
 
 	engine := gin.New()
 	engine.Use(sessions.Sessions("3x-ui", cookie.NewStore([]byte("subconverter-api-auth-test-secret"))))
@@ -51,7 +50,7 @@ func newAuthenticatedSubscriptionTestEngine(t *testing.T) *gin.Engine {
 	}
 	t.Cleanup(func() { _ = database.Reset() })
 	api := engine.Group("/panel/api/subconverter")
-	api.Use(CheckAPIAuth, middleware.CSRFMiddleware())
+	api.Use(CheckAPIAuth, middleware.CSRFMiddleware(panelcontroller.ClientIP))
 	NewSubscriptionController(api)
 	return engine
 }

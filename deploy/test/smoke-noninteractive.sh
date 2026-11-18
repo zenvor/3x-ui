@@ -33,6 +33,7 @@ if [[ -n "$legacy_bool_calls" ]]; then
     exit 1
 fi
 
+# shellcheck disable=SC2016 # matches the literal text, so $env_file must not expand
 if grep -qF 'source "$env_file"' "${REPO_ROOT}/install.sh"; then
     echo "ERROR: install.sh must not source the systemd EnvironmentFile; DSNs are not shell input." >&2
     exit 1

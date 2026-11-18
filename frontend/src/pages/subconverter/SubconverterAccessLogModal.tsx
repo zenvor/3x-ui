@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, Form, Input, Modal, Select, Space, Tag } from 'antd';
 import { DownloadOutlined, SyncOutlined } from '@ant-design/icons';
@@ -88,6 +88,7 @@ export default function SubconverterAccessLogModal({
   onClose,
 }: SubconverterAccessLogModalProps) {
   const { t } = useTranslation();
+  const uid = useId();
   const { datepicker } = useDatepicker();
   const { isMobile } = useMediaQuery();
   const [rows, setRows] = useState('100');
@@ -286,7 +287,13 @@ export default function SubconverterAccessLogModal({
     >
       <Form layout="inline" className="subconverter-access-log-toolbar">
         <Form.Item className="rows-item">
-          <Select value={rows} size="small" style={{ width: 70 }} onChange={setRows}>
+          <Select
+            aria-label={t('pages.index.logLines')}
+            value={rows}
+            size="small"
+            style={{ width: 70 }}
+            onChange={setRows}
+          >
             <Select.Option value="10">10</Select.Option>
             <Select.Option value="20">20</Select.Option>
             <Select.Option value="50">50</Select.Option>
@@ -294,8 +301,9 @@ export default function SubconverterAccessLogModal({
             <Select.Option value="500">500</Select.Option>
           </Select>
         </Form.Item>
-        <Form.Item label={t('filter')} className="filter-item">
+        <Form.Item htmlFor={`${uid}-filter`} label={t('filter')} className="filter-item">
           <Input
+            id={`${uid}-filter`}
             value={filter}
             size="small"
             onChange={(event) => setFilter(event.target.value)}
@@ -333,7 +341,7 @@ export default function SubconverterAccessLogModal({
             size="small"
             type="primary"
             onClick={download}
-            icon={<DownloadOutlined />}
+            icon={<DownloadOutlined aria-hidden />}
             aria-label={t('download')}
           />
         </Form.Item>

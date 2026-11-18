@@ -158,7 +158,7 @@ export default function SubconverterInfoModal({
                     <td>
                       <Button
                         size="small"
-                        icon={<EyeOutlined />}
+                        icon={<EyeOutlined aria-hidden />}
                         onClick={() => setBoundIpsModalOpen(true)}
                       >
                         {boundIps.length > 0 ? boundIps.length : ''}
@@ -260,7 +260,7 @@ export default function SubconverterInfoModal({
                   <Tooltip title={t('copy')}>
                     <Button
                       size="small"
-                      icon={<CopyOutlined />}
+                      icon={<CopyOutlined aria-hidden />}
                       aria-label={t('pages.subconverter.copyFeedUrl')}
                       onClick={() => onCopy(infoFeedUrl)}
                     />
@@ -280,7 +280,7 @@ export default function SubconverterInfoModal({
                     <Tooltip title={t('pages.clients.qrCode')}>
                       <Button
                         size="small"
-                        icon={<QrcodeOutlined />}
+                        icon={<QrcodeOutlined aria-hidden />}
                         aria-label={t('pages.clients.qrCode')}
                       />
                     </Tooltip>

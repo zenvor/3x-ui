@@ -207,7 +207,7 @@ export default function SubconverterSubscriptionList({
                   size="small"
                   type="text"
                   style={ACTION_ICON_STYLE}
-                  icon={<QrcodeOutlined />}
+                  icon={<QrcodeOutlined aria-hidden />}
                   aria-label={t('pages.clients.qrCode')}
                 />
               </Tooltip>
@@ -217,7 +217,7 @@ export default function SubconverterSubscriptionList({
                 size="small"
                 type="text"
                 style={ACTION_ICON_STYLE}
-                icon={<CopyOutlined />}
+                icon={<CopyOutlined aria-hidden />}
                 aria-label={t('pages.subconverter.copyFeedUrl')}
                 onClick={() => onCopy(buildFeedUrl(record.token))}
               />
@@ -227,7 +227,7 @@ export default function SubconverterSubscriptionList({
                 size="small"
                 type="text"
                 style={ACTION_ICON_STYLE}
-                icon={<InfoCircleOutlined />}
+                icon={<InfoCircleOutlined aria-hidden />}
                 aria-label={t('info')}
                 onClick={() => onInfo(record)}
               />
@@ -237,7 +237,7 @@ export default function SubconverterSubscriptionList({
                 size="small"
                 type="text"
                 style={ACTION_ICON_STYLE}
-                icon={<RetweetOutlined />}
+                icon={<RetweetOutlined aria-hidden />}
                 aria-label={t('pages.subconverter.resetToken')}
                 onClick={() => onResetToken(record)}
               />
@@ -247,7 +247,7 @@ export default function SubconverterSubscriptionList({
                 size="small"
                 type="text"
                 style={ACTION_ICON_STYLE}
-                icon={<EditOutlined />}
+                icon={<EditOutlined aria-hidden />}
                 aria-label={t('edit')}
                 onClick={() => onEdit(record)}
               />
@@ -258,7 +258,7 @@ export default function SubconverterSubscriptionList({
                 type="text"
                 danger
                 style={ACTION_ICON_STYLE}
-                icon={<DeleteOutlined />}
+                icon={<DeleteOutlined aria-hidden />}
                 aria-label={t('delete')}
                 onClick={() => onRemove(record)}
               />
@@ -273,6 +273,7 @@ export default function SubconverterSubscriptionList({
         align: 'center',
         render: (_, record) => (
           <Switch
+            aria-label={t('enable')}
             checked={record.enable}
             size="small"
             loading={togglingId === record.id}
@@ -353,9 +354,10 @@ export default function SubconverterSubscriptionList({
     <Space orientation="vertical" size={12} className="subconverter-stack">
       <div className="subconverter-toolbar">
         <Switch
+          aria-label={t('filter')}
           checked={filterMode}
-          checkedChildren={<SearchOutlined />}
-          unCheckedChildren={<FilterOutlined />}
+          checkedChildren={<SearchOutlined aria-hidden />}
+          unCheckedChildren={<FilterOutlined aria-hidden />}
           onChange={(checked) => {
             setFilterMode(checked);
             setSearchKey('');
@@ -378,7 +380,8 @@ export default function SubconverterSubscriptionList({
           <Input
             allowClear
             value={searchKey}
-            prefix={<SearchOutlined />}
+            aria-label={t('pages.subconverter.searchPlaceholder')}
+            prefix={<SearchOutlined aria-hidden />}
             placeholder={t('pages.subconverter.searchPlaceholder')}
             size={isMobile ? 'small' : 'middle'}
             className="subconverter-search"
@@ -388,15 +391,20 @@ export default function SubconverterSubscriptionList({
         <Select
           value={protocolFilter}
           onChange={handleProtocolChange}
+          aria-label={t('pages.inbounds.protocol')}
           allowClear
           placeholder={t('pages.inbounds.protocol')}
           size={isMobile ? 'small' : 'middle'}
           style={{ width: 150 }}
-          options={protocolOptions.map((protocol) => ({ value: protocol, label: protocol }))}
+          options={protocolOptions.map((protocol) => ({
+            value: protocol,
+            label: protocol,
+          }))}
         />
         <Select
           value={inboundFilter}
           onChange={(value) => setInboundFilter(value)}
+          aria-label={t('pages.subconverter.inbounds')}
           allowClear
           showSearch
           optionFilterProp="label"

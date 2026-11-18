@@ -14,6 +14,7 @@ package subconverter
 import (
 	"github.com/gin-gonic/gin"
 
+	panelcontroller "github.com/mhsanaei/3x-ui/v3/internal/web/controller"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/middleware"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/controller"
 	"github.com/mhsanaei/3x-ui/v3/subconverter/database"
@@ -41,7 +42,7 @@ func RegisterRoutes(engine *gin.Engine, panelGroup *gin.RouterGroup) error {
 
 	api := panelGroup.Group("/panel/api/subconverter")
 	api.Use(controller.CheckAPIAuth)
-	api.Use(middleware.CSRFMiddleware())
+	api.Use(middleware.CSRFMiddleware(panelcontroller.ClientIP))
 	controller.NewSubscriptionController(api)
 
 	// Public Mihomo endpoints. These intentionally sit on the root engine

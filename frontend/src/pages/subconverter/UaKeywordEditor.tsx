@@ -33,6 +33,7 @@ export default function UaKeywordEditor({ addLabel, value = [], onChange }: UaKe
     return (
       <Space.Compact key={index} block>
         <Input
+          aria-label={t('pages.subconverter.uaKeywords')}
           value={keyword}
           placeholder="clash"
           onChange={(event) => updateAt(index, event.target.value)}
@@ -41,7 +42,7 @@ export default function UaKeywordEditor({ addLabel, value = [], onChange }: UaKe
           disabled={!removable}
           aria-label={removable ? t('delete') : t('pages.subconverter.uaKeywordsRequired')}
           title={removable ? t('delete') : t('pages.subconverter.uaKeywordsRequired')}
-          icon={removable ? <DeleteOutlined /> : <StopOutlined />}
+          icon={removable ? <DeleteOutlined aria-hidden /> : <StopOutlined aria-hidden />}
           onClick={() => removeAt(index)}
         />
       </Space.Compact>
@@ -54,7 +55,7 @@ export default function UaKeywordEditor({ addLabel, value = [], onChange }: UaKe
       <Button
         type="dashed"
         block
-        icon={<PlusOutlined />}
+        icon={<PlusOutlined aria-hidden />}
         onClick={() => onChange?.([...value, ''])}
       >
         {addLabel}

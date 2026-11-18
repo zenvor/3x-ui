@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	panelcontroller "github.com/mhsanaei/3x-ui/v3/internal/web/controller"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/entity"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/locale"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
@@ -114,26 +115,13 @@ func CheckAPIAuth(c *gin.Context) {
 	c.Next()
 }
 
+// remoteIP reuses the panel's forwarded-header rules; "" means the peer address was
+// unparsable, which the feed rejects as an unknown client.
 func remoteIP(c *gin.Context) string {
-	remoteIP, ok := extractTrustedIP(c.Request.RemoteAddr)
-	if !ok {
-		return ""
+	if ip := panelcontroller.ClientIP(c); ip != "unknown" {
+		return ip
 	}
-
-	if isTrustedProxy(remoteIP) {
-		if ip, ok := extractTrustedIP(c.GetHeader("X-Real-IP")); ok {
-			return ip
-		}
-		if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
-			for part := range strings.SplitSeq(xff, ",") {
-				if ip, ok := extractTrustedIP(part); ok {
-					return ip
-				}
-			}
-		}
-	}
-
-	return remoteIP
+	return ""
 }
 
 func isTrustedForwardedRequest(c *gin.Context) bool {

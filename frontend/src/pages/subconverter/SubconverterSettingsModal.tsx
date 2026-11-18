@@ -220,7 +220,7 @@ export default function SubconverterSettingsModal({
             )}
             <Button
               size="small"
-              icon={<ReloadOutlined />}
+              icon={<ReloadOutlined aria-hidden />}
               loading={templateRefreshing}
               disabled={busy || variantChanged}
               onClick={onRefreshTemplate}

@@ -16,13 +16,14 @@ func TestDockerInitPlatformArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, tc := range []struct{ arch, variant, binary, mtg string }{
-		{"amd64", "", "amd64", "amd64"},
-		{"arm64", "v8", "arm64", "arm64"},
-		{"386", "", "386", "386"},
-		{"arm", "v7", "arm32", "armv7"},
-		{"arm", "v6", "arm32", "armv6"},
-		{"armv6", "", "arm32", "armv6"},
+	// The panel looks mtg up as mtg-linux-<GOARCH> (internal/mtproto/process.go), so arm is "arm".
+	for _, tc := range []struct{ arch, variant, binary, mtgBinary, mtg string }{
+		{"amd64", "", "amd64", "amd64", "amd64"},
+		{"arm64", "v8", "arm64", "arm64", "arm64"},
+		{"386", "", "386", "386", "386"},
+		{"arm", "v7", "arm32", "arm", "armv7"},
+		{"arm", "v6", "arm32", "arm", "armv6"},
+		{"armv6", "", "arm32", "arm", "armv6"},
 	} {
 		t.Run(tc.arch+tc.variant, func(t *testing.T) {
 			dir := t.TempDir()
@@ -60,7 +61,7 @@ printf mtg > "$dir/mtg-multi"
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("DockerInit: %v\n%s", err, out)
 			}
-			for _, name := range []string{"xray-linux-" + tc.binary, "mtg-linux-" + tc.binary, "LICENSE"} {
+			for _, name := range []string{"xray-linux-" + tc.binary, "mtg-linux-" + tc.mtgBinary, "LICENSE"} {
 				if _, err := os.Stat(filepath.Join(dir, "build/bin", name)); err != nil {
 					t.Errorf("missing runtime artifact %s: %v", name, err)
 				}
